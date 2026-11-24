@@ -6,7 +6,7 @@ import { api } from '../api.js';
 import { useAuth } from '../context/AuthContext.jsx';
 import { useBranding } from '../context/BrandingContext.jsx';
 import { descriviGiorni } from '../giorni.js';
-import { dataISO } from '../dateTimeUtils.js';
+import { dataISO, dataLocale } from '../dateTimeUtils.js';
 import RideCard from '../components/RideCard.jsx';
 import RelevanceSlider from '../components/RelevanceSlider.jsx';
 import QuickOfferModal from '../components/QuickOfferModal.jsx';
@@ -18,7 +18,7 @@ function formatGiorno(dataStr) {
   const domani = dataISO(1);
   if (dataStr === oggi) return 'Oggi';
   if (dataStr === domani) return 'Domani';
-  return new Date(dataStr).toLocaleDateString('it-IT', { weekday: 'short', day: 'numeric', month: 'short' });
+  return dataLocale(dataStr).toLocaleDateString('it-IT', { weekday: 'short', day: 'numeric', month: 'short' });
 }
 
 export default function Home() {

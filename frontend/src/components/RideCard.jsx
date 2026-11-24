@@ -2,7 +2,7 @@ import React, { useState, useId } from 'react';
 import { MapPin, Flag, Star, Users, Coffee, ChevronDown, Car, Check, Clock } from 'lucide-react';
 import { api } from '../api.js';
 import RouteMap from './RouteMap.jsx';
-import { dataISO } from '../dateTimeUtils.js';
+import { dataISO, dataLocale } from '../dateTimeUtils.js';
 import AddressAutocomplete from './AddressAutocomplete.jsx';
 
 function formatGiorno(dataStr) {
@@ -12,7 +12,7 @@ function formatGiorno(dataStr) {
   const domani = dataISO(1);
   if (dataStr === oggi) return 'Oggi';
   if (dataStr === domani) return 'Domani';
-  return new Date(dataStr).toLocaleDateString('it-IT', { weekday: 'short', day: 'numeric', month: 'short' });
+  return dataLocale(dataStr).toLocaleDateString('it-IT', { weekday: 'short', day: 'numeric', month: 'short' });
 }
 
 // soglia: distanza massima (in metri) tra il percorso del passaggio e casa dell'utente

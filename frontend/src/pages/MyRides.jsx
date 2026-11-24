@@ -4,7 +4,7 @@ import { useSearchParams } from 'react-router-dom';
 import { Car, Check, X, Trash2, Flag, Phone, UserCheck, Pencil, Clock, Timer, Repeat, PauseCircle, PlayCircle } from 'lucide-react';
 import { api } from '../api.js';
 import EditRideModal from '../components/EditRideModal.jsx';
-import { dataISO } from '../dateTimeUtils.js';
+import { dataISO, dataLocale } from '../dateTimeUtils.js';
 
 export default function MyRides() {
   const [searchParams] = useSearchParams();
@@ -120,7 +120,7 @@ function OfferedRides() {
                 <div className="flex items-center gap-2 flex-wrap">
                   <span className="font-display font-semibold">{r.ora}</span>
                   <span className="badge-primary">{r.tipo === 'andata' ? 'Andata' : 'Ritorno'}</span>
-                  <span className="text-xs text-muted">{new Date(r.data).toLocaleDateString('it-IT')}</span>
+                  <span className="text-xs text-muted">{dataLocale(r.data).toLocaleDateString('it-IT')}</span>
                   {r.stato === 'in_approvazione' && (
                     <span className="badge bg-accent-light text-accent-dark"><Clock size={11} /> In approvazione</span>
                   )}
@@ -237,7 +237,7 @@ function BookedRides() {
         <div key={b.id} className="card flex items-start justify-between gap-3">
           <div>
             <div className="flex items-center gap-2">
-              <span className="font-display font-semibold">{new Date(b.data).toLocaleDateString('it-IT', { weekday: 'short', day: 'numeric', month: 'short' })} · {b.ora}</span>
+              <span className="font-display font-semibold">{dataLocale(b.data).toLocaleDateString('it-IT', { weekday: 'short', day: 'numeric', month: 'short' })} · {b.ora}</span>
               <span className="badge-primary">{b.tipo === 'andata' ? 'Andata' : 'Ritorno'}</span>
               <StatusBadge stato={b.stato} checkIn={b.check_in} />
             </div>
@@ -256,7 +256,7 @@ function BookedRides() {
               </button>
             )}
             {['richiesto', 'confermato', 'lista_attesa'].includes(b.stato) && (
-              <button type="button" className="p-2 text-muted hover:text-danger" aria-label={`Annulla la prenotazione del ${new Date(b.data).toLocaleDateString('it-IT')} alle ${b.ora}`} title="Annulla prenotazione" onClick={() => annulla(b.id)}><Trash2 size={16} aria-hidden="true" /></button>
+              <button type="button" className="p-2 text-muted hover:text-danger" aria-label={`Annulla la prenotazione del ${dataLocale(b.data).toLocaleDateString('it-IT')} alle ${b.ora}`} title="Annulla prenotazione" onClick={() => annulla(b.id)}><Trash2 size={16} aria-hidden="true" /></button>
             )}
           </div>
         </div>
@@ -304,7 +304,7 @@ function Storico() {
               <div key={r.id} className="card flex items-center justify-between gap-3">
                 <div>
                   <div className="flex items-center gap-2">
-                    <span className="text-sm font-medium">{new Date(r.data).toLocaleDateString('it-IT')} · {r.ora}</span>
+                    <span className="text-sm font-medium">{dataLocale(r.data).toLocaleDateString('it-IT')} · {r.ora}</span>
                     <span className="badge-primary">{r.tipo === 'andata' ? 'Andata' : 'Ritorno'}</span>
                   </div>
                   <p className="text-xs text-muted mt-1">{r.punto_partenza} → {r.punto_arrivo}</p>
@@ -323,7 +323,7 @@ function Storico() {
               <div key={b.id} className="card flex items-center justify-between gap-3">
                 <div>
                   <div className="flex items-center gap-2">
-                    <span className="text-sm font-medium">{new Date(b.data).toLocaleDateString('it-IT')} · {b.ora}</span>
+                    <span className="text-sm font-medium">{dataLocale(b.data).toLocaleDateString('it-IT')} · {b.ora}</span>
                     <span className="badge-primary">{b.tipo === 'andata' ? 'Andata' : 'Ritorno'}</span>
                   </div>
                   <p className="text-xs text-muted mt-1">{b.punto_partenza} → {b.punto_arrivo} · {b.driver_nome} {b.driver_cognome}</p>
@@ -422,7 +422,7 @@ function RecurringRides() {
               <p className="text-sm text-muted mt-1">{t.punto_partenza} → {t.punto_arrivo}</p>
               <p className="text-xs text-muted mt-1">
                 {t.giorni_settimana.split(',').map((g) => GIORNI_LABEL[g]).join(', ')}
-                {t.data_fine ? ` · fino al ${new Date(t.data_fine).toLocaleDateString('it-IT')}` : ' · a tempo indeterminato'}
+                {t.data_fine ? ` · fino al ${dataLocale(t.data_fine).toLocaleDateString('it-IT')}` : ' · a tempo indeterminato'}
               </p>
             </div>
             <div className="flex gap-1 shrink-0">
@@ -500,7 +500,7 @@ function TurnoEccezioni({ turno }) {
         <div className="mt-2 space-y-1.5">
           {eccezioni.map((d) => (
             <div key={d} className="flex items-center justify-between gap-2 text-xs text-muted">
-              <span>{new Date(d).toLocaleDateString('it-IT', { weekday: 'short', day: 'numeric', month: 'short' })} — saltata</span>
+              <span>{dataLocale(d).toLocaleDateString('it-IT', { weekday: 'short', day: 'numeric', month: 'short' })} — saltata</span>
               <button type="button" className="text-primary shrink-0" onClick={() => ripristina(d)}>Ripristina</button>
             </div>
           ))}

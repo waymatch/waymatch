@@ -359,6 +359,10 @@ function RecurringRideForm() {
   const [saving, setSaving] = useState(false);
   const [success, setSuccess] = useState('');
   const creati = useRef({ andata: 0, ritorno: 0 }); // turni già creati con successo: un nuovo tentativo non li duplica
+  const [creatiUI, setCreatiUI] = useState({ andata: false, ritorno: false });
+  // Dopo un successo parziale i dati condivisi (giorni, date, posti, note) e la direzione già
+  // creata non si possono più cambiare: le due direzioni resterebbero diverse tra loro.
+  const parziale = creatiUI.andata || creatiUI.ritorno;
   const timer = useRef(null);
   useEffect(() => () => clearTimeout(timer.current), []); // niente navigazione dopo lo smontaggio
 
@@ -400,6 +404,7 @@ function RecurringRideForm() {
           data_inizio: dataInizio, data_fine: dataFine || null,
         });
         creati.current.andata = 1;
+        setCreatiUI((c) => ({ ...c, andata: true }));
         generatiTotali += r.generati || 0;
       }
       if (conRitorno && !creati.current.ritorno) {
@@ -416,6 +421,7 @@ function RecurringRideForm() {
           data_inizio: dataInizio, data_fine: dataFine || null,
         });
         creati.current.ritorno = 1;
+        setCreatiUI((c) => ({ ...c, ritorno: true }));
         generatiTotali += r.generati || 0;
       }
       setSuccess(`Turno fisso creato! ${generatiTotali} passaggi generati per i prossimi giorni.`);
@@ -434,6 +440,7 @@ function RecurringRideForm() {
 
   return (
     <form onSubmit={submit} className="space-y-5">
+      <fieldset disabled={parziale} className="contents border-0 p-0 m-0 min-w-0">
       <div className="card">
         <label className="label">Tipo di turno</label>
         <div className="grid grid-cols-3 gap-2">
@@ -478,25 +485,39 @@ function RecurringRideForm() {
         </div>
       </div>
 
-      {(tipo === 'andata' || tipo === 'entrambi') && (
-        <TripSection
-          title="Viaggio di andata" icon={Sunrise}
-          ora={oraAndata} setOra={setOraAndata} oraMinima={oraMinima}
-          homeLabel="Indirizzo di partenza (casa, punto di ritrovo...)" sedeLabel="Destinazione (sede aziendale)"
-          tratta={andata} sedi={sedi} erroreSedi={erroreSedi} ricaricaSedi={ricaricaSedi}
-          soste={sosteAndata} setSoste={setSosteAndata}
-        />
-      )}
-      {(tipo === 'ritorno' || tipo === 'entrambi') && (
-        <TripSection
-          title="Viaggio di ritorno" icon={Sunset}
-          ora={oraRitorno} setOra={setOraRitorno} oraMinima={oraMinima}
-          homeLabel="Destinazione finale (casa, punto di arrivo...)" sedeLabel="Partenza (sede aziendale)"
-          tratta={ritorno} sedi={sedi} erroreSedi={erroreSedi} ricaricaSedi={ricaricaSedi}
-          soste={sosteRitorno} setSoste={setSosteRitorno}
-        />
+      </fieldset>
+
+      {parziale && (
+        <div className="rounded-xl bg-accent-light text-accent-dark text-sm px-3.5 py-2.5" role="status">
+          {creatiUI.andata && !creatiUI.ritorno ? 'Il turno di andata è già stato creato.' : 'Il turno di ritorno è già stato creato.'}{' '}
+          Correggi l'altra direzione e riprova: giorni, date, posti e note non si possono più cambiare.
+        </div>
       )}
 
+      {(tipo === 'andata' || tipo === 'entrambi') && (
+        <fieldset disabled={creatiUI.andata} className="contents border-0 p-0 m-0 min-w-0">
+          <TripSection
+            title="Viaggio di andata" icon={Sunrise}
+            ora={oraAndata} setOra={setOraAndata} oraMinima={oraMinima}
+            homeLabel="Indirizzo di partenza (casa, punto di ritrovo...)" sedeLabel="Destinazione (sede aziendale)"
+            tratta={andata} sedi={sedi} erroreSedi={erroreSedi} ricaricaSedi={ricaricaSedi}
+            soste={sosteAndata} setSoste={setSosteAndata}
+          />
+        </fieldset>
+      )}
+      {(tipo === 'ritorno' || tipo === 'entrambi') && (
+        <fieldset disabled={creatiUI.ritorno} className="contents border-0 p-0 m-0 min-w-0">
+          <TripSection
+            title="Viaggio di ritorno" icon={Sunset}
+            ora={oraRitorno} setOra={setOraRitorno} oraMinima={oraMinima}
+            homeLabel="Destinazione finale (casa, punto di arrivo...)" sedeLabel="Partenza (sede aziendale)"
+            tratta={ritorno} sedi={sedi} erroreSedi={erroreSedi} ricaricaSedi={ricaricaSedi}
+            soste={sosteRitorno} setSoste={setSosteRitorno}
+          />
+        </fieldset>
+      )}
+
+      <fieldset disabled={parziale} className="contents border-0 p-0 m-0 min-w-0">
       <div className="card space-y-4">
         <div>
           <label htmlFor="offerride-7" className="label">Posti disponibili</label>
@@ -507,6 +528,7 @@ function RecurringRideForm() {
           <textarea id="offerride-8" className="input" rows="2" value={note} onChange={(e) => setNote(e.target.value)} />
         </div>
       </div>
+      </fieldset>
 
       {error && <ErrorBanner message={error} />}
       {success && <div className="rounded-xl bg-primary-light text-primary-dark text-sm px-3.5 py-2.5">{success}</div>}
