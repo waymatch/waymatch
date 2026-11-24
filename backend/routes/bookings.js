@@ -222,7 +222,9 @@ router.get('/mie', requireAuth, (req, res) => {
 
   const bookings = db.prepare(`
     SELECT b.*, r.data, r.ora, r.tipo, r.punto_partenza, r.punto_arrivo, r.stato as ride_stato,
-           u.nome as driver_nome, u.cognome as driver_cognome, u.telefono as driver_telefono,
+           u.nome as driver_nome, u.cognome as driver_cognome,
+           -- Il telefono dell'autista solo a chi è stato confermato (stessa regola del dettaglio).
+           CASE WHEN b.stato IN ('confermato','completato','no_show') THEN u.telefono END as driver_telefono,
            u.auto_marca, u.auto_modello, u.auto_colore
     FROM bookings b
     JOIN rides r ON r.id = b.ride_id

@@ -83,7 +83,8 @@ async function fetchAutenticato(path, opzioni = {}) {
     return res;
   }
   res = await esegui(nuovo);
-  if (res.status === 401) sessioneTerminata();
+  // Anche qui: se nel frattempo è cambiata la sessione, non si chiude quella nuova.
+  if (res.status === 401 && gen === getGenerazione()) sessioneTerminata();
   return res;
 }
 
