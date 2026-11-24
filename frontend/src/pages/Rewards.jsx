@@ -41,14 +41,17 @@ export default function Rewards() {
   const [riscattando, setRiscattando] = useState(false);
   const inRiscatto = useRef(false);        // blocca un secondo invio dello stesso gesto, prima del rendering
   const richiestaClassifica = useRef(0);   // identifica l'ultima classifica richiesta
+  const richiestaCaricamento = useRef(0);  // identifica l'ultimo caricamento: le risposte superate si ignorano
 
   const load = useCallback(() => {
     setErroreCarica('');
-    const errore = (e) => setErroreCarica(e.message || 'Impossibile caricare i premi.');
-    api.get('/rewards').then((d) => { setRewards(d.rewards); setPunti(d.punti_disponibili); }).catch(errore);
-    api.get('/auth/me').then((d) => setPuntiGuadagnati(d.punti_guadagnati)).catch(errore);
-    api.get('/contests').then((d) => setContests(d.contests)).catch(errore);
-    api.get('/rewards/redemptions/mie').then((d) => setStorico(d.redemptions)).catch(errore);
+    const mia = ++richiestaCaricamento.current;
+    const ancora = () => mia === richiestaCaricamento.current;
+    const errore = (e) => { if (ancora()) setErroreCarica(e.message || 'Impossibile caricare i premi.'); };
+    api.get('/rewards').then((d) => { if (ancora()) { setRewards(d.rewards); setPunti(d.punti_disponibili); } }).catch(errore);
+    api.get('/auth/me').then((d) => { if (ancora()) setPuntiGuadagnati(d.punti_guadagnati); }).catch(errore);
+    api.get('/contests').then((d) => { if (ancora()) setContests(d.contests); }).catch(errore);
+    api.get('/rewards/redemptions/mie').then((d) => { if (ancora()) setStorico(d.redemptions); }).catch(errore);
   }, []);
   useEffect(() => { load(); }, [load]);
 
