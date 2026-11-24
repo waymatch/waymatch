@@ -336,6 +336,10 @@ router.put('/:id', requireAuth, asyncHandler(async (req, res) => {
     km_stimati, geometria, posti_totali, note, soste, citta_domicilio,
   } = req.body;
 
+  // I km, se presenti, sono un numero non negativo: una stringa vuota o un testo non si salva.
+  if (km_stimati != null && !(Number.isFinite(Number(km_stimati)) && Number(km_stimati) >= 0 && km_stimati !== '')) {
+    return res.status(400).json({ error: 'Km non validi' });
+  }
   const nuovaData = data || ride.data;
   const nuovaOra = ora || ride.ora;
   if (!ORA_VALIDA.test(nuovaOra)) return res.status(400).json({ error: 'Orario non valido (formato HH:MM)' });
@@ -390,7 +394,7 @@ router.put('/:id', requireAuth, asyncHandler(async (req, res) => {
       sede_id || ride.sede_id,
       partenza_lat ?? ride.partenza_lat, partenza_lon ?? ride.partenza_lon,
       arrivo_lat ?? ride.arrivo_lat, arrivo_lon ?? ride.arrivo_lon,
-      km_stimati ?? ride.km_stimati, percorso.valore ?? ride.geometria,
+      km_stimati != null ? Number(km_stimati) : ride.km_stimati, percorso.valore ?? ride.geometria,
       nuoviPosti, nuoviPosti, note ?? ride.note, citta_domicilio ?? ride.citta_domicilio, kmVerificati,
       ride.id
     );
