@@ -336,9 +336,12 @@ router.put('/:id', requireAuth, asyncHandler(async (req, res) => {
     km_stimati, geometria, posti_totali, note, soste, citta_domicilio,
   } = req.body;
 
-  // I km, se presenti, sono un numero non negativo: una stringa vuota o un testo non si salva.
-  if (km_stimati != null && !(Number.isFinite(Number(km_stimati)) && Number(km_stimati) >= 0 && km_stimati !== '')) {
-    return res.status(400).json({ error: 'Km non validi' });
+  // Se il campo c'è, i km sono un numero non negativo (anche come testo numerico): null, stringa
+  // vuota, testo, booleani o liste si rifiutano. Se manca, si conserva il valore salvato.
+  if (req.body.km_stimati !== undefined) {
+    const v = req.body.km_stimati;
+    const numero = typeof v === 'number' ? v : (typeof v === 'string' && v.trim() !== '' ? Number(v) : NaN);
+    if (!Number.isFinite(numero) || numero < 0) return res.status(400).json({ error: 'Km non validi' });
   }
   const nuovaData = data || ride.data;
   const nuovaOra = ora || ride.ora;
@@ -374,15 +377,20 @@ router.put('/:id', requireAuth, asyncHandler(async (req, res) => {
 
   let promossi = [];
   let esito = null;
+  let postiPrima = ride.posti_totali;
   const tx = db.transaction(() => {
     // Il calcolo dei km è asincrono: nel frattempo il passaggio può essere stato completato o
     // annullato, o aver ricevuto altre richieste. Stato e capienza si ricontrollano qui.
-    const attuale = db.prepare('SELECT stato FROM rides WHERE id = ?').get(ride.id);
-    if (!attuale || attuale.stato !== 'attivo') { esito = 'non_attivo'; return; }
+    // Si rilegge la riga dentro la transazione: i valori che la richiesta non modifica sono quelli
+    // di adesso, non quelli letti prima dell'attesa dei km (un'altra modifica nel frattempo resta).
+    const cur = db.prepare('SELECT * FROM rides WHERE id = ?').get(ride.id);
+    if (!cur || cur.stato !== 'attivo') { esito = 'non_attivo'; return; }
+    postiPrima = cur.posti_totali;
+    const postiFinali = posti_totali != null && posti_totali !== '' ? Number(posti_totali) : cur.posti_totali;
     const impegnatiOra = db.prepare(`
       SELECT COUNT(*) as n FROM bookings WHERE ride_id = ? AND stato IN ('richiesto','confermato')
     `).get(ride.id).n;
-    if (nuoviPosti < impegnatiOra) { esito = { impegnati: impegnatiOra }; return; }
+    if (postiFinali < impegnatiOra) { esito = { impegnati: impegnatiOra }; return; }
     db.prepare(`
       UPDATE rides SET data = ?, ora = ?, punto_partenza = ?, punto_arrivo = ?, sede_id = ?,
         partenza_lat = ?, partenza_lon = ?, arrivo_lat = ?, arrivo_lon = ?,
@@ -390,12 +398,12 @@ router.put('/:id', requireAuth, asyncHandler(async (req, res) => {
         posti_disponibili = posti_disponibili + (? - posti_totali), note = ?, citta_domicilio = ?, km_verificati = ?
       WHERE id = ?
     `).run(
-      nuovaData, nuovaOra, punto_partenza || ride.punto_partenza, punto_arrivo || ride.punto_arrivo,
-      sede_id || ride.sede_id,
-      partenza_lat ?? ride.partenza_lat, partenza_lon ?? ride.partenza_lon,
-      arrivo_lat ?? ride.arrivo_lat, arrivo_lon ?? ride.arrivo_lon,
-      km_stimati != null ? Number(km_stimati) : ride.km_stimati, percorso.valore ?? ride.geometria,
-      nuoviPosti, nuoviPosti, note ?? ride.note, citta_domicilio ?? ride.citta_domicilio, kmVerificati,
+      data || cur.data, ora || cur.ora, punto_partenza || cur.punto_partenza, punto_arrivo || cur.punto_arrivo,
+      sede_id || cur.sede_id,
+      partenza_lat ?? cur.partenza_lat, partenza_lon ?? cur.partenza_lon,
+      arrivo_lat ?? cur.arrivo_lat, arrivo_lon ?? cur.arrivo_lon,
+      req.body.km_stimati !== undefined ? Number(req.body.km_stimati) : cur.km_stimati, percorso.valore ?? cur.geometria,
+      postiFinali, postiFinali, note ?? cur.note, citta_domicilio ?? cur.citta_domicilio, cambiato ? kmVerificati : cur.km_verificati,
       ride.id
     );
     if (Array.isArray(soste)) {
@@ -407,7 +415,7 @@ router.put('/:id', requireAuth, asyncHandler(async (req, res) => {
     }
     registraAzione(req.user.id, 'passaggio_modificato', `Passaggio #${ride.id}, ${nuovaData} ${nuovaOra}`, 'utente');
     // Più posti di prima: chi era in lista d'attesa viene promosso subito.
-    if (nuoviPosti > ride.posti_totali) promossi = promuoviListaAttesa(ride.id);
+    if (postiFinali > postiPrima) promossi = promuoviListaAttesa(ride.id);
   });
   tx();
   if (esito === 'non_attivo') return res.status(400).json({ error: 'Questo passaggio non può più essere modificato' });
