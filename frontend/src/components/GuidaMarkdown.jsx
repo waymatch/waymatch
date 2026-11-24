@@ -35,14 +35,18 @@ function inline(testo, immagini, k) {
   return out;
 }
 
+// Apertura di un blocco di codice (CommonMark): fino a 3 spazi, almeno 3 backtick e, dopo, nessun
+// altro backtick (altrimenti è codice inline, come "```foo `bar` baz```").
+const APERTURA_CODICE = /^ {0,3}`{3,}[^`]*$/;
+
 const cellule = (riga) => riga.trim().replace(/^\||\|$/g, '').split('|').map((c) => c.trim());
 
 export function titoli(markdown) {
-  return markdown.split('\n').filter((r) => /^## /.test(r)).map((r) => ({ testo: r.slice(3).trim(), id: slug(r.slice(3)) }));
+  return markdown.split(/\r?\n/).filter((r) => /^## /.test(r)).map((r) => ({ testo: r.slice(3).trim(), id: slug(r.slice(3)) }));
 }
 
 export default function GuidaMarkdown({ testo, immagini = {} }) {
-  const righe = testo.split('\n');
+  const righe = testo.split(/\r?\n/); // anche file con terminazioni CRLF
   const blocchi = [];
   let i = 0;
   let n = 0;
@@ -50,7 +54,7 @@ export default function GuidaMarkdown({ testo, immagini = {} }) {
     const r = righe[i];
     const key = `b${n++}`;
     if (!r.trim()) { i++; continue; }
-    if (/^ {0,3}`{3,}/.test(r)) {
+    if (APERTURA_CODICE.test(r)) {
       // Come in CommonMark: il blocco si chiude con almeno tanti backtick quanti l'apertura,
       // seguiti solo da spazi (una riga "```esempio" dentro il codice non lo chiude).
       const apertura = r.trim().match(/^`+/)[0].length;
@@ -100,7 +104,7 @@ export default function GuidaMarkdown({ testo, immagini = {} }) {
       // La prima riga si consuma sempre (anche "| nota" che non forma una tabella): senza, il
       // ciclo esterno non avanzerebbe e la pagina si bloccherebbe.
       p.push(righe[i++].trim());
-      while (i < righe.length && righe[i].trim() && !/^(#{1,3} | {0,3}`{3,}|\||>|(\s*)([-*]|\d+\.) )/.test(righe[i])) p.push(righe[i++].trim());
+      while (i < righe.length && righe[i].trim() && !/^(#{1,3} |\||>|(\s*)([-*]|\d+\.) )/.test(righe[i]) && !APERTURA_CODICE.test(righe[i])) p.push(righe[i++].trim());
       blocchi.push(<p key={key} className="my-2 leading-relaxed">{inline(p.join(' '), immagini, key)}</p>);
     }
   }
