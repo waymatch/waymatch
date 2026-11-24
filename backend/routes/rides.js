@@ -1,13 +1,13 @@
 const express = require('express');
 const db = require('../db');
 const { requireAuth, requireRole } = require('../middleware/auth');
-const { assegnaPunti, getRule, calcolaBonusKm } = require('../utils/points');
+const { assegnaPunti, getRule, calcolaBonusKm, kmDalServer, kmAffidabili } = require('../utils/points');
 const { dataLavorativa, messaggioGiornoNonLavorativo } = require('../utils/calendario');
 const { notifica, notificaMassiva } = require('../utils/notify');
 const { registraAzione } = require('../utils/audit');
 const { notificaMatchProattivo, notificaPreferiti } = require('../utils/matching');
 const { promuoviListaAttesa, notificaPromossi } = require('../utils/waitlist');
-const { distanzaPuntoDaPercorso, geometriaValida, distanzaKm, sosteValide } = require('../utils/geoDistance');
+const { distanzaPuntoDaPercorso, geometriaValida, sosteValide } = require('../utils/geoDistance');
 const { asyncHandler } = require('../utils/asyncHandler');
 
 const router = express.Router();
@@ -26,16 +26,6 @@ const TIPI_OFFERTA = ['andata', 'ritorno', 'entrambi'];
 function percorsoDaSalvare(geometria) {
   if (geometria == null) return { ok: true, valore: null };
   return geometriaValida(geometria) ? { ok: true, valore: JSON.stringify(geometria) } : { ok: false };
-}
-
-// Chilometri usati per i punti: quelli dichiarati, ma mai più del doppio della distanza in
-// linea d'aria tra partenza e arrivo (più un margine), quando le coordinate sono note. Il
-// valore inserito a mano non può così gonfiare il bonus oltre un percorso plausibile.
-function kmPerPunti(ride) {
-  const km = Number(ride.km_stimati) || 0;
-  const coordinate = [ride.partenza_lat, ride.partenza_lon, ride.arrivo_lat, ride.arrivo_lon];
-  if (coordinate.some((c) => c == null || !Number.isFinite(c))) return km;
-  return Math.min(km, 2 * distanzaKm(...coordinate) + 2);
 }
 
 function isPastDateTime(dataStr, oraStr) {
@@ -85,7 +75,7 @@ const eseguiCompletamento = db.transaction((ride) => {
   // più senso: il viaggio è già avvenuto, non c'è più nessun posto da promuovere.
   db.prepare(`UPDATE bookings SET stato = 'annullato' WHERE ride_id = ? AND stato IN ('richiesto','lista_attesa')`).run(ride.id);
   if (aBordo.length > 0) {
-    const bonusKm = calcolaBonusKm(kmPerPunti(ride), aBordo.length);
+    const bonusKm = calcolaBonusKm(kmAffidabili(ride), aBordo.length);
     assegnaPunti(ride.driver_id, 'viaggio_completato_autista', getRule('viaggio_completato_autista') + bonusKm, ride.id);
   }
   if (aBordo.length > 0 && aBordo.length >= ride.posti_totali) {
@@ -98,7 +88,7 @@ const eseguiCompletamento = db.transaction((ride) => {
 });
 
 // Crea un'offerta di passaggio (andata e/o ritorno -> se "entrambi", crea due rides)
-router.post('/', requireAuth, (req, res) => {
+router.post('/', requireAuth, asyncHandler(async (req, res) => {
   const me = db.prepare('SELECT * FROM users WHERE id = ?').get(req.user.id);
   const {
     tipo, data, ora_andata, ora_ritorno,
@@ -145,19 +135,28 @@ router.post('/', requireAuth, (req, res) => {
   const posti = posti_totali != null && posti_totali !== '' ? Number(posti_totali) : Math.max(1, Math.min(8, Math.trunc(me.auto_posti) || 3));
   const created = [];
 
-  const insertOne = (t, ora, partenza, arrivo, soste, pLat, pLon, aLat, aLon, km, geometriaJson, citta) => {
+  const sedeInfo = (id) => db.prepare('SELECT * FROM sedi WHERE id = ?').get(id || me.sede_id);
+  const sedeAndata = conAndata ? sedeInfo(sede_id_andata) : null;
+  const sedeRitorno = conRitorno ? sedeInfo(sede_id_ritorno) : null;
+  // Km calcolati dal server per ogni tratta, prima di scrivere (servono a punti e risparmi).
+  const [kmVerAndata, kmVerRitorno] = await Promise.all([
+    conAndata ? kmDalServer(partenza_lat, partenza_lon, sedeAndata?.lat, sedeAndata?.lon, soste_andata) : null,
+    conRitorno ? kmDalServer(sedeRitorno?.lat, sedeRitorno?.lon, partenza_ritorno_lat, partenza_ritorno_lon, soste_ritorno) : null,
+  ]);
+
+  const insertOne = (t, ora, partenza, arrivo, soste, pLat, pLon, aLat, aLon, km, geometriaJson, citta, kmVerificati) => {
     const sedeRide = t === 'andata' ? (sede_id_andata || me.sede_id) : (sede_id_ritorno || me.sede_id);
     const info = db.prepare(`
       INSERT INTO rides (driver_id, sede_id, tipo, data, ora, punto_partenza, punto_arrivo,
         partenza_lat, partenza_lon, arrivo_lat, arrivo_lon, km_stimati, km_calcolati_auto, geometria,
-        posti_totali, posti_disponibili, note, citta_domicilio)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        posti_totali, posti_disponibili, note, citta_domicilio, km_verificati)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
       me.id, sedeRide, t, data, ora, partenza, arrivo,
       pLat ?? null, pLon ?? null, aLat ?? null, aLon ?? null,
       Number(km) || 0, km_calcolati_auto ? 1 : 0,
       geometriaJson,
-      posti, posti, note || null, citta || null
+      posti, posti, note || null, citta || null, kmVerificati
     );
     const rideId = info.lastInsertRowid;
     if (Array.isArray(soste)) {
@@ -171,19 +170,17 @@ router.post('/', requireAuth, (req, res) => {
     created.push(rideId);
   };
 
-  const sedeInfo = (id) => db.prepare('SELECT * FROM sedi WHERE id = ?').get(id || me.sede_id);
-
   // Andata e ritorno, soste e punti in un'unica transazione; gli avvisi partono dopo.
   db.transaction(() => {
     if (conAndata) {
-      const sede = sedeInfo(sede_id_andata);
+      const sede = sedeAndata;
       insertOne('andata', ora_andata, punto_partenza, sede?.nome || punto_arrivo || 'Sede aziendale', soste_andata,
-        partenza_lat, partenza_lon, sede?.lat, sede?.lon, km_stimati_andata, percorsoAndata.valore, citta_andata);
+        partenza_lat, partenza_lon, sede?.lat, sede?.lon, km_stimati_andata, percorsoAndata.valore, citta_andata, kmVerAndata);
     }
     if (conRitorno) {
-      const sede = sedeInfo(sede_id_ritorno);
+      const sede = sedeRitorno;
       insertOne('ritorno', ora_ritorno, sede?.nome || punto_partenza_ritorno || 'Sede aziendale', punto_arrivo_ritorno, soste_ritorno,
-        sede?.lat, sede?.lon, partenza_ritorno_lat, partenza_ritorno_lon, km_stimati_ritorno, percorsoRitorno.valore, citta_ritorno);
+        sede?.lat, sede?.lon, partenza_ritorno_lat, partenza_ritorno_lon, km_stimati_ritorno, percorsoRitorno.valore, citta_ritorno, kmVerRitorno);
     }
   })();
 
@@ -193,7 +190,7 @@ router.post('/', requireAuth, (req, res) => {
     notificaPreferiti(rideAppenaCreato).catch((e) => console.error('Errore notifica preferiti:', e.message));
   }
   res.json({ ride_ids: created });
-});
+}));
 
 // Ricerca passaggi.
 // Filtri: sede_id, data, tipo, mine=1 (i miei offerti), home=1 (feed home: prossimi N giorni), storico=1 (con mine=1: passaggi passati/completati/annullati).
@@ -361,13 +358,32 @@ router.put('/:id', requireAuth, asyncHandler(async (req, res) => {
     return res.status(400).json({ error: `Non puoi scendere sotto ${impegnati} posti: ci sono già richieste/conferme attive.` });
   }
 
+  // Se cambiano estremi o soste, il server ricalcola i km del percorso.
+  const nuove = {
+    pLat: partenza_lat ?? ride.partenza_lat, pLon: partenza_lon ?? ride.partenza_lon,
+    aLat: arrivo_lat ?? ride.arrivo_lat, aLon: arrivo_lon ?? ride.arrivo_lon,
+  };
+  const cambiato = nuove.pLat !== ride.partenza_lat || nuove.pLon !== ride.partenza_lon
+    || nuove.aLat !== ride.arrivo_lat || nuove.aLon !== ride.arrivo_lon || Array.isArray(soste);
+  const sosteAttuali = Array.isArray(soste) ? soste : db.prepare('SELECT lat, lon FROM ride_stops WHERE ride_id = ? ORDER BY orario').all(ride.id);
+  const kmVerificati = cambiato ? await kmDalServer(nuove.pLat, nuove.pLon, nuove.aLat, nuove.aLon, sosteAttuali) : ride.km_verificati;
+
   let promossi = [];
+  let esito = null;
   const tx = db.transaction(() => {
+    // Il calcolo dei km è asincrono: nel frattempo il passaggio può essere stato completato o
+    // annullato, o aver ricevuto altre richieste. Stato e capienza si ricontrollano qui.
+    const attuale = db.prepare('SELECT stato FROM rides WHERE id = ?').get(ride.id);
+    if (!attuale || attuale.stato !== 'attivo') { esito = 'non_attivo'; return; }
+    const impegnatiOra = db.prepare(`
+      SELECT COUNT(*) as n FROM bookings WHERE ride_id = ? AND stato IN ('richiesto','confermato')
+    `).get(ride.id).n;
+    if (nuoviPosti < impegnatiOra) { esito = { impegnati: impegnatiOra }; return; }
     db.prepare(`
       UPDATE rides SET data = ?, ora = ?, punto_partenza = ?, punto_arrivo = ?, sede_id = ?,
         partenza_lat = ?, partenza_lon = ?, arrivo_lat = ?, arrivo_lon = ?,
         km_stimati = ?, geometria = ?, posti_totali = ?,
-        posti_disponibili = posti_disponibili + (? - posti_totali), note = ?, citta_domicilio = ?
+        posti_disponibili = posti_disponibili + (? - posti_totali), note = ?, citta_domicilio = ?, km_verificati = ?
       WHERE id = ?
     `).run(
       nuovaData, nuovaOra, punto_partenza || ride.punto_partenza, punto_arrivo || ride.punto_arrivo,
@@ -375,7 +391,7 @@ router.put('/:id', requireAuth, asyncHandler(async (req, res) => {
       partenza_lat ?? ride.partenza_lat, partenza_lon ?? ride.partenza_lon,
       arrivo_lat ?? ride.arrivo_lat, arrivo_lon ?? ride.arrivo_lon,
       km_stimati ?? ride.km_stimati, percorso.valore ?? ride.geometria,
-      nuoviPosti, nuoviPosti, note ?? ride.note, citta_domicilio ?? ride.citta_domicilio,
+      nuoviPosti, nuoviPosti, note ?? ride.note, citta_domicilio ?? ride.citta_domicilio, kmVerificati,
       ride.id
     );
     if (Array.isArray(soste)) {
@@ -390,11 +406,14 @@ router.put('/:id', requireAuth, asyncHandler(async (req, res) => {
     if (nuoviPosti > ride.posti_totali) promossi = promuoviListaAttesa(ride.id);
   });
   tx();
+  if (esito === 'non_attivo') return res.status(400).json({ error: 'Questo passaggio non può più essere modificato' });
+  if (esito?.impegnati) return res.status(400).json({ error: `Non puoi scendere sotto ${esito.impegnati} posti: ci sono già richieste/conferme attive.` });
 
-  if (impegnati > 0) {
-    const passeggeri = db.prepare(`
-      SELECT passenger_id FROM bookings WHERE ride_id = ? AND stato IN ('richiesto','confermato')
-    `).all(ride.id).map((b) => b.passenger_id);
+  // Destinatari letti dopo il commit: comprende anche chi ha prenotato durante il calcolo dei km.
+  const passeggeri = db.prepare(`
+    SELECT passenger_id FROM bookings WHERE ride_id = ? AND stato IN ('richiesto','confermato')
+  `).all(ride.id).map((b) => b.passenger_id);
+  if (passeggeri.length > 0) {
     await notificaMassiva(
       passeggeri, 'passaggio_modificato',
       `Il passaggio ${ride.tipo} del ${nuovaData} è stato modificato dall'autista (nuovo orario: ${nuovaOra}). Controlla i dettagli.`,

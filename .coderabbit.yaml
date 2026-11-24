@@ -7,6 +7,9 @@ reviews:
   auto_review:
     enabled: true
     drafts: false
+    # Le correzioni arrivano a più riprese sulla stessa pull request: ogni commit va rivisto,
+    # senza la pausa automatica dopo un certo numero di commit (0 = mai in pausa).
+    auto_pause_after_reviewed_commits: 0
     base_branches:
       - main
   path_filters:

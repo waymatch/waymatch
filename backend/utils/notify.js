@@ -13,8 +13,8 @@ function ensureVapid() {
 }
 
 // Categorie di notifica esposte all'utente nelle preferenze (Profilo). Ogni tipo di
-// evento di sistema appartiene a una categoria; l'utente decide, per categoria, se
-// riceverla via push e/o via email (l'in-app è sempre attiva).
+// evento di sistema appartiene a una categoria; l'utente decide, per categoria, su quali
+// canali riceverla: nell'app (la campanella), push, email. Senza nessun canale non arriva.
 const CATEGORIE = {
   nuova_richiesta: 'richieste_ricevute',
   richiesta_annullata: 'richieste_ricevute',
@@ -61,9 +61,9 @@ function getCategoria(tipo) {
 
 function preferenza(userId, categoria) {
   const row = db.prepare(`
-    SELECT push, email FROM notification_preferences WHERE user_id = ? AND categoria = ?
+    SELECT inapp, push, email FROM notification_preferences WHERE user_id = ? AND categoria = ?
   `).get(userId, categoria);
-  return row || { push: 1, email: 1 }; // default: entrambi attivi se non personalizzato
+  return row || { inapp: 1, push: 1, email: 1 }; // predefinito: tutti i canali attivi
 }
 
 function destinazionePer(tipo) {
@@ -123,6 +123,11 @@ const TIMEOUT_PUSH_MS = 10000;
 // Una notifica non fa mai fallire l'operazione che l'ha generata: la notifica in-app è
 // scritta subito, push ed email sono un tentativo in più. Gli errori finiscono nel log e la
 // funzione non rifiuta mai, quindi chi la chiama non deve proteggersi.
+// La campanella per questa categoria è attiva? (Predefinito: sì.)
+function inAppAttiva(userId, tipo) {
+  return !!preferenza(userId, getCategoria(tipo)).inapp;
+}
+
 // Notifica in-app: sincrona, si può chiamare dentro una transazione insieme ad altre scritture.
 function creaNotificaInApp(userId, tipo, messaggio, rideId = null) {
   const url = destinazionePer(tipo);
@@ -132,10 +137,12 @@ function creaNotificaInApp(userId, tipo, messaggio, rideId = null) {
   return { id: info.lastInsertRowid, url };
 }
 
-// Push ed email per una notifica già creata, secondo le preferenze dell'utente. Non rifiuta mai.
+// Push ed email per una notifica, secondo le preferenze dell'utente. inApp è la notifica nella
+// campanella (o null, se l'utente l'ha disattivata per questa categoria). Non rifiuta mai.
 async function consegnaEsterna(userId, tipo, messaggio, inApp) {
   try {
     const pref = preferenza(userId, getCategoria(tipo));
+    const url = inApp?.url || destinazionePer(tipo);
 
     if (pref.push) {
       ensureVapid();
@@ -144,7 +151,8 @@ async function consegnaEsterna(userId, tipo, messaggio, inApp) {
         title: 'WayMatch',
         body: messaggio,
         icon: iconaPush(),
-        url: `${inApp.url}${inApp.url.includes('?') ? '&' : '?'}nid=${inApp.id}`,
+        // Con la notifica nella campanella, aprire il push la segna come letta.
+        url: inApp ? `${url}${url.includes('?') ? '&' : '?'}nid=${inApp.id}` : url,
       });
       for (const sub of subs) {
         try {
@@ -182,9 +190,9 @@ async function consegnaEsterna(userId, tipo, messaggio, inApp) {
 // scritta subito, push ed email sono un tentativo in più. Gli errori finiscono nel log e la
 // funzione non rifiuta mai, quindi chi la chiama non deve proteggersi.
 async function notifica(userId, tipo, messaggio, rideId = null) {
-  let inApp;
+  let inApp = null;
   try {
-    inApp = creaNotificaInApp(userId, tipo, messaggio, rideId);
+    if (inAppAttiva(userId, tipo)) inApp = creaNotificaInApp(userId, tipo, messaggio, rideId);
   } catch (e) {
     console.error(`[notifiche] notifica "${tipo}" all'utente ${userId} non salvata:`, e.message);
     return;
@@ -200,4 +208,4 @@ async function notificaMassiva(userIds, tipo, messaggio, rideId = null) {
   );
 }
 
-module.exports = { notifica, notificaMassiva, creaNotificaInApp, consegnaEsterna, CATEGORIE_INFO };
+module.exports = { notifica, notificaMassiva, creaNotificaInApp, inAppAttiva, consegnaEsterna, CATEGORIE_INFO };

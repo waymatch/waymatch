@@ -1,5 +1,5 @@
 const db = require('./db');
-const { notifica, creaNotificaInApp, consegnaEsterna } = require('./utils/notify');
+const { notifica, creaNotificaInApp, inAppAttiva, consegnaEsterna } = require('./utils/notify');
 const { totaleGuadagnato } = require('./utils/points');
 const { logEvent } = require('./utils/structuredLog');
 const { pulisciSessioniScadute } = require('./utils/sessioni');
@@ -234,12 +234,13 @@ async function inviaPromemoriaPartenza() {
       // Il marcatore e la notifica in-app si scrivono insieme: due giri sovrapposti non mandano
       // il promemoria due volte, e non esiste un marcatore senza notifica. Push ed email dopo.
       const messaggio = `Il tuo passaggio ${ride.tipo} delle ${ride.ora} parte tra circa ${minutiMancanti} minuti.`;
-      const inApp = db.transaction(() => {
+      const esito = db.transaction(() => {
         const prenotato = db.prepare('INSERT OR IGNORE INTO reminder_sent (ride_id, user_id) VALUES (?, ?)').run(ride.id, p.user_id).changes === 1;
-        return prenotato ? creaNotificaInApp(p.user_id, 'promemoria_partenza', messaggio, ride.id) : null;
+        if (!prenotato) return null;
+        return { inApp: inAppAttiva(p.user_id, 'promemoria_partenza') ? creaNotificaInApp(p.user_id, 'promemoria_partenza', messaggio, ride.id) : null };
       })();
-      if (!inApp) continue;
-      await consegnaEsterna(p.user_id, 'promemoria_partenza', messaggio, inApp);
+      if (!esito) continue;
+      await consegnaEsterna(p.user_id, 'promemoria_partenza', messaggio, esito.inApp);
     }
   }
 }
