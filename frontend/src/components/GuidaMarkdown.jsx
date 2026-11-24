@@ -13,7 +13,7 @@ export function slug(testo) {
 
 function inline(testo, immagini, k) {
   const out = [];
-  const re = /!\[([^\]]*)\]\(([^)\s]+)\)|\[([^\]]+)\]\(([^)\s]+)\)|\*\*(.+?)\*\*|`([^`]+)`|\*(.+?)\*/;
+  const re = /!\[([^\]]*)\]\(([^)\s]+)\)|\[([^\]]+)\]\(([^)\s]+)\)|\*\*(.+?)\*\*|(?<!`)(`+)(?!`)(.+?)(?<!`)\6(?!`)|\*(.+?)\*/;
   let resto = testo;
   let i = 0;
   while (resto.length > 0) {
@@ -28,8 +28,12 @@ function inline(testo, immagini, k) {
       if (/^https?:\/\//.test(m[4])) out.push(<a key={key} href={m[4]} target="_blank" rel="noopener noreferrer" className="underline text-primary">{m[3]}</a>);
       else out.push(m[3]);
     } else if (m[5] !== undefined) out.push(<strong key={key}>{m[5]}</strong>);
-    else if (m[6] !== undefined) out.push(<code key={key} className="px-1 py-0.5 rounded bg-bg border border-border text-[0.85em]">{m[6]}</code>);
-    else out.push(<em key={key}>{m[7]}</em>);
+    else if (m[6] !== undefined) {
+      // Codice inline con delimitatori di qualunque lunghezza (CommonMark): lo span si chiude con
+      // una sequenza di backtick della stessa lunghezza; uno spazio a ciascun lato si toglie.
+      const interno = /^ .* $/.test(m[7]) && m[7].trim() ? m[7].slice(1, -1) : m[7];
+      out.push(<code key={key} className="px-1 py-0.5 rounded bg-bg border border-border text-[0.85em]">{interno}</code>);
+    } else out.push(<em key={key}>{m[8]}</em>);
     resto = resto.slice(m.index + m[0].length);
   }
   return out;
