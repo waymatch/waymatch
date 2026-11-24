@@ -17,9 +17,12 @@ docs/       questa documentazione
 ## Sviluppo locale
 
 ```bash
-cd backend && npm install && cd ../frontend && npm install && cd ..
-# backend (porta 4000) con segreti di prova:
-cd backend && JWT_SECRET=$(openssl rand -hex 32) DB_ENCRYPTION_KEY=$(openssl rand -hex 32) node server.js
+(cd backend && npm install) && (cd frontend && npm install)
+# una sola volta: la chiave del database locale, da conservare (cambiarla rende illeggibile il
+# database creato con la precedente; backend/data è ignorata da git)
+mkdir -p backend/data && openssl rand -hex 32 > backend/data/chiave-db
+# backend (porta 4000); il JWT_SECRET può cambiare a ogni avvio (chiude solo le sessioni aperte):
+cd backend && JWT_SECRET=$(openssl rand -hex 32) DB_ENCRYPTION_KEY_FILE=data/chiave-db node server.js
 # frontend con ricarica a caldo (altro terminale):
 cd frontend && npm run dev
 ```
@@ -27,8 +30,9 @@ cd frontend && npm run dev
 ## Test
 
 ```bash
-cd backend && npm test               # tutte le suite
-cd backend && npm test -- sessioni   # solo quelle il cui nome contiene "sessioni"
+cd backend
+npm test               # tutte le suite
+npm test -- sessioni   # solo quelle il cui nome contiene "sessioni"
 ```
 
 Ogni suite avvia un'istanza isolata del server (porta, database e upload propri in una cartella

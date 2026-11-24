@@ -16,7 +16,8 @@ L'elenco completo di cosa fa WayMatch, per chi vuole i dettagli. Per una panoram
   disponibili, note e **soste intermedie** (es. pausa colazione, spesa al ritorno).
 - **Ricerca e prenotazione**: filtri per sede (default la propria, selezionabile), data, tipo;
   richiesta posto con eventuale punto di salita/discesa personalizzato tra le soste; conferma
-  da parte dell'autista; limite realistico sui posti (le richieste in eccesso vengono bloccate).
+  da parte dell'autista; limite realistico sui posti (le richieste in eccesso non vengono rifiutate: entrano in
+  lista d'attesa, vedi più sotto).
 - **Modifica passaggi**: l'autista (o un mobility manager) può modificare orario, indirizzo,
   sede, posti e soste di un passaggio ancora attivo; i passeggeri con richieste/conferme
   attive vengono avvisati della modifica.

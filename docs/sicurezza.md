@@ -54,6 +54,7 @@ openssl rand -hex 32
 # 3. Esegui la migrazione (crea automaticamente un backup del file in chiaro prima di
 #    toccarlo, e verifica al termine che ogni tabella abbia lo stesso numero di righe di
 #    prima — si ferma con un errore chiaro se qualcosa non torna, senza cancellare nulla)
+docker compose build waymatch        # l'immagine deve contenere lo script di migrazione
 docker compose run --rm waymatch node scripts/cifra-database.js
 
 # 4. Riavvia normalmente

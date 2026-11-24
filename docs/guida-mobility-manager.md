@@ -32,8 +32,11 @@ Mario,Rossi,mario.rossi@azienda.it,Provv-Password-123!,utente,Milano - Sede cent
 - Un file normale **crea** i nuovi utenti e **aggiorna** nome, cognome e ruolo di quelli
   esistenti (senza toccare le loro password). Attenzione: se la colonna `ruolo` manca o è vuota,
   gli utenti esistenti diventano "utente".
-- Un file il cui **nome contiene "cessati"** (per esempio `cessati-novembre.csv`) **disattiva** gli
-  utenti elencati per email. Non c'è nessuna disattivazione automatica fuori da questa modalità.
+- Un file il cui **nome contiene la sequenza «cessat»**, in qualunque punto e senza distinguere
+  maiuscole e minuscole (per esempio `cessati-novembre.csv`), **disattiva** gli utenti elencati per
+  email. Attenzione: la sequenza vale anche dentro altre parole (`elenco_processato.csv` contiene
+  «cessat»): dai ai file normali un nome che non la contenga. Non c'è nessuna disattivazione
+  automatica fuori da questa modalità.
 - Se un file toglierebbe l'ultimo mobility manager, viene rifiutato per intero.
 
 ## Reset password

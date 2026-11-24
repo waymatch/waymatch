@@ -45,8 +45,13 @@ Per usare un file già scaricato al posto di `DOWNLOAD_PBF`, montalo su `/data/r
 
 ## 2. Far partire il server dei tile
 
+Il proxy (Caddy) gira in un container: per raggiungere `tile-server` per nome devono stare sulla
+stessa rete Docker. Trova quella dell'app con `docker network ls` (di solito `<cartella>_default`,
+per esempio `waymatch_default`) e usala qui:
+
 ```bash
 docker run -d --name tile-server \
+    --network waymatch_default \
     -p 127.0.0.1:8080:80 \
     -e ALLOW_CORS=enabled \
     -v osm-data:/data/database/ \
@@ -86,6 +91,10 @@ CSP dell'app ammette automaticamente l'host di `TILE_URL`.
 I dati non si aggiornano da soli. Due strade:
 
 - **Rifare l'importazione** ogni tanto (per esempio una volta l'anno): è la più semplice.
+  Importa in un **volume nuovo** (`docker volume create osm-data-2`, poi `-v osm-data-2:/data/database/`):
+  sullo stesso volume l'importazione fallirebbe per l'utente `renderer` già esistente e sostituirebbe
+  comunque i dati. Quando è finita, ferma e rimuovi `tile-server`, riavvialo con il volume nuovo e
+  solo allora elimina quello vecchio (`docker volume rm osm-data`).
 - **Aggiornamento automatico**: importa con `-e UPDATES=enabled` e il file `.poly` montato su
   `/data/region.poly`, e avvia il server con lo stesso `-e UPDATES=enabled`. Non combinarlo con
   `FLAT_NODES` se non importi l'intero pianeta (la documentazione del progetto lo sconsiglia).

@@ -147,6 +147,8 @@ scripts/backup.sh /percorso/dei/backup          # 1. backup
 git pull                                         # 2. nuovo codice
 docker compose up -d --build                     # 3. (o: -f docker-compose.produzione.yml)
 curl -s http://localhost:7777/api/health         # 4. deve rispondere {"ok":true}
+                                                 #    (con docker-compose.produzione.yml la porta non è
+                                                 #    pubblicata: usa https://<il tuo indirizzo>/api/health)
 docker compose logs --tail 50 waymatch            # 5. nessun errore
 ```
 
