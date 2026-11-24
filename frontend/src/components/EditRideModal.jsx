@@ -46,6 +46,7 @@ export default function EditRideModal({ ride, minPosti, onClose, onSaved }) {
   useEffect(() => { caricaSedi(); }, [caricaSedi]);
 
   const calcolaTratta = useCallback(async () => {
+    modificato.current = true; // anche il ricalcolo chiesto con il pulsante conta come modifica del percorso
     const mia = ++richiestaCalcolo.current;
     const sede = sedi.find((s) => String(s.id) === String(sedeId));
     if (!sede?.lat || !sede?.lon || !homeLat || !homeLon) { setCalcolando(false); return; }
@@ -128,7 +129,9 @@ export default function EditRideModal({ ride, minPosti, onClose, onSaved }) {
       const sede = sedi.find((s) => String(s.id) === String(sedeId));
       const payload = {
         data, ora, sede_id: sedeId || null,
-        km_stimati: km, geometria, posti_totali: postiTotali, note, soste,
+        // Senza km validi non si invia il campo: il server conserva quelli salvati (mai una stringa vuota).
+        ...(Number(km) > 0 ? { km_stimati: Number(km) } : {}),
+        geometria, posti_totali: postiTotali, note, soste,
         citta_domicilio: citta || null,
       };
       if (isAndata) {
@@ -192,7 +195,11 @@ export default function EditRideModal({ ride, minPosti, onClose, onSaved }) {
             <AddressAutocomplete
               value={homeLabel}
               // Digitando di nuovo, le coordinate del punto precedente non valgono più.
-              onChange={(v) => { setHomeLabel(v); setHomeLat(null); setHomeLon(null); richiestaCalcolo.current++; setCalcolando(false); }}
+              onChange={(v) => {
+                setHomeLabel(v); setHomeLat(null); setHomeLon(null); richiestaCalcolo.current++; setCalcolando(false);
+                // Dopo una modifica del percorso, km e tracciato dell'indirizzo precedente non valgono più.
+                if (modificato.current) { setKm(''); setGeometria(null); setAlternative([]); setSceltaPercorso(0); }
+              }}
               onSelect={(place) => { modificato.current = true; setHomeLabel(place.label); setHomeLat(place.lat); setHomeLon(place.lon); setCitta(place.citta || citta); }}
             />
           </div>
