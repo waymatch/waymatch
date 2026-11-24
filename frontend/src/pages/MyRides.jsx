@@ -1,9 +1,10 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useId } from 'react';
 import ErrorBanner from '../components/ErrorBanner.jsx';
 import { useSearchParams } from 'react-router-dom';
 import { Car, Check, X, Trash2, Flag, Phone, UserCheck, Pencil, Clock, Timer, Repeat, PauseCircle, PlayCircle } from 'lucide-react';
 import { api } from '../api.js';
 import EditRideModal from '../components/EditRideModal.jsx';
+import { dataISO } from '../dateTimeUtils.js';
 
 export default function MyRides() {
   const [searchParams] = useSearchParams();
@@ -236,7 +237,7 @@ function BookedRides() {
         <div key={b.id} className="card flex items-start justify-between gap-3">
           <div>
             <div className="flex items-center gap-2">
-              <span className="font-display font-semibold">{b.ora}</span>
+              <span className="font-display font-semibold">{new Date(b.data).toLocaleDateString('it-IT', { weekday: 'short', day: 'numeric', month: 'short' })} · {b.ora}</span>
               <span className="badge-primary">{b.tipo === 'andata' ? 'Andata' : 'Ritorno'}</span>
               <StatusBadge stato={b.stato} checkIn={b.check_in} />
             </div>
@@ -255,7 +256,7 @@ function BookedRides() {
               </button>
             )}
             {['richiesto', 'confermato', 'lista_attesa'].includes(b.stato) && (
-              <button className="p-2 text-muted hover:text-danger" onClick={() => annulla(b.id)}><Trash2 size={16} /></button>
+              <button type="button" className="p-2 text-muted hover:text-danger" aria-label={`Annulla la prenotazione del ${new Date(b.data).toLocaleDateString('it-IT')} alle ${b.ora}`} title="Annulla prenotazione" onClick={() => annulla(b.id)}><Trash2 size={16} aria-hidden="true" /></button>
             )}
           </div>
         </div>
@@ -267,12 +268,26 @@ function BookedRides() {
 function Storico() {
   const [offerti, setOfferti] = useState(null);
   const [prenotati, setPrenotati] = useState(null);
+  const [errore, setErrore] = useState('');
 
-  useEffect(() => {
-    api.get('/rides?mine=1&storico=1').then((d) => setOfferti(d.rides));
-    api.get('/bookings/mie?storico=1').then((d) => setPrenotati(d.bookings));
+  const carica = useCallback(() => {
+    setErrore('');
+    // Se una delle due richieste fallisce si mostra l'errore con "Riprova": non resta lo scheletro,
+    // e non si presenta come completo uno storico di cui manca una metà.
+    Promise.all([api.get('/rides?mine=1&storico=1'), api.get('/bookings/mie?storico=1')])
+      .then(([o, p]) => { setOfferti(o.rides); setPrenotati(p.bookings); })
+      .catch((e) => setErrore(e.message || 'Impossibile caricare lo storico.'));
   }, []);
+  useEffect(() => { carica(); }, [carica]);
 
+  if (errore) {
+    return (
+      <div className="card text-center py-8 space-y-3" role="alert">
+        <p className="text-sm text-danger">{errore}</p>
+        <button type="button" className="btn-outline !text-xs" onClick={carica}>Riprova</button>
+      </div>
+    );
+  }
   const loading = offerti === null || prenotati === null;
   if (loading) return <div className="card animate-pulse h-24" />;
 
@@ -429,12 +444,18 @@ function RecurringRides() {
 // Salta singole date (es. ferie, malattia di un giorno) senza sospendere l'intero turno.
 function TurnoEccezioni({ turno }) {
   const [eccezioni, setEccezioni] = useState(null);
+  const [erroreCarica, setErroreCarica] = useState('');
   const [nuovaData, setNuovaData] = useState('');
   const [saving, setSaving] = useState(false);
-  const oggi = new Date().toISOString().slice(0, 10);
+  const idData = useId();
+  const oggi = dataISO(); // calendario locale
 
+  // Un errore non svuota l'elenco: si tiene l'ultimo disponibile e si offre di riprovare.
   const load = useCallback(() => {
-    api.get(`/recurring-rides/${turno.id}/eccezioni`).then((d) => setEccezioni(d.eccezioni)).catch(() => setEccezioni([]));
+    setErroreCarica('');
+    api.get(`/recurring-rides/${turno.id}/eccezioni`)
+      .then((d) => setEccezioni(d.eccezioni))
+      .catch((e) => setErroreCarica(e.message || 'Impossibile caricare le date saltate.'));
   }, [turno.id]);
   useEffect(() => { load(); }, [load]);
 
@@ -462,13 +483,19 @@ function TurnoEccezioni({ turno }) {
 
   return (
     <div className="mt-3 pt-3 border-t border-border">
-      <p className="text-xs font-medium text-muted uppercase tracking-wide mb-2">Salta una data (ferie, malattia...)</p>
+      <label htmlFor={idData} className="block text-xs font-medium text-muted uppercase tracking-wide mb-2">Salta una data (ferie, malattia...)</label>
       <div className="flex gap-2 items-center flex-wrap">
-        <input type="date" min={oggi} className="input !w-auto !py-1.5 !text-xs" value={nuovaData} onChange={(e) => setNuovaData(e.target.value)} />
+        <input id={idData} type="date" min={oggi} className="input !w-auto !py-1.5 !text-xs" value={nuovaData} onChange={(e) => setNuovaData(e.target.value)} />
         <button type="button" className="btn-outline !py-1.5 !text-xs shrink-0" disabled={!nuovaData || saving} onClick={salta}>
           Salta questa data
         </button>
       </div>
+      {erroreCarica && (
+        <div className="mt-2 flex items-center gap-2 text-xs text-danger" role="alert">
+          <span>{erroreCarica}</span>
+          <button type="button" className="underline text-primary" onClick={load}>Riprova</button>
+        </div>
+      )}
       {eccezioni && eccezioni.length > 0 && (
         <div className="mt-2 space-y-1.5">
           {eccezioni.map((d) => (

@@ -1,4 +1,4 @@
-import React, { useId, useState, useEffect, useCallback } from 'react';
+import React, { useId, useState, useEffect, useRef } from 'react';
 import ErrorBanner from '../components/ErrorBanner.jsx';
 import { useNavigate } from 'react-router-dom';
 import { Plus, Trash2, Sunrise, Sunset, ArrowLeftRight, Coffee, RefreshCw, Route, Repeat, CalendarDays, MapPin } from 'lucide-react';
@@ -8,7 +8,8 @@ import AddressAutocomplete from '../components/AddressAutocomplete.jsx';
 import RouteMap from '../components/RouteMap.jsx';
 import LegalDocumentsGate from '../components/LegalDocumentsGate.jsx';
 import DateQuickPicks from '../components/DateQuickPicks.jsx';
-import { orarioDefaultIntelligente } from '../dateTimeUtils.js';
+import { orarioDefaultIntelligente, dataISO } from '../dateTimeUtils.js';
+import { useSedi, useTratta, nuovaSosta, sosteDaInviare } from '../useTratta.js';
 import { useBranding } from '../context/BrandingContext.jsx';
 import { GIORNI_SETTIMANA } from '../giorni.js';
 
@@ -18,11 +19,6 @@ const TIPI = [
   { value: 'entrambi', label: 'Andata e ritorno', icon: ArrowLeftRight },
 ];
 
-
-function emptyStop() { return { orario: '', luogo: '', descrizione: '', lat: null, lon: null }; }
-function emptyLeg() {
-  return { sedeId: '', homeLabel: '', homeLat: null, homeLon: null, citta: '', km: '', geometria: null, alternative: [], scelta: 0, calcolando: false, errore: '' };
-}
 
 export default function OfferRide() {
   const [tab, setTab] = useState('singolo');
@@ -56,9 +52,9 @@ export default function OfferRide() {
 function SingleRideForm() {
   const { user } = useAuth();
   const navigate = useNavigate();
-  const [sedi, setSedi] = useState([]);
+  const { sedi, erroreSedi, ricaricaSedi } = useSedi();
   const [tipo, setTipo] = useState('andata');
-  const oggi = new Date().toISOString().slice(0, 10);
+  const oggi = dataISO(); // calendario locale
   const [data, setData] = useState(oggi);
   const [oraAndata, setOraAndata] = useState(() => orarioDefaultIntelligente('08:00'));
   const [oraRitorno, setOraRitorno] = useState(() => orarioDefaultIntelligente('18:00'));
@@ -66,111 +62,53 @@ function SingleRideForm() {
   const [note, setNote] = useState('');
   const [sosteAndata, setSosteAndata] = useState([]);
   const [sosteRitorno, setSosteRitorno] = useState([]);
-  const [andata, setAndata] = useState(emptyLeg());
-  const [ritorno, setRitorno] = useState(emptyLeg());
+  const andata = useTratta({ sedi, soste: sosteAndata, direzione: 'casa-sede', utente: user });
+  const ritorno = useTratta({ sedi, soste: sosteRitorno, direzione: 'sede-casa', utente: user });
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
   const [success, setSuccess] = useState(false);
+  const timer = useRef(null);
+  useEffect(() => () => clearTimeout(timer.current), []); // niente navigazione dopo lo smontaggio
 
   const oraMinima = data === oggi ? new Date().toTimeString().slice(0, 5) : undefined;
 
-  useEffect(() => {
-    api.get('/sedi').then((d) => {
-      setSedi(d.sedi);
-      if (user?.sede_id) {
-        setAndata((p) => ({ ...p, sedeId: String(user.sede_id) }));
-        setRitorno((p) => ({ ...p, sedeId: String(user.sede_id) }));
-      }
-      // Precompila l'indirizzo di casa dal profilo: resta comunque modificabile per
-      // questa singola offerta senza toccare il valore salvato nel profilo.
-      if (user?.casa_lat != null && user?.casa_lon != null) {
-        const casa = { homeLabel: user.indirizzo_casa || '', homeLat: user.casa_lat, homeLon: user.casa_lon, citta: user.citta_casa || '' };
-        setAndata((p) => ({ ...p, ...casa }));
-        setRitorno((p) => ({ ...p, ...casa }));
-      }
-    });
-  }, [user]);
-
-  const calcolaTratta = useCallback(async (leg, setLeg, soste = [], direzione = 'casa-sede') => {
-    const sede = sedi.find((s) => String(s.id) === String(leg.sedeId));
-    if (!sede?.lat || !sede?.lon || !leg.homeLat || !leg.homeLon) return;
-    setLeg((p) => ({ ...p, calcolando: true, errore: '' }));
-
-    // Solo le soste con un indirizzo validato (lat/lon presenti) diventano tappe reali del
-    // percorso; quelle inserite come testo libero restano solo un'informazione a parte.
-    const sosteValide = (soste || []).filter((s) => s.lat != null && s.lon != null);
-    const sosteOrdinate = [...sosteValide].sort((a, b) => (a.orario || '99:99').localeCompare(b.orario || '99:99'));
-
-    try {
-      if (sosteOrdinate.length > 0) {
-        const puntoCasa = { lat: leg.homeLat, lon: leg.homeLon };
-        const puntoSede = { lat: sede.lat, lon: sede.lon };
-        const tappeSoste = sosteOrdinate.map((s) => ({ lat: s.lat, lon: s.lon }));
-        const punti = direzione === 'sede-casa'
-          ? [puntoSede, ...tappeSoste, puntoCasa]
-          : [puntoCasa, ...tappeSoste, puntoSede];
-        const d = await api.post('/geo/route-multi', { punti });
-        setLeg((p) => ({ ...p, km: d.km, geometria: d.geometria, alternative: [], scelta: 0, calcolando: false }));
-      } else {
-        const params = new URLSearchParams({
-          from_lat: leg.homeLat, from_lon: leg.homeLon,
-          to_lat: sede.lat, to_lon: sede.lon,
-        });
-        const d = await api.get(`/geo/route?${params.toString()}`);
-        setLeg((p) => ({ ...p, km: d.km, geometria: d.geometria, alternative: d.alternative || [], scelta: 0, calcolando: false }));
-      }
-    } catch (e) {
-      setLeg((p) => ({ ...p, calcolando: false, errore: 'Impossibile calcolare il percorso, inserisci i km manualmente.' }));
-    }
-  }, [sedi]);
-
-  // Chiave che cambia solo quando le COORDINATE delle soste cambiano (non ad ogni lettera
-  // digitata in descrizione/orario), per non ricalcolare il percorso inutilmente.
-  const sosteAndataCoordKey = sosteAndata.map((s) => `${s.lat ?? ''},${s.lon ?? ''}`).join('|');
-  const sosteRitornoCoordKey = sosteRitorno.map((s) => `${s.lat ?? ''},${s.lon ?? ''}`).join('|');
-
-  // Ricalcola automaticamente la tratta ogni volta che cambia la sede, l'indirizzo di casa
-  // o le soste validate, senza bisogno di premere il pulsante di aggiornamento manuale.
-  useEffect(() => {
-    calcolaTratta(andata, setAndata, sosteAndata, 'casa-sede');
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [andata.sedeId, andata.homeLat, andata.homeLon, sedi, sosteAndataCoordKey]);
-
-  useEffect(() => {
-    calcolaTratta(ritorno, setRitorno, sosteRitorno, 'sede-casa');
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ritorno.sedeId, ritorno.homeLat, ritorno.homeLon, sedi, sosteRitornoCoordKey]);
-
   const submit = async (e) => {
     e.preventDefault();
+    if (saving || success) return; // dopo il successo un secondo invio duplicherebbe l'offerta
     setError('');
+    const conAndata = tipo === 'andata' || tipo === 'entrambi';
+    const conRitorno = tipo === 'ritorno' || tipo === 'entrambi';
+    if ((conAndata && andata.leg.calcolando) || (conRitorno && ritorno.leg.calcolando)) {
+      setError('Attendi la fine del calcolo del percorso.');
+      return;
+    }
     setSaving(true);
     try {
       await api.post('/rides', {
         tipo, data,
         ora_andata: oraAndata,
-        punto_partenza: andata.homeLabel,
-        citta_andata: andata.citta || null,
-        sede_id_andata: andata.sedeId || null,
-        partenza_lat: andata.homeLat, partenza_lon: andata.homeLon,
-        km_stimati_andata: andata.km,
-        geometria_andata: andata.geometria,
+        punto_partenza: andata.leg.homeLabel,
+        citta_andata: andata.leg.citta || null,
+        sede_id_andata: andata.leg.sedeId || null,
+        partenza_lat: andata.leg.homeLat, partenza_lon: andata.leg.homeLon,
+        km_stimati_andata: andata.leg.km,
+        geometria_andata: andata.leg.geometria,
 
         ora_ritorno: oraRitorno,
-        punto_arrivo_ritorno: ritorno.homeLabel,
-        citta_ritorno: ritorno.citta || null,
-        sede_id_ritorno: ritorno.sedeId || null,
-        partenza_ritorno_lat: ritorno.homeLat, partenza_ritorno_lon: ritorno.homeLon,
-        km_stimati_ritorno: ritorno.km,
-        geometria_ritorno: ritorno.geometria,
+        punto_arrivo_ritorno: ritorno.leg.homeLabel,
+        citta_ritorno: ritorno.leg.citta || null,
+        sede_id_ritorno: ritorno.leg.sedeId || null,
+        partenza_ritorno_lat: ritorno.leg.homeLat, partenza_ritorno_lon: ritorno.leg.homeLon,
+        km_stimati_ritorno: ritorno.leg.km,
+        geometria_ritorno: ritorno.leg.geometria,
 
         km_calcolati_auto: true,
         posti_totali: postiTotali, note,
-        soste_andata: sosteAndata.filter((s) => s.luogo.trim()),
-        soste_ritorno: sosteRitorno.filter((s) => s.luogo.trim()),
+        soste_andata: sosteDaInviare(sosteAndata),
+        soste_ritorno: sosteDaInviare(sosteRitorno),
       });
-      setSuccess(true);
-      setTimeout(() => navigate('/i-miei-viaggi'), 900);
+      setSuccess(true); // resta vero: il pulsante non si riabilita dopo il successo
+      timer.current = setTimeout(() => navigate('/i-miei-viaggi'), 900);
     } catch (e) {
       setError(e.message);
     } finally {
@@ -214,9 +152,8 @@ function SingleRideForm() {
             ora={oraAndata} setOra={setOraAndata} oraMinima={oraMinima}
             homeLabel="Indirizzo di partenza (casa, punto di ritrovo...)"
             sedeLabel="Destinazione (sede aziendale)"
-            leg={andata} setLeg={setAndata}
-            sedi={sedi}
-            onCalcola={() => calcolaTratta(andata, setAndata, sosteAndata, 'casa-sede')}
+            tratta={andata}
+            sedi={sedi} erroreSedi={erroreSedi} ricaricaSedi={ricaricaSedi}
             soste={sosteAndata} setSoste={setSosteAndata}
           />
         )}
@@ -229,9 +166,8 @@ function SingleRideForm() {
             ora={oraRitorno} setOra={setOraRitorno} oraMinima={oraMinima}
             homeLabel="Destinazione finale (casa, punto di arrivo...)"
             sedeLabel="Partenza (sede aziendale)"
-            leg={ritorno} setLeg={setRitorno}
-            sedi={sedi}
-            onCalcola={() => calcolaTratta(ritorno, setRitorno, sosteRitorno, 'sede-casa')}
+            tratta={ritorno}
+            sedi={sedi} erroreSedi={erroreSedi} ricaricaSedi={ricaricaSedi}
             soste={sosteRitorno} setSoste={setSosteRitorno}
           />
         )}
@@ -252,17 +188,18 @@ function SingleRideForm() {
         {error && <div className="lg:col-span-2"><ErrorBanner message={error} /></div>}
         {success && <div className="lg:col-span-2 rounded-xl bg-primary-light text-primary-dark text-sm px-3.5 py-2.5">Passaggio pubblicato! Hai guadagnato punti 🎉</div>}
 
-        <button className="btn-primary w-full lg:col-span-2" disabled={saving}>
-          {saving ? 'Pubblicazione...' : 'Pubblica passaggio'}
+        <button type="submit" className="btn-primary w-full lg:col-span-2" disabled={saving || success}>
+          {saving ? 'Pubblicazione...' : success ? 'Pubblicato' : 'Pubblica passaggio'}
         </button>
       </form>
     </div>
   );
 }
 
-function TripSection({ className = '', title, icon: Icon, ora, setOra, oraMinima, homeLabel, sedeLabel, leg, setLeg, sedi, onCalcola, soste, setSoste }) {
+function TripSection({ className = '', title, icon: Icon, ora, setOra, oraMinima, homeLabel, sedeLabel, tratta, sedi, erroreSedi, ricaricaSedi, soste, setSoste }) {
+  const { leg, setLeg, ricalcola: onCalcola, cambiaSede, cambiaTesto, scegliIndirizzo } = tratta;
   const uid = useId(); // due sezioni (andata e ritorno) possono stare nella stessa pagina: gli id devono essere diversi
-  const addStop = () => setSoste((prev) => [...prev, emptyStop()]);
+  const addStop = () => setSoste((prev) => [...prev, nuovaSosta()]);
   const updateStop = (i, field, value) => setSoste((prev) => prev.map((s, idx) => (idx === i ? { ...s, [field]: value } : s)));
   const updateStopFields = (i, fields) => setSoste((prev) => prev.map((s, idx) => (idx === i ? { ...s, ...fields } : s)));
   const removeStop = (i) => setSoste((prev) => prev.filter((_, idx) => idx !== i));
@@ -285,22 +222,27 @@ function TripSection({ className = '', title, icon: Icon, ora, setOra, oraMinima
             required
             className="input"
             value={leg.sedeId}
-            onChange={(e) => { setLeg((p) => ({ ...p, sedeId: e.target.value, geometria: null })); }}
+            onChange={(e) => cambiaSede(e.target.value)}
           >
             <option value="">Seleziona sede...</option>
             {sedi.map((s) => <option key={s.id} value={s.id}>{s.nome}</option>)}
           </select>
+          {erroreSedi && (
+            <div className="mt-1 flex items-center gap-2 text-xs text-danger" role="alert">
+              <span>{erroreSedi}</span>
+              <button type="button" className="underline text-primary" onClick={ricaricaSedi}>Riprova</button>
+            </div>
+          )}
         </div>
       </div>
 
       <div>
-        <label className="label">{homeLabel}</label>
+        <label htmlFor={`${uid}-indirizzo`} className="label">{homeLabel}</label>
         <AddressAutocomplete
+          id={`${uid}-indirizzo`}
           value={leg.homeLabel}
-          onChange={(v) => setLeg((p) => ({ ...p, homeLabel: v }))}
-          onSelect={(place) => {
-            setLeg((p) => ({ ...p, homeLabel: place.label, homeLat: place.lat, homeLon: place.lon, citta: place.citta ?? p.citta }));
-          }}
+          onChange={cambiaTesto}
+          onSelect={scegliIndirizzo}
           placeholder="Inizia a digitare l'indirizzo..."
         />
       </div>
@@ -317,15 +259,15 @@ function TripSection({ className = '', title, icon: Icon, ora, setOra, oraMinima
               <span className="text-muted">Seleziona sede e indirizzo per calcolare la tratta</span>
             )}
           </div>
-          <button type="button" className="btn-ghost !px-2 !py-1 text-primary" onClick={onCalcola} title="Ricalcola" aria-label="Ricalcola">
-            <RefreshCw size={14} />
+          <button type="button" className="btn-ghost !px-2 !py-1 text-primary" onClick={onCalcola} title="Ricalcola" aria-label="Ricalcola il percorso">
+            <RefreshCw size={14} aria-hidden="true" />
           </button>
         </div>
         {leg.errore && <p className="text-xs text-danger mb-2">{leg.errore}</p>}
         <div className="flex items-center gap-2">
-          <label htmlFor="correggi-km" className="text-xs text-muted shrink-0">Correggi km (facoltativo):</label>
+          <label htmlFor={`${uid}-km`} className="text-xs text-muted shrink-0">Correggi km (facoltativo):</label>
           <input
-            id="correggi-km" type="number" min="0" step="0.1"
+            id={`${uid}-km`} type="number" min="0" step="0.1"
             className="input !py-1.5 !text-sm"
             value={leg.km}
             onChange={(e) => setLeg((p) => ({ ...p, km: e.target.value }))}
@@ -363,8 +305,8 @@ function TripSection({ className = '', title, icon: Icon, ora, setOra, oraMinima
         </p>
         <div className="space-y-2">
           {soste.map((s, i) => (
-            <div key={i} className="flex gap-2 items-start bg-bg rounded-xl p-2.5">
-              <input type="time" className="input !w-24" value={s.orario} onChange={(e) => updateStop(i, 'orario', e.target.value)} />
+            <div key={s.uid} className="flex gap-2 items-start bg-bg rounded-xl p-2.5">
+              <input type="time" aria-label={`Orario della sosta ${i + 1}`} className="input !w-24" value={s.orario} onChange={(e) => updateStop(i, 'orario', e.target.value)} />
               <div className="flex-1 space-y-2">
                 <AddressAutocomplete
                   value={s.luogo}
@@ -379,7 +321,7 @@ function TripSection({ className = '', title, icon: Icon, ora, setOra, oraMinima
                 ) : null}
                 <input className="input" placeholder="Dettagli (es. pausa colazione)" value={s.descrizione} onChange={(e) => updateStop(i, 'descrizione', e.target.value)} />
               </div>
-              <button type="button" className="p-2 text-muted hover:text-danger" onClick={() => removeStop(i)}><Trash2 size={15} /></button>
+              <button type="button" aria-label={`Rimuovi la sosta ${i + 1}`} className="p-2 text-muted hover:text-danger" onClick={() => removeStop(i)}><Trash2 size={15} aria-hidden="true" /></button>
             </div>
           ))}
         </div>
@@ -394,12 +336,15 @@ function TripSection({ className = '', title, icon: Icon, ora, setOra, oraMinima
 function RecurringRideForm() {
   const { user } = useAuth();
   const navigate = useNavigate();
-  const [sedi, setSedi] = useState([]);
+  const { sedi, erroreSedi, ricaricaSedi } = useSedi();
   const [tipo, setTipo] = useState('andata');
-  const oggi = new Date().toISOString().slice(0, 10);
+  const oggi = dataISO(); // calendario locale
   const { branding } = useBranding();
   const giorniAmmessi = GIORNI_SETTIMANA.filter((g) => branding.giorni_lavorativi.includes(g.value));
-  const [giorniSettimana, setGiorniSettimana] = useState([1, 2, 3, 4, 5].filter((g) => branding.giorni_lavorativi.includes(g)));
+  // null = nessuna scelta dell'utente: si usa il predefinito (lun-ven) tra i giorni ammessi di adesso,
+  // anche se la configurazione dell'azienda arriva dopo il montaggio del modulo.
+  const [giorniScelti, setGiorniScelti] = useState(null);
+  const giorniSettimana = (giorniScelti ?? [1, 2, 3, 4, 5]).filter((g) => branding.giorni_lavorativi.includes(g));
   const [oraAndata, setOraAndata] = useState('08:00');
   const [oraRitorno, setOraRitorno] = useState('18:00');
   const [dataInizio, setDataInizio] = useState(oggi);
@@ -408,108 +353,73 @@ function RecurringRideForm() {
   const [note, setNote] = useState('');
   const [sosteAndata, setSosteAndata] = useState([]);
   const [sosteRitorno, setSosteRitorno] = useState([]);
-  const [andata, setAndata] = useState(emptyLeg());
-  const [ritorno, setRitorno] = useState(emptyLeg());
+  const andata = useTratta({ sedi, soste: sosteAndata, direzione: 'casa-sede', utente: user });
+  const ritorno = useTratta({ sedi, soste: sosteRitorno, direzione: 'sede-casa', utente: user });
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
   const [success, setSuccess] = useState('');
-
-  useEffect(() => {
-    api.get('/sedi').then((d) => {
-      setSedi(d.sedi);
-      if (user?.sede_id) {
-        setAndata((p) => ({ ...p, sedeId: String(user.sede_id) }));
-        setRitorno((p) => ({ ...p, sedeId: String(user.sede_id) }));
-      }
-      // Precompila l'indirizzo di casa dal profilo: resta comunque modificabile per
-      // questa singola offerta senza toccare il valore salvato nel profilo.
-      if (user?.casa_lat != null && user?.casa_lon != null) {
-        const casa = { homeLabel: user.indirizzo_casa || '', homeLat: user.casa_lat, homeLon: user.casa_lon, citta: user.citta_casa || '' };
-        setAndata((p) => ({ ...p, ...casa }));
-        setRitorno((p) => ({ ...p, ...casa }));
-      }
-    });
-  }, [user]);
-
-  const calcolaTratta = useCallback(async (leg, setLeg, soste = [], direzione = 'casa-sede') => {
-    const sede = sedi.find((s) => String(s.id) === String(leg.sedeId));
-    if (!sede?.lat || !sede?.lon || !leg.homeLat || !leg.homeLon) return;
-    setLeg((p) => ({ ...p, calcolando: true, errore: '' }));
-
-    const sosteValide = (soste || []).filter((s) => s.lat != null && s.lon != null);
-    const sosteOrdinate = [...sosteValide].sort((a, b) => (a.orario || '99:99').localeCompare(b.orario || '99:99'));
-
-    try {
-      if (sosteOrdinate.length > 0) {
-        const puntoCasa = { lat: leg.homeLat, lon: leg.homeLon };
-        const puntoSede = { lat: sede.lat, lon: sede.lon };
-        const tappeSoste = sosteOrdinate.map((s) => ({ lat: s.lat, lon: s.lon }));
-        const punti = direzione === 'sede-casa'
-          ? [puntoSede, ...tappeSoste, puntoCasa]
-          : [puntoCasa, ...tappeSoste, puntoSede];
-        const d = await api.post('/geo/route-multi', { punti });
-        setLeg((p) => ({ ...p, km: d.km, geometria: d.geometria, alternative: [], scelta: 0, calcolando: false }));
-      } else {
-        const params = new URLSearchParams({ from_lat: leg.homeLat, from_lon: leg.homeLon, to_lat: sede.lat, to_lon: sede.lon });
-        const d = await api.get(`/geo/route?${params.toString()}`);
-        setLeg((p) => ({ ...p, km: d.km, geometria: d.geometria, alternative: d.alternative || [], scelta: 0, calcolando: false }));
-      }
-    } catch (e) {
-      setLeg((p) => ({ ...p, calcolando: false, errore: 'Impossibile calcolare il percorso, inserisci i km manualmente.' }));
-    }
-  }, [sedi]);
-
-  const sosteAndataCoordKey = sosteAndata.map((s) => `${s.lat ?? ''},${s.lon ?? ''}`).join('|');
-  const sosteRitornoCoordKey = sosteRitorno.map((s) => `${s.lat ?? ''},${s.lon ?? ''}`).join('|');
-
-  useEffect(() => { calcolaTratta(andata, setAndata, sosteAndata, 'casa-sede'); // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [andata.sedeId, andata.homeLat, andata.homeLon, sedi, sosteAndataCoordKey]);
-  useEffect(() => { calcolaTratta(ritorno, setRitorno, sosteRitorno, 'sede-casa'); // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ritorno.sedeId, ritorno.homeLat, ritorno.homeLon, sedi, sosteRitornoCoordKey]);
+  const creati = useRef({ andata: 0, ritorno: 0 }); // turni già creati con successo: un nuovo tentativo non li duplica
+  const timer = useRef(null);
+  useEffect(() => () => clearTimeout(timer.current), []); // niente navigazione dopo lo smontaggio
 
   const toggleGiorno = (g) => {
-    setGiorniSettimana((prev) => prev.includes(g) ? prev.filter((x) => x !== g) : [...prev, g].sort());
+    setGiorniScelti(giorniSettimana.includes(g) ? giorniSettimana.filter((x) => x !== g) : [...giorniSettimana, g].sort());
   };
 
   const submit = async (e) => {
     e.preventDefault();
+    if (saving || success) return;
     setError('');
     if (giorniSettimana.length === 0) { setError('Seleziona almeno un giorno della settimana.'); return; }
+    const conAndata = tipo === 'andata' || tipo === 'entrambi';
+    const conRitorno = tipo === 'ritorno' || tipo === 'entrambi';
+    // Si controllano entrambe le direzioni prima di creare qualcosa: un errore sul ritorno non deve
+    // lasciare creato il turno di andata.
+    if ((conAndata && !andata.leg.homeLabel.trim()) || (conRitorno && !ritorno.leg.homeLabel.trim())) {
+      setError('Indica l\'indirizzo per ogni direzione del turno.');
+      return;
+    }
+    if ((conAndata && andata.leg.calcolando) || (conRitorno && ritorno.leg.calcolando)) {
+      setError('Attendi la fine del calcolo del percorso.');
+      return;
+    }
     setSaving(true);
     try {
       let generatiTotali = 0;
-      if (tipo === 'andata' || tipo === 'entrambi') {
-        const sedeAndata = sedi.find((s) => String(s.id) === String(andata.sedeId));
+      if (conAndata && !creati.current.andata) {
+        const sedeAndata = sedi.find((s) => String(s.id) === String(andata.leg.sedeId));
         const r = await api.post('/recurring-rides', {
           tipo: 'andata', giorni_settimana: giorniSettimana, ora: oraAndata,
-          punto_partenza: andata.homeLabel, punto_arrivo: sedeAndata?.nome || 'Sede aziendale',
-          citta_domicilio: andata.citta || null,
-          sede_id: andata.sedeId || null,
-          partenza_lat: andata.homeLat, partenza_lon: andata.homeLon,
+          punto_partenza: andata.leg.homeLabel, punto_arrivo: sedeAndata?.nome || 'Sede aziendale',
+          citta_domicilio: andata.leg.citta || null,
+          sede_id: andata.leg.sedeId || null,
+          partenza_lat: andata.leg.homeLat, partenza_lon: andata.leg.homeLon,
           arrivo_lat: sedeAndata?.lat, arrivo_lon: sedeAndata?.lon,
-          km_stimati: andata.km, geometria: andata.geometria,
-          posti_totali: postiTotali, note, soste: sosteAndata.filter((s) => s.luogo.trim()),
+          km_stimati: andata.leg.km, geometria: andata.leg.geometria,
+          posti_totali: postiTotali, note, soste: sosteDaInviare(sosteAndata),
           data_inizio: dataInizio, data_fine: dataFine || null,
         });
+        creati.current.andata = 1;
         generatiTotali += r.generati || 0;
       }
-      if (tipo === 'ritorno' || tipo === 'entrambi') {
-        const sedeRitorno = sedi.find((s) => String(s.id) === String(ritorno.sedeId));
+      if (conRitorno && !creati.current.ritorno) {
+        const sedeRitorno = sedi.find((s) => String(s.id) === String(ritorno.leg.sedeId));
         const r = await api.post('/recurring-rides', {
           tipo: 'ritorno', giorni_settimana: giorniSettimana, ora: oraRitorno,
-          punto_partenza: sedeRitorno?.nome || 'Sede aziendale', punto_arrivo: ritorno.homeLabel,
-          citta_domicilio: ritorno.citta || null,
-          sede_id: ritorno.sedeId || null,
+          punto_partenza: sedeRitorno?.nome || 'Sede aziendale', punto_arrivo: ritorno.leg.homeLabel,
+          citta_domicilio: ritorno.leg.citta || null,
+          sede_id: ritorno.leg.sedeId || null,
           partenza_lat: sedeRitorno?.lat, partenza_lon: sedeRitorno?.lon,
-          arrivo_lat: ritorno.homeLat, arrivo_lon: ritorno.homeLon,
-          km_stimati: ritorno.km, geometria: ritorno.geometria,
-          posti_totali: postiTotali, note, soste: sosteRitorno.filter((s) => s.luogo.trim()),
+          arrivo_lat: ritorno.leg.homeLat, arrivo_lon: ritorno.leg.homeLon,
+          km_stimati: ritorno.leg.km, geometria: ritorno.leg.geometria,
+          posti_totali: postiTotali, note, soste: sosteDaInviare(sosteRitorno),
           data_inizio: dataInizio, data_fine: dataFine || null,
         });
+        creati.current.ritorno = 1;
         generatiTotali += r.generati || 0;
       }
       setSuccess(`Turno fisso creato! ${generatiTotali} passaggi generati per i prossimi giorni.`);
-      setTimeout(() => navigate('/i-miei-viaggi?tab=turni'), 1200);
+      timer.current = setTimeout(() => navigate('/i-miei-viaggi?tab=turni'), 1200);
     } catch (e) {
       setError(e.message);
     } finally {
@@ -517,7 +427,10 @@ function RecurringRideForm() {
     }
   };
 
-  const oraMinima = dataInizio === oggi ? new Date().toTimeString().slice(0, 5) : undefined;
+  // L'ora corrente è un minimo solo se oggi è davvero un giorno del turno e la prima occorrenza può
+  // essere oggi; per un turno che parte in un altro giorno l'orario è libero.
+  const giornoOggi = new Date().getDay() === 0 ? 7 : new Date().getDay();
+  const oraMinima = dataInizio === oggi && giorniSettimana.includes(giornoOggi) ? new Date().toTimeString().slice(0, 5) : undefined;
 
   return (
     <form onSubmit={submit} className="space-y-5">
@@ -570,8 +483,7 @@ function RecurringRideForm() {
           title="Viaggio di andata" icon={Sunrise}
           ora={oraAndata} setOra={setOraAndata} oraMinima={oraMinima}
           homeLabel="Indirizzo di partenza (casa, punto di ritrovo...)" sedeLabel="Destinazione (sede aziendale)"
-          leg={andata} setLeg={setAndata} sedi={sedi}
-          onCalcola={() => calcolaTratta(andata, setAndata, sosteAndata, 'casa-sede')}
+          tratta={andata} sedi={sedi} erroreSedi={erroreSedi} ricaricaSedi={ricaricaSedi}
           soste={sosteAndata} setSoste={setSosteAndata}
         />
       )}
@@ -580,8 +492,7 @@ function RecurringRideForm() {
           title="Viaggio di ritorno" icon={Sunset}
           ora={oraRitorno} setOra={setOraRitorno} oraMinima={oraMinima}
           homeLabel="Destinazione finale (casa, punto di arrivo...)" sedeLabel="Partenza (sede aziendale)"
-          leg={ritorno} setLeg={setRitorno} sedi={sedi}
-          onCalcola={() => calcolaTratta(ritorno, setRitorno, sosteRitorno, 'sede-casa')}
+          tratta={ritorno} sedi={sedi} erroreSedi={erroreSedi} ricaricaSedi={ricaricaSedi}
           soste={sosteRitorno} setSoste={setSosteRitorno}
         />
       )}
@@ -600,7 +511,7 @@ function RecurringRideForm() {
       {error && <ErrorBanner message={error} />}
       {success && <div className="rounded-xl bg-primary-light text-primary-dark text-sm px-3.5 py-2.5">{success}</div>}
 
-      <button className="btn-primary w-full" disabled={saving}>
+      <button type="submit" className="btn-primary w-full" disabled={saving || !!success}>
         {saving ? 'Creazione...' : <><Repeat size={15} /> Crea turno fisso</>}
       </button>
       <p className="text-xs text-muted text-center">

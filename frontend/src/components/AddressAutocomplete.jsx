@@ -14,7 +14,7 @@ import MapTileLayers from './MapTileLayers.jsx';
 // o un locale non ancora mappato per nome su OpenStreetMap).
 // `correggibile` (predefinito sì): mostra lo spillo trascinabile. Va disattivato quando chi usa il
 // campo salva solo il testo dell'indirizzo e non le coordinate.
-export default function AddressAutocomplete({ value, onChange, onSelect, placeholder, correggibile = true }) {
+export default function AddressAutocomplete({ id, value, onChange, onSelect, placeholder, correggibile = true }) {
   const [query, setQuery] = useState(value || '');
   const [suggestions, setSuggestions] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -83,6 +83,7 @@ export default function AddressAutocomplete({ value, onChange, onSelect, placeho
       <div className="relative">
         <MapPin size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted" />
         <input
+          id={id}
           className="input !pl-9"
           value={query}
           placeholder={placeholder || 'Cerca un indirizzo...'}
