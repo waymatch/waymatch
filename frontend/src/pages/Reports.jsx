@@ -9,7 +9,9 @@ export default function Reports() {
   const [sedeId, setSedeId] = useState('');
   const [dal, setDal] = useState('');
   const [al, setAl] = useState('');
-  const [report, setReport] = useState(null);
+  // Il report si associa ai filtri che lo hanno prodotto: cambiandoli non si mostra quello vecchio.
+  const [risultato, setRisultato] = useState(null); // { chiave, report }
+  const [caricamento, setCaricamento] = useState(true);
   // Errori separati: il successo di un'operazione non nasconde il fallimento dell'altra.
   const [error, setError] = useState('');          // caricamento del report
   const [erroreExport, setErroreExport] = useState('');
@@ -22,15 +24,21 @@ export default function Reports() {
   }, []);
   useEffect(() => { caricaSedi(); }, [caricaSedi]);
 
+  const chiave = `${sedeId}|${dal}|${al}`;
+  const report = risultato && risultato.chiave === chiave ? risultato.report : null;
+
   const load = useCallback(() => {
     const params = new URLSearchParams();
     if (sedeId) params.set('sede_id', sedeId);
     if (dal) params.set('dal', dal);
     if (al) params.set('al', al);
     const mia = ++richiesta.current;
+    setError('');
+    setCaricamento(true);
     api.get(`/reports/summary?${params.toString()}`)
-      .then((d) => { if (mia !== richiesta.current) return; setReport(d); setError(''); })
-      .catch((e) => { if (mia === richiesta.current) setError(e.message); });
+      .then((d) => { if (mia !== richiesta.current) return; setRisultato({ chiave: `${sedeId}|${dal}|${al}`, report: d }); setError(''); })
+      .catch((e) => { if (mia === richiesta.current) setError(e.message); })
+      .finally(() => { if (mia === richiesta.current) setCaricamento(false); });
   }, [sedeId, dal, al]);
   useEffect(() => { load(); }, [load]);
 
@@ -105,7 +113,14 @@ export default function Reports() {
       {erroreExport && <ErrorBanner message={`Esportazione non riuscita: ${erroreExport}`} />}
 
       {!report ? (
-        <div className="card animate-pulse h-32" />
+        caricamento ? (
+          <div className="card animate-pulse h-32" />
+        ) : (
+          <div className="card text-center py-8 space-y-3">
+            <p className="text-sm text-muted">Non è stato possibile caricare il report con questi filtri.</p>
+            <button type="button" className="btn-outline !text-xs" onClick={load}>Riprova</button>
+          </div>
+        )
       ) : (
         <>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">

@@ -24,9 +24,14 @@ function formatGiorno(dataStr) {
 export default function Home() {
   const { user, punti } = useAuth();
   const { branding } = useBranding();
-  const [rides, setRides] = useState(null);
-  const [prossimi, setProssimi] = useState(null);
   const [giorni, setGiorni] = useState(5);
+  // I passaggi si associano al periodo che li ha prodotti: cambiando periodo non si mostrano
+  // quelli del periodo precedente come se fossero del nuovo.
+  const [risultati, setRisultati] = useState(null); // { giorni, rides }
+  const rides = risultati && risultati.giorni === giorni ? risultati.rides : null;
+  const [prossimi, setProssimi] = useState(null);
+  const [erroreProssimi, setErroreProssimi] = useState(false);
+  const richiestaProssimi = useRef(0); // indipendente dal periodo: la risposta resta valida
   const [error, setError] = useState('');
   const [soglia, setSoglia] = useState(leggiSogliaSalvata);
   const [offertaRapida, setOffertaRapida] = useState(false);
@@ -40,13 +45,23 @@ export default function Home() {
     setError('');
     setCaricamento(true);
     api.get(`/rides?home=1&giorni=${giorni}`)
-      .then((d) => { if (mia === richiesta.current) { setRides(d.rides); setError(''); } })
+      .then((d) => { if (mia === richiesta.current) { setRisultati({ giorni, rides: d.rides }); setError(''); } })
       .catch((e) => { if (mia === richiesta.current) setError(e.message); })
       .finally(() => { if (mia === richiesta.current) setCaricamento(false); });
-    api.get('/rides/prossimi-miei').then((d) => { if (mia === richiesta.current) setProssimi(d.prossimi); }).catch(() => {});
   }, [user, giorni]);
 
+  const caricaProssimi = useCallback(() => {
+    if (!user?.sede_id) return;
+    const mia = ++richiestaProssimi.current;
+    setErroreProssimi(false);
+    api.get('/rides/prossimi-miei')
+      .then((d) => { if (mia === richiestaProssimi.current) setProssimi(d.prossimi); })
+      .catch(() => { if (mia === richiestaProssimi.current) setErroreProssimi(true); });
+  }, [user]);
+  useEffect(() => { caricaProssimi(); }, [caricaProssimi]);
+
   useEffect(() => { load(); }, [load]);
+  const ricarica = () => { load(); caricaProssimi(); };
 
   if (!user?.sede_id) {
     return (
@@ -97,8 +112,15 @@ export default function Home() {
       {offertaRapida && (
         <QuickOfferModal
           onClose={() => setOffertaRapida(false)}
-          onDone={() => { setOffertaRapida(false); load(); }}
+          onDone={() => { setOffertaRapida(false); ricarica(); }}
         />
+      )}
+
+      {erroreProssimi && (
+        <div className="flex items-center justify-between gap-2 text-sm text-danger" role="alert">
+          <span>Non è stato possibile caricare i tuoi prossimi passaggi.</span>
+          <button type="button" className="btn-outline !py-1 !text-xs shrink-0" onClick={caricaProssimi}>Riprova</button>
+        </div>
       )}
 
       {prossimi && prossimi.length > 0 && (
@@ -152,8 +174,8 @@ export default function Home() {
 
       <RelevanceSlider user={user} value={soglia} onChange={cambiaSoglia} />
 
-      <RideSection title="Passaggi andata" icon={Sunrise} rides={andate} loading={caricamento && rides === null} errore={!!error && rides === null} onChanged={load} soglia={soglia} />
-      <RideSection title="Passaggi ritorno" icon={Sunset} rides={ritorni} loading={caricamento && rides === null} errore={!!error && rides === null} onChanged={load} soglia={soglia} />
+      <RideSection title="Passaggi andata" icon={Sunrise} rides={andate} loading={caricamento && rides === null} errore={!!error && rides === null} onChanged={ricarica} soglia={soglia} />
+      <RideSection title="Passaggi ritorno" icon={Sunset} rides={ritorni} loading={caricamento && rides === null} errore={!!error && rides === null} onChanged={ricarica} soglia={soglia} />
     </div>
   );
 }

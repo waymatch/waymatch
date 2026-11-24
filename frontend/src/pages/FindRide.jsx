@@ -41,6 +41,11 @@ export default function FindRide() {
   }, [sedeId, data, tipo]);
 
   useEffect(() => { load(); }, [load]);
+  // Le schede chiamano onChanged dopo un'azione che può durare: deve usare sempre il caricamento
+  // corrente (sede e filtri di adesso), non quello del render in cui l'azione è iniziata.
+  const loadCorrente = useRef(load);
+  loadCorrente.current = load;
+  const dopoAzione = useCallback(() => loadCorrente.current(), []);
 
   return (
     <div className="space-y-6">
@@ -94,7 +99,7 @@ export default function FindRide() {
         </div>
       ) : (
         <div className="grid gap-3 lg:grid-cols-2">
-          {ordinaPerPertinenza(rides, soglia).map((r) => <RideCard key={r.id} ride={r} onChanged={load} soglia={soglia} />)}
+          {ordinaPerPertinenza(rides, soglia).map((r) => <RideCard key={r.id} ride={r} onChanged={dopoAzione} soglia={soglia} />)}
         </div>
       )}
     </div>
