@@ -6,12 +6,13 @@ const { registraAzione } = require('../utils/audit');
 const { notificaMatchProattivo, notificaPreferiti } = require('../utils/matching');
 const { notificaMassiva } = require('../utils/notify');
 const { asyncHandler } = require('../utils/asyncHandler');
+const { richiediDocumentiConducente, documentiPendenti } = require('../utils/documentiLegali');
 const { giorniLavorativi, NOMI } = require('../utils/calendario');
 const { geometriaValida, sosteValide } = require('../utils/geoDistance');
 
 const router = express.Router();
 
-router.post('/', requireAuth, asyncHandler(async (req, res) => {
+router.post('/', requireAuth, richiediDocumentiConducente, asyncHandler(async (req, res) => {
   const me = db.prepare('SELECT * FROM users WHERE id = ?').get(req.user.id);
   if (!me.sede_id) return res.status(400).json({ error: 'Imposta prima la tua sede nel profilo' });
 
@@ -56,6 +57,10 @@ router.post('/', requireAuth, asyncHandler(async (req, res) => {
     : Math.max(1, Math.min(8, Math.trunc(Number(me.auto_posti)) || 3));
   // Km del percorso calcolati una volta dal server: valgono per tutte le occorrenze.
   const kmVerificati = await kmDalServer(partenza_lat, partenza_lon, arrivo_lat, arrivo_lon, soste);
+  // Controllo ripetuto dopo l'attesa dei km (vedi rides.js): da qui all'inserimento non ci sono attese.
+  if (documentiPendenti(req.user.id, 'conducente').length > 0) {
+    return res.status(403).json({ error: 'Prima di offrire un passaggio devi accettare i documenti del conducente.', codice: 'DOCUMENTI_DA_ACCETTARE' });
+  }
   const info = db.prepare(`
     INSERT INTO recurring_rides (
       driver_id, tipo, giorni_settimana, ora, punto_partenza, punto_arrivo, sede_id,

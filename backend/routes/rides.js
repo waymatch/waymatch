@@ -9,6 +9,7 @@ const { notificaMatchProattivo, notificaPreferiti } = require('../utils/matching
 const { promuoviListaAttesa, notificaPromossi } = require('../utils/waitlist');
 const { distanzaPuntoDaPercorso, geometriaValida, sosteValide } = require('../utils/geoDistance');
 const { asyncHandler } = require('../utils/asyncHandler');
+const { richiediDocumentiConducente, documentiPendenti } = require('../utils/documentiLegali');
 
 const router = express.Router();
 
@@ -96,7 +97,7 @@ const eseguiCompletamento = db.transaction((ride) => {
 });
 
 // Crea un'offerta di passaggio (andata e/o ritorno -> se "entrambi", crea due rides)
-router.post('/', requireAuth, asyncHandler(async (req, res) => {
+router.post('/', requireAuth, richiediDocumentiConducente, asyncHandler(async (req, res) => {
   const me = db.prepare('SELECT * FROM users WHERE id = ?').get(req.user.id);
   const {
     tipo, data, ora_andata, ora_ritorno,
@@ -178,6 +179,12 @@ router.post('/', requireAuth, asyncHandler(async (req, res) => {
     created.push(rideId);
   };
 
+  // Il controllo dei documenti si ripete dopo l'attesa dei km: nel frattempo una nuova versione o
+  // un nuovo documento del conducente possono essere diventati obbligatori. Da qui all'inserimento
+  // non ci sono più attese.
+  if (documentiPendenti(req.user.id, 'conducente').length > 0) {
+    return res.status(403).json({ error: 'Prima di offrire un passaggio devi accettare i documenti del conducente.', codice: 'DOCUMENTI_DA_ACCETTARE' });
+  }
   // Andata e ritorno, soste e punti in un'unica transazione; gli avvisi partono dopo.
   db.transaction(() => {
     if (conAndata) {
