@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useId } from 'react';
 import { Link } from 'react-router-dom';
 import { MapPin } from 'lucide-react';
 
@@ -6,6 +6,7 @@ import { MapPin } from 'lucide-react';
 // un invito a impostarlo — in entrambi i casi nello stesso punto della pagina, così non
 // "salta" quando l'utente lo imposta.
 export default function RelevanceSlider({ user, value, onChange }) {
+  const idCampo = useId();
   if (user?.casa_lat == null) {
     return (
       <div className="card bg-primary-light border-none flex items-center gap-3 !py-3">
@@ -25,10 +26,12 @@ export default function RelevanceSlider({ user, value, onChange }) {
       <MapPin size={16} className="text-primary shrink-0" />
       <div className="flex-1 min-w-0">
         <div className="flex items-center justify-between gap-2">
-          <label className="text-xs font-medium text-muted">Distanza massima dal tuo percorso</label>
+          <label htmlFor={idCampo} className="text-xs font-medium text-muted">Distanza massima dal tuo percorso</label>
           <span className="text-xs font-semibold text-primary shrink-0">{value} m</span>
         </div>
         <input
+          id={idCampo}
+          aria-valuetext={`${value} metri`}
           type="range" min="100" max="2000" step="100"
           className="w-full mt-1.5 accent-primary"
           value={value}

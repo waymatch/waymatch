@@ -1,12 +1,15 @@
-import React, { useState } from 'react';
+import React, { useState, useId } from 'react';
 import { MapPin, Flag, Star, Users, Coffee, ChevronDown, Car, Check, Clock } from 'lucide-react';
 import { api } from '../api.js';
 import RouteMap from './RouteMap.jsx';
+import { dataISO } from '../dateTimeUtils.js';
 import AddressAutocomplete from './AddressAutocomplete.jsx';
 
 function formatGiorno(dataStr) {
-  const oggi = new Date().toISOString().slice(0, 10);
-  const domani = new Date(Date.now() + 86400000).toISOString().slice(0, 10);
+  // Calendario locale (toISOString userebbe l'UTC: dopo mezzanotte darebbe il giorno prima); per
+  // "domani" si avanza il giorno di calendario, non di 24 ore (cambio ora legale).
+  const oggi = dataISO(0);
+  const domani = dataISO(1);
   if (dataStr === oggi) return 'Oggi';
   if (dataStr === domani) return 'Domani';
   return new Date(dataStr).toLocaleDateString('it-IT', { weekday: 'short', day: 'numeric', month: 'short' });
@@ -16,6 +19,7 @@ function formatGiorno(dataStr) {
 // per considerarlo "pertinente" e mostrare il badge — null/undefined per non valutarlo
 // (es. nella lista dei propri passaggi offerti, dove non ha senso).
 export default function RideCard({ ride, onChanged, soglia }) {
+  const idSalita = useId();
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState('');
@@ -221,8 +225,9 @@ export default function RideCard({ ride, onChanged, soglia }) {
 
           {!richiestaAttiva && (
             <div className="mt-3">
-              <label className="text-xs text-muted mb-1 block">Dove sali/scendi? (facoltativo)</label>
+              <label htmlFor={idSalita} className="text-xs text-muted mb-1 block">Dove sali/scendi? (facoltativo)</label>
               <select
+                id={idSalita}
                 className="input !py-1.5 !text-xs"
                 value={modoSalita === 'sosta' ? sostaScelta : modoSalita}
                 onChange={(e) => {
@@ -242,6 +247,7 @@ export default function RideCard({ ride, onChanged, soglia }) {
                     onChange={setIndirizzoLibero}
                     onSelect={(place) => setIndirizzoLibero(place.label)}
                     placeholder="Cerca un indirizzo lungo il tragitto..."
+                    correggibile={false}
                   />
                 </div>
               )}

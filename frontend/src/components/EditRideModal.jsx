@@ -1,8 +1,9 @@
 import FinestraModale from './FinestraModale.jsx';
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import ErrorBanner from './ErrorBanner.jsx';
 import { X, RefreshCw, Route, Plus, Trash2, Coffee, MapPin } from 'lucide-react';
 import { api } from '../api.js';
+import { dataISO } from '../dateTimeUtils.js';
 import AddressAutocomplete from './AddressAutocomplete.jsx';
 import RouteMap from './RouteMap.jsx';
 
@@ -28,12 +29,26 @@ export default function EditRideModal({ ride, minPosti, onClose, onSaved }) {
   const [soste, setSoste] = useState(ride.soste?.length ? ride.soste : []);
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
+  const [erroreSedi, setErroreSedi] = useState('');
+  const [sediCaricate, setSediCaricate] = useState(false);
+  // Il ricalcolo del percorso parte solo dopo una modifica vera di sede, indirizzo o soste: aprire
+  // la finestra e cambiare solo le note non deve sostituire percorso e km già salvati.
+  const modificato = useRef(false);
+  const richiestaCalcolo = useRef(0); // identifica l'ultimo ricalcolo: le risposte superate si ignorano
+  const etichettaOriginale = useRef(isAndata ? ride.punto_partenza : ride.punto_arrivo);
 
-  useEffect(() => { api.get('/sedi').then((d) => setSedi(d.sedi)); }, []);
+  const caricaSedi = useCallback(() => {
+    setErroreSedi('');
+    api.get('/sedi')
+      .then((d) => { setSedi(d.sedi); setSediCaricate(true); })
+      .catch((e) => setErroreSedi(e.message || 'Impossibile caricare le sedi.'));
+  }, []);
+  useEffect(() => { caricaSedi(); }, [caricaSedi]);
 
   const calcolaTratta = useCallback(async () => {
+    const mia = ++richiestaCalcolo.current;
     const sede = sedi.find((s) => String(s.id) === String(sedeId));
-    if (!sede?.lat || !sede?.lon || !homeLat || !homeLon) return;
+    if (!sede?.lat || !sede?.lon || !homeLat || !homeLon) { setCalcolando(false); return; }
     setCalcolando(true);
     setError('');
 
@@ -48,42 +63,56 @@ export default function EditRideModal({ ride, minPosti, onClose, onSaved }) {
         // andata: casa -> soste -> sede | ritorno: sede -> soste -> casa
         const punti = isAndata ? [puntoCasa, ...tappeSoste, puntoSede] : [puntoSede, ...tappeSoste, puntoCasa];
         const d = await api.post('/geo/route-multi', { punti });
+        if (mia !== richiestaCalcolo.current) return;
         setKm(d.km);
         setGeometria(d.geometria);
         setAlternative([]);
         setSceltaPercorso(0);
       } else {
-        const params = new URLSearchParams({ from_lat: homeLat, from_lon: homeLon, to_lat: sede.lat, to_lon: sede.lon });
+        // andata: casa -> sede | ritorno: sede -> casa (su strade a senso unico cambiano km e tracciato)
+        const da = isAndata ? { lat: homeLat, lon: homeLon } : { lat: sede.lat, lon: sede.lon };
+        const a = isAndata ? { lat: sede.lat, lon: sede.lon } : { lat: homeLat, lon: homeLon };
+        const params = new URLSearchParams({ from_lat: da.lat, from_lon: da.lon, to_lat: a.lat, to_lon: a.lon });
         const d = await api.get(`/geo/route?${params.toString()}`);
+        if (mia !== richiestaCalcolo.current) return;
         setKm(d.km);
         setGeometria(d.geometria);
         setAlternative(d.alternative || []);
         setSceltaPercorso(0);
       }
     } catch (e) {
-      setError('Impossibile ricalcolare il percorso, correggi i km manualmente.');
+      if (mia === richiestaCalcolo.current) setError('Impossibile ricalcolare il percorso, correggi i km manualmente.');
     } finally {
-      setCalcolando(false);
+      if (mia === richiestaCalcolo.current) setCalcolando(false);
     }
   }, [sedi, sedeId, homeLat, homeLon, soste, isAndata]);
 
   // Ricalcola automaticamente quando cambia sede, indirizzo di casa o soste validate,
   // senza dover premere il pulsante di aggiornamento manuale (rimane comunque disponibile
   // per un nuovo tentativo).
-  const sosteCoordKey = soste.map((s) => `${s.lat ?? ''},${s.lon ?? ''}`).join('|');
+  // La chiave comprende l'orario: cambiando l'ordine di passaggio delle soste il percorso si ricalcola.
+  const sosteCoordKey = soste.map((s) => `${s.lat ?? ''},${s.lon ?? ''},${s.orario ?? ''}`).join('|');
   useEffect(() => {
+    if (!modificato.current) return;
     calcolaTratta();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sedeId, homeLat, homeLon, sedi, sosteCoordKey]);
 
   const addStop = () => setSoste((prev) => [...prev, emptyStop()]);
-  const updateStop = (i, field, value) => setSoste((prev) => prev.map((s, idx) => (idx === i ? { ...s, [field]: value } : s)));
-  const updateStopFields = (i, fields) => setSoste((prev) => prev.map((s, idx) => (idx === i ? { ...s, ...fields } : s)));
-  const removeStop = (i) => setSoste((prev) => prev.filter((_, idx) => idx !== i));
+  const updateStop = (i, field, value) => { modificato.current = true; setSoste((prev) => prev.map((s, idx) => (idx === i ? { ...s, [field]: value } : s))); };
+  const updateStopFields = (i, fields) => { modificato.current = true; setSoste((prev) => prev.map((s, idx) => (idx === i ? { ...s, ...fields } : s))); };
+  const removeStop = (i) => { modificato.current = true; setSoste((prev) => prev.filter((_, idx) => idx !== i)); };
 
   const submit = async (e) => {
     e.preventDefault();
     setError('');
+    // Un indirizzo digitato a mano senza scegliere un suggerimento non ha coordinate: salvarlo
+    // lascerebbe il nuovo testo con percorso e distanza del punto precedente.
+    if (homeLabel !== etichettaOriginale.current && (homeLat == null || homeLon == null)) {
+      setError('Seleziona l\'indirizzo dai suggerimenti, così il percorso si calcola dal punto giusto.');
+      return;
+    }
+    if (calcolando) return;
     setSaving(true);
     try {
       const sede = sedi.find((s) => String(s.id) === String(sedeId));
@@ -117,7 +146,7 @@ export default function EditRideModal({ ride, minPosti, onClose, onSaved }) {
       <div className="bg-surface w-full sm:max-w-lg sm:rounded-2xl rounded-t-2xl max-h-[90vh] overflow-y-auto">
         <div className="flex items-center justify-between px-5 py-4 border-b border-border sticky top-0 bg-surface z-10">
           <h2 id="modifica-passaggio-titolo" className="font-display font-semibold text-base">Modifica passaggio</h2>
-          <button onClick={onClose} className="p-1 text-muted hover:text-ink"><X size={20} /></button>
+          <button type="button" onClick={onClose} aria-label="Chiudi la modifica del passaggio" className="p-1 text-muted hover:text-ink"><X size={20} /></button>
         </div>
 
         <form onSubmit={submit} className="p-5 space-y-4">
@@ -126,7 +155,7 @@ export default function EditRideModal({ ride, minPosti, onClose, onSaved }) {
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label htmlFor="editridemodal-0" className="label">Data</label>
-              <input id="editridemodal-0" type="date" required className="input" min={new Date().toISOString().slice(0, 10)} value={data} onChange={(e) => setData(e.target.value)} />
+              <input id="editridemodal-0" type="date" required className="input" min={dataISO()} value={data} onChange={(e) => setData(e.target.value)} />
             </div>
             <div>
               <label htmlFor="editridemodal-1" className="label">Orario</label>
@@ -136,18 +165,25 @@ export default function EditRideModal({ ride, minPosti, onClose, onSaved }) {
 
           <div>
             <label htmlFor="editridemodal-2" className="label">{isAndata ? 'Destinazione (sede)' : 'Partenza (sede)'}</label>
-            <select id="editridemodal-2" className="input" value={sedeId} onChange={(e) => { setSedeId(e.target.value); setGeometria(null); }}>
+            <select id="editridemodal-2" className="input" value={sedeId} onChange={(e) => { modificato.current = true; richiestaCalcolo.current++; setCalcolando(false); setSedeId(e.target.value); setGeometria(null); }}>
               <option value="">Seleziona sede...</option>
               {sedi.map((s) => <option key={s.id} value={s.id}>{s.nome}</option>)}
             </select>
+            {erroreSedi && (
+              <div className="mt-1 flex items-center gap-2 text-xs text-danger" role="alert">
+                <span>{erroreSedi}</span>
+                <button type="button" className="underline text-primary" onClick={caricaSedi}>Riprova</button>
+              </div>
+            )}
           </div>
 
           <div>
             <label className="label">{isAndata ? 'Punto di partenza' : 'Punto di arrivo'}</label>
             <AddressAutocomplete
               value={homeLabel}
-              onChange={setHomeLabel}
-              onSelect={(place) => { setHomeLabel(place.label); setHomeLat(place.lat); setHomeLon(place.lon); setCitta(place.citta || citta); }}
+              // Digitando di nuovo, le coordinate del punto precedente non valgono più.
+              onChange={(v) => { setHomeLabel(v); setHomeLat(null); setHomeLon(null); richiestaCalcolo.current++; setCalcolando(false); }}
+              onSelect={(place) => { modificato.current = true; setHomeLabel(place.label); setHomeLat(place.lat); setHomeLon(place.lon); setCitta(place.citta || citta); }}
             />
           </div>
 
@@ -157,11 +193,11 @@ export default function EditRideModal({ ride, minPosti, onClose, onSaved }) {
                 <Route size={14} className="text-muted" />
                 {calcolando ? <span className="text-muted">Calcolo...</span> : km ? <span>Tratta: <strong>{km} km</strong></span> : <span className="text-muted">Non calcolata</span>}
               </div>
-              <button type="button" className="btn-ghost !px-2 !py-1 text-primary" onClick={calcolaTratta}><RefreshCw size={14} /></button>
+              <button type="button" className="btn-ghost !px-2 !py-1 text-primary" onClick={calcolaTratta} aria-label="Ricalcola il percorso"><RefreshCw size={14} aria-hidden="true" /></button>
             </div>
             <div className="flex items-center gap-2">
-              <label className="text-xs text-muted shrink-0">Correggi km:</label>
-              <input type="number" min="0" step="0.1" className="input !py-1.5 !text-xs" value={km} onChange={(e) => setKm(e.target.value)} />
+              <label htmlFor="editridemodal-km" className="text-xs text-muted shrink-0">Correggi km:</label>
+              <input id="editridemodal-km" type="number" min="0" step="0.1" className="input !py-1.5 !text-xs" value={km} onChange={(e) => setKm(e.target.value)} />
             </div>
             {geometria && geometria.length > 0 && <div className="mt-3"><RouteMap points={geometria} height={160} /></div>}
             {alternative && alternative.length > 1 && (
@@ -185,8 +221,8 @@ export default function EditRideModal({ ride, minPosti, onClose, onSaved }) {
           </div>
 
           <div>
-            <label className="label">Posti totali {minPosti > 1 && <span className="text-xs text-muted">(minimo {minPosti}, ci sono richieste/conferme attive)</span>}</label>
-            <input type="number" min={minPosti || 1} max="8" className="input" value={postiTotali} onChange={(e) => setPostiTotali(e.target.value)} />
+            <label htmlFor="editridemodal-posti" className="label">Posti totali {minPosti > 1 && <span className="text-xs text-muted">(minimo {minPosti}, ci sono richieste/conferme attive)</span>}</label>
+            <input id="editridemodal-posti" type="number" min={minPosti || 1} max="8" className="input" value={postiTotali} onChange={(e) => setPostiTotali(e.target.value)} />
           </div>
 
           <div>
@@ -202,7 +238,7 @@ export default function EditRideModal({ ride, minPosti, onClose, onSaved }) {
             <div className="space-y-2">
               {soste.map((s, i) => (
                 <div key={i} className="flex gap-2 items-start bg-bg rounded-xl p-2.5">
-                  <input type="time" className="input !w-24" value={s.orario || ''} onChange={(e) => updateStop(i, 'orario', e.target.value)} />
+                  <input type="time" aria-label={`Orario della sosta ${i + 1}`} className="input !w-24" value={s.orario || ''} onChange={(e) => updateStop(i, 'orario', e.target.value)} />
                   <div className="flex-1 space-y-2">
                     <AddressAutocomplete
                       value={s.luogo || ''}
@@ -217,7 +253,7 @@ export default function EditRideModal({ ride, minPosti, onClose, onSaved }) {
                     ) : null}
                     <input className="input" placeholder="Dettagli" value={s.descrizione || ''} onChange={(e) => updateStop(i, 'descrizione', e.target.value)} />
                   </div>
-                  <button type="button" className="p-2 text-muted hover:text-danger" onClick={() => removeStop(i)}><Trash2 size={15} /></button>
+                  <button type="button" aria-label={`Rimuovi la sosta ${i + 1}`} className="p-2 text-muted hover:text-danger" onClick={() => removeStop(i)}><Trash2 size={15} aria-hidden="true" /></button>
                 </div>
               ))}
             </div>
@@ -226,7 +262,7 @@ export default function EditRideModal({ ride, minPosti, onClose, onSaved }) {
 
           <div className="flex gap-3 pt-2 pb-1">
             <button type="button" className="btn-outline flex-1" onClick={onClose}>Annulla</button>
-            <button className="btn-primary flex-1" disabled={saving}>{saving ? 'Salvataggio...' : 'Salva modifiche'}</button>
+            <button type="submit" className="btn-primary flex-1" disabled={saving || calcolando}>{saving ? 'Salvataggio...' : calcolando ? 'Calcolo del percorso...' : 'Salva modifiche'}</button>
           </div>
         </form>
       </div>

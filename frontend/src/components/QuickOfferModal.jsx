@@ -6,7 +6,7 @@ import { X, Sunrise, Sunset, ArrowLeftRight, Zap } from 'lucide-react';
 import { api } from '../api.js';
 import { useAuth } from '../context/AuthContext.jsx';
 import DateQuickPicks from './DateQuickPicks.jsx';
-import { orarioDefaultIntelligente } from '../dateTimeUtils.js';
+import { orarioDefaultIntelligente, dataISO } from '../dateTimeUtils.js';
 
 const TIPI = [
   { value: 'andata', label: 'Andata', icon: Sunrise },
@@ -20,7 +20,7 @@ const TIPI = [
 // così km/geometria restano corretti come per un'offerta normale.
 export default function QuickOfferModal({ onClose, onDone }) {
   const { user } = useAuth();
-  const oggi = new Date().toISOString().slice(0, 10);
+  const oggi = dataISO(); // calendario locale, come le scelte rapide di data
   const [sede, setSede] = useState(null);
   const [tipo, setTipo] = useState('andata');
   const [data, setData] = useState(oggi);
@@ -40,8 +40,10 @@ export default function QuickOfferModal({ onClose, onDone }) {
 
   const pronto = !!user?.sede_id && user?.casa_lat != null && user?.casa_lon != null;
 
+  // Il percorso deve essere davvero calcolato: con la sede non ancora caricata o il servizio non
+  // raggiungibile si interrompe con un errore, invece di salvare 0 km e nessun tracciato.
   const calcolaTratta = async (direzione) => {
-    if (!sede?.lat || !sede?.lon) return { km: 0, geometria: null };
+    if (!sede?.lat || !sede?.lon) throw new Error('La sede non è ancora disponibile o non ha coordinate: riprova tra un momento.');
     const casa = { lat: user.casa_lat, lon: user.casa_lon };
     const sedePunto = { lat: sede.lat, lon: sede.lon };
     const from = direzione === 'andata' ? casa : sedePunto;
@@ -51,7 +53,7 @@ export default function QuickOfferModal({ onClose, onDone }) {
       const d = await api.get(`/geo/route?${params.toString()}`);
       return { km: d.km, geometria: d.geometria };
     } catch (e) {
-      return { km: 0, geometria: null };
+      throw new Error('Impossibile calcolare il percorso: riprova, oppure usa il modulo completo in "Offri".');
     }
   };
 
@@ -97,7 +99,7 @@ export default function QuickOfferModal({ onClose, onDone }) {
       <div className="bg-surface w-full sm:max-w-sm sm:rounded-2xl rounded-t-2xl max-h-[90vh] overflow-y-auto">
         <div className="flex items-center justify-between px-5 py-4 border-b border-border sticky top-0 bg-surface z-10">
           <h2 id="offerta-rapida-titolo" className="font-display font-semibold text-base flex items-center gap-1.5"><Zap size={16} className="text-accent-dark" /> Offerta rapida</h2>
-          <button onClick={onClose} className="p-1 text-muted hover:text-ink"><X size={20} /></button>
+          <button type="button" onClick={onClose} aria-label="Chiudi offerta rapida" className="p-1 text-muted hover:text-ink"><X size={20} /></button>
         </div>
 
         {!pronto ? (
@@ -155,7 +157,7 @@ export default function QuickOfferModal({ onClose, onDone }) {
               <input id="quickoffermodal-3" type="number" min="1" max="8" className="input" value={posti} onChange={(e) => setPosti(e.target.value)} />
             </div>
 
-            <button className="btn-primary w-full" disabled={saving}>{saving ? 'Pubblicazione...' : 'Pubblica subito'}</button>
+            <button type="submit" className="btn-primary w-full" disabled={saving || !sede}>{saving ? 'Pubblicazione...' : !sede ? 'Caricamento della sede...' : 'Pubblica subito'}</button>
             <Link to="/offri" className="block text-center text-xs text-muted underline" onClick={onClose}>
               Serve aggiungere soste o creare un turno fisso? Vai al modulo completo
             </Link>

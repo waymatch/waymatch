@@ -12,7 +12,9 @@ import MapTileLayers from './MapTileLayers.jsx';
 // Dopo la selezione mostra una mini mappa con uno spillo trascinabile, per correggere a
 // mano la posizione quando la ricerca automatica non è precisa (es. un civico particolare,
 // o un locale non ancora mappato per nome su OpenStreetMap).
-export default function AddressAutocomplete({ value, onChange, onSelect, placeholder }) {
+// `correggibile` (predefinito sì): mostra lo spillo trascinabile. Va disattivato quando chi usa il
+// campo salva solo il testo dell'indirizzo e non le coordinate.
+export default function AddressAutocomplete({ value, onChange, onSelect, placeholder, correggibile = true }) {
   const [query, setQuery] = useState(value || '');
   const [suggestions, setSuggestions] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -22,6 +24,7 @@ export default function AddressAutocomplete({ value, onChange, onSelect, placeho
   const [mostraCorrezione, setMostraCorrezione] = useState(false);
   const debounceRef = useRef();
   const wrapperRef = useRef();
+  const richiestaRef = useRef(0); // identifica la ricerca corrente: le risposte superate si ignorano
 
   useEffect(() => { setQuery(value || ''); }, [value]);
 
@@ -39,22 +42,27 @@ export default function AddressAutocomplete({ value, onChange, onSelect, placeho
     onChange && onChange(val);
     setPosizione(null); // un nuovo testo libero invalida la posizione precedente
     clearTimeout(debounceRef.current);
-    if (val.trim().length < 3) { setSuggestions([]); return; }
+    const mia = ++richiestaRef.current; // ogni modifica invalida le ricerche già partite
+    if (val.trim().length < 3) { setSuggestions([]); setLoading(false); return; }
     setLoading(true);
     debounceRef.current = setTimeout(async () => {
       try {
         const data = await api.get(`/geo/search?q=${encodeURIComponent(val)}`);
+        if (mia !== richiestaRef.current) return;
         setSuggestions(data.results || []);
         setOpen(true);
       } catch (e) {
-        setSuggestions([]);
+        if (mia === richiestaRef.current) setSuggestions([]);
       } finally {
-        setLoading(false);
+        if (mia === richiestaRef.current) setLoading(false);
       }
     }, 500);
   };
 
   const select = (s) => {
+    clearTimeout(debounceRef.current);
+    richiestaRef.current++; // una selezione invalida le ricerche in corso: non riaprono il menu
+    setLoading(false);
     setQuery(s.display_name);
     setOpen(false);
     setSuggestions([]);
@@ -99,7 +107,7 @@ export default function AddressAutocomplete({ value, onChange, onSelect, placeho
         </div>
       )}
 
-      {posizione && !mostraCorrezione && (
+      {correggibile && posizione && !mostraCorrezione && (
         <button
           type="button"
           onClick={() => setMostraCorrezione(true)}
@@ -109,7 +117,7 @@ export default function AddressAutocomplete({ value, onChange, onSelect, placeho
         </button>
       )}
 
-      {posizione && mostraCorrezione && (
+      {correggibile && posizione && mostraCorrezione && (
         <div className="mt-2">
           <div className="flex items-center justify-between mb-1">
             <p className="text-xs text-muted flex items-center gap-1">
