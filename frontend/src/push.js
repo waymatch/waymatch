@@ -18,6 +18,18 @@ export async function statoPermesso() {
   return Notification.permission; // 'default' | 'granted' | 'denied'
 }
 
+// C'è una sottoscrizione attiva su questo dispositivo? (Il permesso "granted" da solo non basta:
+// dopo "Disattiva" il permesso resta concesso ma non c'è più nessuna sottoscrizione.)
+export async function sottoscrizioneAttiva() {
+  if (!pushSupportato()) return false;
+  try {
+    const registration = await navigator.serviceWorker.ready;
+    return !!(await registration.pushManager.getSubscription());
+  } catch {
+    return false;
+  }
+}
+
 export async function attivaPush() {
   if (!pushSupportato()) throw new Error('Le notifiche push non sono supportate su questo dispositivo/browser.');
 
