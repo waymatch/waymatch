@@ -52,4 +52,17 @@ function distanzaKm(lat1, lon1, lat2, lon2) {
   return 2 * 6371 * Math.asin(Math.sqrt(a));
 }
 
-module.exports = { distanzaPuntoDaPercorso, geometriaValida, distanzaKm };
+// Soste di un passaggio o di un turno: elenco di al massimo 20 oggetti. Le righe senza luogo
+// si ignorano al salvataggio; per le altre luogo, orario (HH:MM) e coordinate devono avere il
+// tipo giusto, altrimenti l'inserimento fallirebbe a metà.
+function sosteValide(soste) {
+  if (soste == null) return true;
+  const vuoto = (v) => v === undefined || v === null || v === '';
+  return Array.isArray(soste) && soste.length <= 20 && soste.every((s) => s == null || (typeof s === 'object'
+    && (vuoto(s.luogo) || (typeof s.luogo === 'string' && s.luogo.length <= 200))
+    && (vuoto(s.descrizione) || (typeof s.descrizione === 'string' && s.descrizione.length <= 500))
+    && (vuoto(s.orario) || (typeof s.orario === 'string' && /^([01]\d|2[0-3]):[0-5]\d$/.test(s.orario)))
+    && ['lat', 'lon'].every((k) => vuoto(s[k]) || Number.isFinite(s[k]))));
+}
+
+module.exports = { distanzaPuntoDaPercorso, geometriaValida, distanzaKm, sosteValide };

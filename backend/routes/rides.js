@@ -7,7 +7,7 @@ const { notifica, notificaMassiva } = require('../utils/notify');
 const { registraAzione } = require('../utils/audit');
 const { notificaMatchProattivo, notificaPreferiti } = require('../utils/matching');
 const { promuoviListaAttesa, notificaPromossi } = require('../utils/waitlist');
-const { distanzaPuntoDaPercorso, geometriaValida, distanzaKm } = require('../utils/geoDistance');
+const { distanzaPuntoDaPercorso, geometriaValida, distanzaKm, sosteValide } = require('../utils/geoDistance');
 const { asyncHandler } = require('../utils/asyncHandler');
 
 const router = express.Router();
@@ -126,6 +126,7 @@ router.post('/', requireAuth, (req, res) => {
   const percorsoAndata = percorsoDaSalvare(conAndata ? geometria_andata : null);
   const percorsoRitorno = percorsoDaSalvare(conRitorno ? geometria_ritorno : null);
   if (!percorsoAndata.ok || !percorsoRitorno.ok) return res.status(400).json({ error: 'Percorso non valido' });
+  if (!sosteValide(soste_andata) || !sosteValide(soste_ritorno)) return res.status(400).json({ error: 'Soste non valide' });
   if (!me.sede_id) return res.status(400).json({ error: 'Imposta prima la tua sede nel profilo' });
   if (!dataLavorativa(data)) return res.status(400).json({ error: messaggioGiornoNonLavorativo(data) });
 
@@ -343,6 +344,7 @@ router.put('/:id', requireAuth, asyncHandler(async (req, res) => {
   if (!ORA_VALIDA.test(nuovaOra)) return res.status(400).json({ error: 'Orario non valido (formato HH:MM)' });
   const percorso = percorsoDaSalvare(geometria);
   if (!percorso.ok) return res.status(400).json({ error: 'Percorso non valido' });
+  if (!sosteValide(soste)) return res.status(400).json({ error: 'Soste non valide' });
   if (nuovaData !== ride.data && !dataLavorativa(nuovaData)) return res.status(400).json({ error: messaggioGiornoNonLavorativo(nuovaData) });
   if (isPastDateTime(nuovaData, nuovaOra)) {
     return res.status(400).json({ error: 'Non puoi impostare un orario già passato.' });

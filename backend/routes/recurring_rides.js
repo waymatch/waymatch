@@ -7,7 +7,7 @@ const { notificaMatchProattivo, notificaPreferiti } = require('../utils/matching
 const { notificaMassiva } = require('../utils/notify');
 const { asyncHandler } = require('../utils/asyncHandler');
 const { giorniLavorativi, NOMI } = require('../utils/calendario');
-const { geometriaValida } = require('../utils/geoDistance');
+const { geometriaValida, sosteValide } = require('../utils/geoDistance');
 
 const router = express.Router();
 
@@ -28,7 +28,7 @@ router.post('/', requireAuth, (req, res) => {
   if (!['andata', 'ritorno'].includes(tipo)) return res.status(400).json({ error: 'Tipo di turno non valido' });
   if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(ora)) return res.status(400).json({ error: 'Orario non valido (formato HH:MM)' });
   if (geometria != null && !geometriaValida(geometria)) return res.status(400).json({ error: 'Percorso non valido' });
-  if (soste != null && (!Array.isArray(soste) || soste.length > 20)) return res.status(400).json({ error: 'Soste non valide' });
+  if (!sosteValide(soste)) return res.status(400).json({ error: 'Soste non valide' });
   if (posti_totali != null && posti_totali !== '' && !(Number.isInteger(Number(posti_totali)) && Number(posti_totali) >= 1 && Number(posti_totali) <= 8)) {
     return res.status(400).json({ error: 'I posti devono essere un numero intero da 1 a 8' });
   }
@@ -50,7 +50,10 @@ router.post('/', requireAuth, (req, res) => {
     return res.status(400).json({ error: `La tua azienda non prevede passaggi di ${nonLavorativi.map((g) => NOMI[g]).join(', ')}. Togli ${nonLavorativi.length === 1 ? 'quel giorno' : 'quei giorni'} dal turno.` });
   }
 
-  const posti = Math.max(1, Math.min(8, Number(posti_totali) || me.auto_posti || 3));
+  // Anche il valore preso dal profilo diventa un intero da 1 a 8.
+  const posti = posti_totali != null && posti_totali !== ''
+    ? Number(posti_totali)
+    : Math.max(1, Math.min(8, Math.trunc(Number(me.auto_posti)) || 3));
   const info = db.prepare(`
     INSERT INTO recurring_rides (
       driver_id, tipo, giorni_settimana, ora, punto_partenza, punto_arrivo, sede_id,
@@ -219,7 +222,8 @@ router.delete('/:id/eccezioni/:data', requireAuth, (req, res) => {
   // Si ripristina solo un passaggio annullato perché la data era saltata (non uno annullato a
   // mano). Con il turno sospeso resta annullato, ma come se l'avesse annullato la sospensione:
   // così torna disponibile alla riattivazione.
-  if (esistente && esistente.stato === 'annullato' && esistente.motivo_annullamento === 'data_saltata') {
+  // (Una data saltata durante la sospensione conserva il motivo 'sospensione_turno': vale lo stesso.)
+  if (esistente && esistente.stato === 'annullato' && ['data_saltata', 'sospensione_turno'].includes(esistente.motivo_annullamento)) {
     if (turno.attivo) {
       db.prepare(`UPDATE rides SET stato = 'attivo', posti_disponibili = posti_totali, motivo_annullamento = NULL WHERE id = ?`).run(esistente.id);
     } else {
