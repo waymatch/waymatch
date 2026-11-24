@@ -217,7 +217,8 @@ router.delete('/:id/eccezioni/:data', requireAuth, (req, res) => {
   if (!turno) return;
   db.prepare('DELETE FROM recurring_ride_exceptions WHERE recurring_ride_id = ? AND data = ?').run(turno.id, req.params.data);
 
-  const esistente = db.prepare(`SELECT * FROM rides WHERE recurring_ride_id = ? AND data = ?`).get(turno.id, req.params.data);
+  // Solo occorrenze non ancora partite: una data già trascorsa non torna disponibile.
+  const esistente = db.prepare(`SELECT * FROM rides WHERE recurring_ride_id = ? AND data = ? AND ${FUTURO}`).get(turno.id, req.params.data);
   let generati = 0;
   // Si ripristina solo un passaggio annullato perché la data era saltata (non uno annullato a
   // mano). Con il turno sospeso resta annullato, ma come se l'avesse annullato la sospensione:
