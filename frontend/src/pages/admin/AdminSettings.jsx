@@ -334,21 +334,32 @@ function CostiCo2Tab() {
   const [saving, setSaving] = useState(null);
   const [msg, setMsg] = useState('');
   const [erroreCarica, setErroreCarica] = useState('');
-  const daRiallineare = useRef(new Set()); // alimentazioni modificate e non ancora rilette: un nuovo tentativo ripete solo la lettura
+  // Alimentazioni modificate e non ancora rilette, ognuna con la generazione della sua ultima modifica:
+  // un nuovo tentativo ripete solo la lettura.
+  const daRiallineare = useRef(new Map());
+  const generazione = useRef(0);
 
   // Dopo un salvataggio si riallineano al server solo le bozze delle alimentazioni modificate e non
   // ancora rilette (anche se una lettura precedente è fallita): le modifiche non salvate delle altre restano.
+  // Una risposta partita prima di un salvataggio successivo non lo cancella e non sostituisce la bozza:
+  // il riallineamento resta in attesa della lettura che segue quel salvataggio.
   // Restituisce true se la lettura è riuscita.
   const load = (aggiornata = null) => {
     setErroreCarica('');
-    if (aggiornata) daRiallineare.current.add(aggiornata);
-    const inAttesa = new Set(daRiallineare.current);
+    if (aggiornata) daRiallineare.current.set(aggiornata, ++generazione.current);
+    const inAttesa = new Map(daRiallineare.current);
     return api.get('/reports/cost-co2-clusters').then((d) => {
-      inAttesa.forEach((chiave) => daRiallineare.current.delete(chiave));
+      const riallineate = new Set();
+      for (const [chiave, gen] of inAttesa) {
+        if (daRiallineare.current.get(chiave) === gen) {
+          daRiallineare.current.delete(chiave);
+          riallineate.add(chiave);
+        }
+      }
       setClusters(d.clusters);
       setEdit((prev) => Object.fromEntries(d.clusters.map((c) => [
         c.alimentazione,
-        inAttesa.has(c.alimentazione) || !prev[c.alimentazione] ? { costo_km_eur: c.costo_km_eur, co2_g_km: c.co2_g_km } : prev[c.alimentazione],
+        riallineate.has(c.alimentazione) || !prev[c.alimentazione] ? { costo_km_eur: c.costo_km_eur, co2_g_km: c.co2_g_km } : prev[c.alimentazione],
       ])));
       return true;
     }).catch((e) => { setErroreCarica(e.message || 'Impossibile caricare i valori.'); return false; });
