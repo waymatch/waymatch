@@ -7,11 +7,25 @@ import MapTileLayers from './MapTileLayers.jsx';
 function FitBounds({ points }) {
   const map = useMap();
   React.useEffect(() => {
-    if (points && points.length > 1) {
-      map.fitBounds(points, { padding: [30, 30] });
-    } else if (points && points.length === 1) {
-      map.setView(points[0], 13);
+    const adatta = () => {
+      if (points && points.length > 1) map.fitBounds(points, { padding: [30, 30] });
+      else if (points && points.length === 1) map.setView(points[0], 13);
+    };
+    adatta();
+    // Se la mappa nasce in un contenitore nascosto (dimensione zero) e poi diventa visibile, Leaflet
+    // non se ne accorge: all'apparire si ricalcolano la dimensione e l'adattamento al percorso.
+    const contenitore = map.getContainer();
+    let eraNascosta = contenitore.clientWidth === 0 || contenitore.clientHeight === 0;
+    let osservatore = null;
+    if (typeof ResizeObserver !== 'undefined') {
+      osservatore = new ResizeObserver(() => {
+        const nascosta = contenitore.clientWidth === 0 || contenitore.clientHeight === 0;
+        if (eraNascosta && !nascosta) { map.invalidateSize(); adatta(); }
+        eraNascosta = nascosta;
+      });
+      osservatore.observe(contenitore);
     }
+    return () => osservatore && osservatore.disconnect();
   }, [points, map]);
   return null;
 }
