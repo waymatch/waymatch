@@ -1,0 +1,50 @@
+name: Segnala un problema
+description: Qualcosa non funziona come dovrebbe. Le vulnerabilità di sicurezza NON vanno qui (vedi SECURITY.md).
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Grazie della segnalazione. **Non incollare** password, token, chiavi o dati personali.
+        Per una vulnerabilità di sicurezza usa invece la [segnalazione privata](https://github.com/waymatch/waymatch/security/advisories/new).
+  - type: textarea
+    id: cosa
+    attributes:
+      label: Cosa succede
+      description: Cosa hai visto e cosa ti aspettavi invece.
+    validations:
+      required: true
+  - type: textarea
+    id: riprodurre
+    attributes:
+      label: Come riprodurlo
+      description: I passi per arrivare al problema. Se puoi, aggiungi uno screenshot.
+      placeholder: |
+        1. Accedi come mobility manager
+        2. Vai in Impostazioni → …
+        3. …
+    validations:
+      required: true
+  - type: input
+    id: versione
+    attributes:
+      label: Versione di WayMatch
+      description: La trovi in Informazioni → Sistema (o il tag/commit installato).
+      placeholder: es. 1.0.0
+    validations:
+      required: true
+  - type: dropdown
+    id: installazione
+    attributes:
+      label: Come è installato
+      options:
+        - Docker Compose
+        - Docker Compose con Caddy (docker-compose.produzione.yml)
+        - Podman
+        - In locale, per sviluppo
+        - Altro
+  - type: input
+    id: browser
+    attributes:
+      label: Browser e dispositivo (se il problema è nell'interfaccia)
+      placeholder: es. Chrome 131 su Android, app installata

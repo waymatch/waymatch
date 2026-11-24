@@ -1,0 +1,12 @@
+:root {
+  /* WayMatch · palette Acqua 水 */
+  --wm-petrol: #14424F;        /* blu petrolio: colore principale, sfondi scuri, testo su chiaro */
+  --wm-aqua: #3CC8B8;          /* acqua: il "match", accenti, testo e segni su petrolio */
+  --wm-aqua-dark: #0B6E66;     /* acqua scuro: testo e link su sfondo chiaro */
+  --wm-mist: #F3F7F5;          /* nebbia: sfondi chiari del brand */
+  --wm-white: #FFFFFF;         /* sfondo alternativo per l'interfaccia */
+  --wm-route-on-dark: #86A8AE;
+  --wm-route-on-light: #8FA6AC;
+  --wm-font-display: "Space Grotesk", sans-serif;
+  --wm-font-body: "Inter", sans-serif;
+}

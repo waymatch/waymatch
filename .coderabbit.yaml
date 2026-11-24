@@ -1,0 +1,34 @@
+# Configurazione delle revisioni automatiche di CodeRabbit.
+language: it-IT
+reviews:
+  profile: assertive
+  high_level_summary: true
+  poem: false
+  auto_review:
+    enabled: true
+    drafts: false
+    base_branches:
+      - main
+  path_filters:
+    - "!assets/brand/**"
+    - "!assets/adopters/**"
+    - "!docs/img/**"
+    - "!frontend/public/brand/**"
+    - "!**/package-lock.json"
+  path_instructions:
+    - path: "**/*"
+      instructions: |
+        WayMatch è una piattaforma di carpooling aziendale self-hosted (Node 22, Express 4, SQLite
+        cifrato con better-sqlite3-multiple-ciphers; React 18, Vite, Tailwind). Testi
+        dell'interfaccia, commenti e documentazione sono in italiano per scelta.
+        Scelte volute, da non segnalare come difetti salvo un problema concreto:
+        - nessun SSO: gli accessi sono gestiti dall'app (email e password, bcrypt costo 12);
+        - nessun middleware CSRF: le API usano un token Bearer nell'intestazione; l'unico cookie
+          (rinnovo della sessione) è httpOnly e SameSite=Strict;
+        - style-src con 'unsafe-inline' nella CSP, richiesto da Leaflet; script-src resta stretto;
+        - i servizi di geocodifica e percorso hanno host fissi da variabili d'ambiente.
+        Dai priorità a sicurezza, correttezza, gestione degli errori e accessibilità.
+    - path: "backend/test/**"
+      instructions: |
+        Suite di test eseguite da backend/test/esegui.js su istanze isolate in cartelle
+        temporanee, con segreti generati al volo: non sono credenziali reali.
