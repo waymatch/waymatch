@@ -354,7 +354,7 @@ function CostiCo2Tab() {
     return api.get('/reports/cost-co2-clusters').then((d) => {
       if (numero < letture.current.applicata) return true;
       letture.current.applicata = numero;
-      setErroreCarica('');
+      if (numero === letture.current.avviata) setErroreCarica('');
       const riallineate = new Set();
       for (const [chiave, gen] of inAttesa) {
         if (daRiallineare.current.get(chiave) === gen) {
