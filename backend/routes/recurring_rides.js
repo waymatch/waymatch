@@ -28,6 +28,10 @@ router.post('/', requireAuth, (req, res) => {
   if (!['andata', 'ritorno'].includes(tipo)) return res.status(400).json({ error: 'Tipo di turno non valido' });
   if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(ora)) return res.status(400).json({ error: 'Orario non valido (formato HH:MM)' });
   if (geometria != null && !geometriaValida(geometria)) return res.status(400).json({ error: 'Percorso non valido' });
+  if (soste != null && (!Array.isArray(soste) || soste.length > 20)) return res.status(400).json({ error: 'Soste non valide' });
+  if (posti_totali != null && posti_totali !== '' && !(Number.isInteger(Number(posti_totali)) && Number(posti_totali) >= 1 && Number(posti_totali) <= 8)) {
+    return res.status(400).json({ error: 'I posti devono essere un numero intero da 1 a 8' });
+  }
 
   // Normalizza a interi 1-7 (1=lun..7=dom) validi e senza duplicati, prima di salvarli:
   // senza questo controllo un array arbitrariamente lungo/malformato finirebbe salvato
@@ -189,7 +193,7 @@ router.post('/:id/eccezioni', requireAuth, asyncHandler(async (req, res) => {
         SELECT * FROM rides WHERE recurring_ride_id = ? AND data = ? AND stato = 'attivo'
       `).get(turno.id, data);
       registraAzione(req.user.id, 'turno_fisso_data_saltata', `Turno #${turno.id}: ${data}`, 'utente');
-      return occorrenza ? [annullaOccorrenza(occorrenza)].filter(Boolean) : [];
+      return occorrenza ? [annullaOccorrenza(occorrenza, 'data_saltata')].filter(Boolean) : [];
     })();
   } catch (e) {
     if (String(e.message).includes('UNIQUE')) return res.status(400).json({ error: 'Questa data è già stata saltata' });
@@ -212,10 +216,15 @@ router.delete('/:id/eccezioni/:data', requireAuth, (req, res) => {
 
   const esistente = db.prepare(`SELECT * FROM rides WHERE recurring_ride_id = ? AND data = ?`).get(turno.id, req.params.data);
   let generati = 0;
-  // Con il turno sospeso la data torna valida ma il passaggio resta annullato: lo ripristina
-  // la riattivazione del turno.
-  if (esistente && esistente.stato === 'annullato' && turno.attivo) {
-    db.prepare(`UPDATE rides SET stato = 'attivo', posti_disponibili = posti_totali, motivo_annullamento = NULL WHERE id = ?`).run(esistente.id);
+  // Si ripristina solo un passaggio annullato perché la data era saltata (non uno annullato a
+  // mano). Con il turno sospeso resta annullato, ma come se l'avesse annullato la sospensione:
+  // così torna disponibile alla riattivazione.
+  if (esistente && esistente.stato === 'annullato' && esistente.motivo_annullamento === 'data_saltata') {
+    if (turno.attivo) {
+      db.prepare(`UPDATE rides SET stato = 'attivo', posti_disponibili = posti_totali, motivo_annullamento = NULL WHERE id = ?`).run(esistente.id);
+    } else {
+      db.prepare(`UPDATE rides SET motivo_annullamento = 'sospensione_turno' WHERE id = ?`).run(esistente.id);
+    }
   } else if (!esistente) {
     generati = generaOccorrenzePerTemplate(turno.id, 14);
   }
@@ -233,7 +242,8 @@ function generaOccorrenzePerTemplate(recurringId, giorni) {
   // dopo la creazione del turno, non si generano più passaggi in quel giorno.
   const lavorativi = giorniLavorativi();
   const giorniValidi = t.giorni_settimana.split(',').slice(0, 7).map(Number).filter((g) => lavorativi.includes(g));
-  const soste = t.soste ? JSON.parse(t.soste) : [];
+  const sosteSalvate = t.soste ? JSON.parse(t.soste) : [];
+  const soste = Array.isArray(sosteSalvate) ? sosteSalvate : [];
   let generati = 0;
 
   for (let i = 0; i < giorni; i++) {

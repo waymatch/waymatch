@@ -137,7 +137,11 @@ router.post('/', requireAuth, (req, res) => {
     return res.status(400).json({ error: 'Non puoi offrire un passaggio di ritorno per un orario già passato.' });
   }
 
-  const posti = Math.max(1, Math.min(8, Number(posti_totali) || me.auto_posti || 3));
+  const postiValidi = (v) => Number.isInteger(Number(v)) && Number(v) >= 1 && Number(v) <= 8;
+  if (posti_totali != null && posti_totali !== '' && !postiValidi(posti_totali)) {
+    return res.status(400).json({ error: 'I posti devono essere un numero intero da 1 a 8' });
+  }
+  const posti = posti_totali != null && posti_totali !== '' ? Number(posti_totali) : Math.max(1, Math.min(8, Math.trunc(me.auto_posti) || 3));
   const created = [];
 
   const insertOne = (t, ora, partenza, arrivo, soste, pLat, pLon, aLat, aLon, km, geometriaJson, citta) => {
@@ -347,7 +351,10 @@ router.put('/:id', requireAuth, asyncHandler(async (req, res) => {
   const impegnati = db.prepare(`
     SELECT COUNT(*) as n FROM bookings WHERE ride_id = ? AND stato IN ('richiesto','confermato')
   `).get(ride.id).n;
-  const nuoviPosti = Math.max(1, Math.min(8, Number(posti_totali) || ride.posti_totali));
+  if (posti_totali != null && posti_totali !== '' && !(Number.isInteger(Number(posti_totali)) && Number(posti_totali) >= 1 && Number(posti_totali) <= 8)) {
+    return res.status(400).json({ error: 'I posti devono essere un numero intero da 1 a 8' });
+  }
+  const nuoviPosti = posti_totali != null && posti_totali !== '' ? Number(posti_totali) : ride.posti_totali;
   if (nuoviPosti < impegnati) {
     return res.status(400).json({ error: `Non puoi scendere sotto ${impegnati} posti: ci sono già richieste/conferme attive.` });
   }

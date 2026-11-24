@@ -315,6 +315,7 @@ CREATE TABLE IF NOT EXISTS audit_log (
 
 CREATE INDEX IF NOT EXISTS idx_rides_data ON rides(data);
 CREATE INDEX IF NOT EXISTS idx_rides_sede ON rides(sede_id);
+CREATE INDEX IF NOT EXISTS idx_rides_autista_data ON rides(driver_id, data);
 CREATE INDEX IF NOT EXISTS idx_bookings_ride ON bookings(ride_id);
 CREATE INDEX IF NOT EXISTS idx_bookings_passenger ON bookings(passenger_id);
 CREATE INDEX IF NOT EXISTS idx_points_user ON points_log(user_id);

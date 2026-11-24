@@ -9,6 +9,7 @@ const router = express.Router();
 function coordinate(lat, lon) {
   const vuoto = (v) => v === undefined || v === null || v === '';
   if (vuoto(lat) && vuoto(lon)) return { lat: null, lon: null };
+  if (vuoto(lat) || vuoto(lon)) return null; // una sola coordinata non basta
   const la = Number(lat), lo = Number(lon);
   if (!Number.isFinite(la) || !Number.isFinite(lo) || Math.abs(la) > 90 || Math.abs(lo) > 180) return null;
   return { lat: la, lon: lo };

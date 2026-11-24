@@ -144,7 +144,8 @@ router.put('/redemptions/:id', requireAuth, requireRole('mobility_manager'), asy
     return res.status(400).json({ error: `Un riscatto ${statoPrecedente.replace('_', ' ')} non può diventare ${stato}` });
   }
   let codiceVoucher = redemption.codice_voucher;
-  if (stato === 'approvato' && redemption.reward_tipo === 'voucher_digitale' && !codiceVoucher) {
+  // Anche la consegna diretta (senza passare da "approvato") genera il codice del voucher.
+  if (['approvato', 'consegnato'].includes(stato) && redemption.reward_tipo === 'voucher_digitale' && !codiceVoucher) {
     codiceVoucher = generaCodiceVoucher();
   }
   // Stato, rimborso e registro in un'unica transazione: un errore a metà non lascia un

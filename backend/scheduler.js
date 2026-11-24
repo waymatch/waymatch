@@ -1,5 +1,5 @@
 const db = require('./db');
-const { notifica } = require('./utils/notify');
+const { notifica, creaNotificaInApp, consegnaEsterna } = require('./utils/notify');
 const { totaleGuadagnato } = require('./utils/points');
 const { logEvent } = require('./utils/structuredLog');
 const { pulisciSessioniScadute } = require('./utils/sessioni');
@@ -225,19 +225,21 @@ async function inviaPromemoriaPartenza() {
         SELECT minuti_anticipo FROM notification_preferences WHERE user_id = ? AND categoria = 'promemoria_partenza'
       `).get(p.user_id);
       const minutiAnticipo = pref?.minuti_anticipo ?? 30;
-      const minutiMancanti = ride.minuti_mancanti;
+      // Minuti ricalcolati per ogni partecipante: gli invii precedenti richiedono tempo.
+      const minutiMancanti = db.prepare(`
+        SELECT CAST(round((julianday(?) - julianday('now', 'localtime')) * 1440) AS INTEGER) AS m
+      `).get(`${ride.data} ${ride.ora}`).m;
       if (minutiMancanti > minutiAnticipo || minutiMancanti < 0) continue;
 
-      // Il promemoria si "prenota" prima dell'invio: due giri dello scheduler sovrapposti non
-      // possono mandarlo due volte. notifica non fallisce mai, quindi non va perso.
-      const prenotato = db.prepare('INSERT OR IGNORE INTO reminder_sent (ride_id, user_id) VALUES (?, ?)').run(ride.id, p.user_id).changes === 1;
-      if (!prenotato) continue;
-
-      await notifica(
-        p.user_id, 'promemoria_partenza',
-        `Il tuo passaggio ${ride.tipo} delle ${ride.ora} parte tra circa ${minutiMancanti} minuti.`,
-        ride.id
-      );
+      // Il marcatore e la notifica in-app si scrivono insieme: due giri sovrapposti non mandano
+      // il promemoria due volte, e non esiste un marcatore senza notifica. Push ed email dopo.
+      const messaggio = `Il tuo passaggio ${ride.tipo} delle ${ride.ora} parte tra circa ${minutiMancanti} minuti.`;
+      const inApp = db.transaction(() => {
+        const prenotato = db.prepare('INSERT OR IGNORE INTO reminder_sent (ride_id, user_id) VALUES (?, ?)').run(ride.id, p.user_id).changes === 1;
+        return prenotato ? creaNotificaInApp(p.user_id, 'promemoria_partenza', messaggio, ride.id) : null;
+      })();
+      if (!inApp) continue;
+      await consegnaEsterna(p.user_id, 'promemoria_partenza', messaggio, inApp);
     }
   }
 }

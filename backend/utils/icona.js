@@ -22,10 +22,9 @@ async function creaMaster(sorgente) {
   // Il logo, qualunque proporzione abbia, deve stare tutto dentro il cerchio: la sua
   // diagonale non supera il diametro della zona sicura (un quadrato pieno ne sporgerebbe
   // con gli angoli, tagliati dalla maschera rotonda di Android).
-  const diametro = LATO * ZONA_SICURA;
-  const rapporto = img.width / img.height;
-  const altezza = Math.max(1, Math.floor(diametro / Math.sqrt(1 + rapporto * rapporto)));
-  const larghezza = Math.max(1, Math.floor(altezza * rapporto));
+  const scala = (LATO * ZONA_SICURA) / Math.hypot(img.width, img.height);
+  const larghezza = Math.max(1, Math.floor(img.width * scala));
+  const altezza = Math.max(1, Math.floor(img.height * scala));
   img.resize({ w: larghezza, h: altezza });
   const base = new Jimp({ width: LATO, height: LATO, color: 0xffffffff });
   base.composite(img, Math.round((LATO - img.width) / 2), Math.round((LATO - img.height) / 2));

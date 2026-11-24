@@ -123,13 +123,18 @@ const TIMEOUT_PUSH_MS = 10000;
 // Una notifica non fa mai fallire l'operazione che l'ha generata: la notifica in-app è
 // scritta subito, push ed email sono un tentativo in più. Gli errori finiscono nel log e la
 // funzione non rifiuta mai, quindi chi la chiama non deve proteggersi.
-async function notifica(userId, tipo, messaggio, rideId = null) {
-  try {
-    const url = destinazionePer(tipo);
-    const info = db.prepare(`
-      INSERT INTO notifications (user_id, tipo, messaggio, ride_id, url) VALUES (?, ?, ?, ?, ?)
-    `).run(userId, tipo, messaggio, rideId, url);
+// Notifica in-app: sincrona, si può chiamare dentro una transazione insieme ad altre scritture.
+function creaNotificaInApp(userId, tipo, messaggio, rideId = null) {
+  const url = destinazionePer(tipo);
+  const info = db.prepare(`
+    INSERT INTO notifications (user_id, tipo, messaggio, ride_id, url) VALUES (?, ?, ?, ?, ?)
+  `).run(userId, tipo, messaggio, rideId, url);
+  return { id: info.lastInsertRowid, url };
+}
 
+// Push ed email per una notifica già creata, secondo le preferenze dell'utente. Non rifiuta mai.
+async function consegnaEsterna(userId, tipo, messaggio, inApp) {
+  try {
     const pref = preferenza(userId, getCategoria(tipo));
 
     if (pref.push) {
@@ -139,7 +144,7 @@ async function notifica(userId, tipo, messaggio, rideId = null) {
         title: 'WayMatch',
         body: messaggio,
         icon: iconaPush(),
-        url: `${url}${url.includes('?') ? '&' : '?'}nid=${info.lastInsertRowid}`,
+        url: `${inApp.url}${inApp.url.includes('?') ? '&' : '?'}nid=${inApp.id}`,
       });
       for (const sub of subs) {
         try {
@@ -169,8 +174,22 @@ async function notifica(userId, tipo, messaggio, rideId = null) {
       }
     }
   } catch (e) {
-    console.error(`[notifiche] notifica "${tipo}" all'utente ${userId} non completata:`, e.message);
+    console.error(`[notifiche] consegna di "${tipo}" all'utente ${userId} non completata:`, e.message);
   }
+}
+
+// Una notifica non fa mai fallire l'operazione che l'ha generata: la notifica in-app è
+// scritta subito, push ed email sono un tentativo in più. Gli errori finiscono nel log e la
+// funzione non rifiuta mai, quindi chi la chiama non deve proteggersi.
+async function notifica(userId, tipo, messaggio, rideId = null) {
+  let inApp;
+  try {
+    inApp = creaNotificaInApp(userId, tipo, messaggio, rideId);
+  } catch (e) {
+    console.error(`[notifiche] notifica "${tipo}" all'utente ${userId} non salvata:`, e.message);
+    return;
+  }
+  await consegnaEsterna(userId, tipo, messaggio, inApp);
 }
 
 // In parallelo invece che in sequenza: chi annulla un viaggio con più passeggeri non deve
@@ -181,4 +200,4 @@ async function notificaMassiva(userIds, tipo, messaggio, rideId = null) {
   );
 }
 
-module.exports = { notifica, notificaMassiva, CATEGORIE_INFO };
+module.exports = { notifica, notificaMassiva, creaNotificaInApp, consegnaEsterna, CATEGORIE_INFO };
