@@ -51,10 +51,15 @@ docker compose run --rm --no-deps -T --entrypoint sh waymatch -c '
   SALVA=/app/data/prima-ripristino-$(date +%Y%m%d-%H%M%S)
   mkdir -p "$SALVA"
   FATTO=0
+  SPOSTATI=""        # file del database messi da parte con successo
+  COPIA_UPLOADS=0    # 1 solo quando la copia degli upload in $SALVA è completa
+  NUOVO_DB=0         # 1 da quando si tocca il database nuovo
+  MODIFICA_UPLOADS=0 # 1 da quando si toccano gli upload attuali
   rimetti_a_posto() {
-    rm -f /app/data/carpooling.db /app/data/carpooling.db-wal /app/data/carpooling.db-shm || return 1
-    for f in "$SALVA"/carpooling.db*; do [ -e "$f" ] && { mv "$f" /app/data/ || return 1; }; done
-    if [ -d "$SALVA/uploads" ]; then
+    # Si recupera solo ciò che è stato davvero salvato: gli originali rimasti al loro posto non si toccano.
+    if [ "$NUOVO_DB" = 1 ]; then rm -f /app/data/carpooling.db || return 1; fi
+    for n in $SPOSTATI; do mv "$SALVA/$n" /app/data/ || return 1; done
+    if [ "$MODIFICA_UPLOADS" = 1 ] && [ "$COPIA_UPLOADS" = 1 ]; then
       find /app/uploads -mindepth 1 -delete || return 1
       cp -a "$SALVA/uploads/." /app/uploads/ || return 1
     fi
@@ -68,11 +73,22 @@ docker compose run --rm --no-deps -T --entrypoint sh waymatch -c '
   }
   # Da qui in poi, se qualcosa non va, i dati precedenti tornano al loro posto.
   trap alla_fine EXIT
-  for f in /app/data/carpooling.db /app/data/carpooling.db-wal /app/data/carpooling.db-shm; do [ -e "$f" ] && mv "$f" "$SALVA/"; done
-  [ -d /app/uploads ] && cp -a /app/uploads "$SALVA/uploads"
+  for n in carpooling.db carpooling.db-wal carpooling.db-shm; do
+    if [ -e "/app/data/$n" ]; then
+      mv "/app/data/$n" "$SALVA/" || exit 1
+      SPOSTATI="$SPOSTATI $n"
+    fi
+  done
+  if [ -d /app/uploads ]; then
+    cp -a /app/uploads "$SALVA/uploads" || exit 1
+    COPIA_UPLOADS=1
+  fi
+  NUOVO_DB=1
   mv /tmp/ripr/db.bak /app/data/carpooling.db
+  MODIFICA_UPLOADS=1
+  mkdir -p /app/uploads
   find /app/uploads -mindepth 1 -delete
-  [ -d /tmp/ripr/uploads ] && cp -a /tmp/ripr/uploads/. /app/uploads/
+  if [ -d /tmp/ripr/uploads ]; then cp -a /tmp/ripr/uploads/. /app/uploads/; fi
   chown -R node:node /app/data /app/uploads
   FATTO=1
   echo "Dati precedenti messi da parte in $SALVA (nella cartella data/ del server)"

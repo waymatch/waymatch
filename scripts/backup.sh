@@ -23,10 +23,11 @@ FILE="$DEST/waymatch-$(date +%Y%m%d-%H%M%S).tar.gz"
 PARZIALE="$FILE.parziale.$$"
 trap 'rm -f "$PARZIALE"' EXIT
 
-# Dentro il container: istantanea del database in /tmp, poi un unico archivio su stdout
+# Dentro il container: istantanea del database in una cartella temporanea propria di questa
+# esecuzione (esecuzioni in parallelo non si toccano), poi un unico archivio su stdout
 # (database + cartella uploads). Così non servono permessi sulle cartelle dei volumi.
 if ! docker compose exec -T waymatch sh -c \
-  'rm -f /tmp/db.bak && node scripts/backup-db.js /tmp/db.bak >&2 && tar -czf - -C /tmp db.bak -C /app uploads; esito=$?; rm -f /tmp/db.bak; exit $esito' \
+  'd=$(mktemp -d) && node scripts/backup-db.js "$d/db.bak" >&2 && tar -czf - -C "$d" db.bak -C /app uploads; esito=$?; [ -n "$d" ] && rm -rf "$d"; exit $esito' \
   > "$PARZIALE"; then
   rm -f "$PARZIALE"
   echo "Backup fallito: l'app è in funzione? (docker compose ps)" >&2
