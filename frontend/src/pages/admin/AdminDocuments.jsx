@@ -1,5 +1,6 @@
-import React, { useEffect, useState, useCallback, useRef } from 'react';
+import React, { useEffect, useState, useCallback, useRef, useId } from 'react';
 import ErrorBanner from '../../components/ErrorBanner.jsx';
+import ErroreConRiprova from '../../components/ErroreConRiprova.jsx';
 import { FileText, Plus, Pencil, Trash2, Users, File as FileIcon } from 'lucide-react';
 import { api } from '../../api.js';
 import DocumentTextEditor from '../../components/DocumentTextEditor.jsx';
@@ -15,8 +16,10 @@ export default function AdminDocuments() {
   const [editing, setEditing] = useState(null); // null | 'new' | documento
   const [accettazioni, setAccettazioni] = useState(null);
 
+  const [erroreCarica, setErroreCarica] = useState('');
   const load = useCallback(() => {
-    api.get('/legal-documents').then((d) => setDocumenti(d.documenti));
+    setErroreCarica('');
+    api.get('/legal-documents').then((d) => setDocumenti(d.documenti)).catch((e) => setErroreCarica(e.message || 'Impossibile caricare i documenti.'));
   }, []);
   useEffect(() => { load(); }, [load]);
 
@@ -48,6 +51,7 @@ export default function AdminDocuments() {
       {editing && (
         <div>
           <DocumentForm
+            key={editing === 'new' ? 'nuovo' : `doc-${editing.id}`}
             documento={editing === 'new' ? null : editing}
             onDone={() => { setEditing(null); load(); }}
             onCancel={() => setEditing(null)}
@@ -55,8 +59,10 @@ export default function AdminDocuments() {
         </div>
       )}
 
+      {erroreCarica && <ErroreConRiprova messaggio={erroreCarica} onRiprova={load} />}
+
       {documenti === null ? (
-        <div className="card animate-pulse h-24" />
+        erroreCarica ? null : <div className="card animate-pulse h-24" />
       ) : documenti.length === 0 ? (
         <div className="card text-center py-10 text-sm text-muted">Nessun documento configurato.</div>
       ) : (
@@ -107,6 +113,7 @@ export default function AdminDocuments() {
 }
 
 function DocumentForm({ documento, onDone, onCancel }) {
+  const idForm = useId();
   const [titolo, setTitolo] = useState(documento?.titolo || '');
   const [tipo, setTipo] = useState(documento?.tipo || 'generale');
   const [formato, setFormato] = useState(documento?.formato || 'testo');
@@ -168,12 +175,13 @@ function DocumentForm({ documento, onDone, onCancel }) {
         <DocumentTextEditor value={contenuto} onChange={setContenuto} />
       ) : (
         <div className="space-y-2">
+          <label htmlFor={`${idForm}-pdf`} className="label">File PDF del documento</label>
           {documento?.formato === 'pdf' && documento?.file_path && (
             <p className="text-xs text-muted">
               PDF attuale: <LinkPdf docId={documento.id} className="underline text-primary">apri</LinkPdf> — carica un nuovo file per sostituirlo.
             </p>
           )}
-          <input ref={fileRef} type="file" accept="application/pdf" className="input" />
+          <input id={`${idForm}-pdf`} ref={fileRef} type="file" accept="application/pdf" className="input" />
         </div>
       )}
 

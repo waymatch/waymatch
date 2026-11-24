@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react';
 import ErrorBanner from '../../components/ErrorBanner.jsx';
+import ErroreConRiprova from '../../components/ErroreConRiprova.jsx';
 import { Plus, Trash2, Image, Gift, QrCode, Pencil, PauseCircle, PlayCircle, Inbox } from 'lucide-react';
 import { api } from '../../api.js';
 import ImmagineAutenticata from '../../components/ImmagineAutenticata.jsx';
@@ -25,10 +26,16 @@ export default function AdminRewards() {
   const fileRef = useRef();
   const [nomeTemplate, setNomeTemplate] = useState('');
 
+  // Un errore per ognuna delle tre letture: la scheda interessata lo mostra con "Riprova" e le
+  // altre continuano a funzionare con i propri dati.
+  const [errori, setErrori] = useState({ rewards: '', redemptions: '', templates: '' });
   const load = useCallback(() => {
-    api.get('/rewards/admin/tutti').then((d) => setRewards(d.rewards));
-    api.get('/rewards/redemptions/list').then((d) => setRedemptions(d.redemptions));
-    api.get('/voucher-templates').then((d) => setTemplates(d.templates));
+    const segna = (chiave, valore) => setErrori((p) => ({ ...p, [chiave]: valore }));
+    const errore = (chiave) => (e) => segna(chiave, e.message || 'Impossibile caricare i dati.');
+    segna('rewards', ''); segna('redemptions', ''); segna('templates', '');
+    api.get('/rewards/admin/tutti').then((d) => setRewards(d.rewards)).catch(errore('rewards'));
+    api.get('/rewards/redemptions/list').then((d) => setRedemptions(d.redemptions)).catch(errore('redemptions'));
+    api.get('/voucher-templates').then((d) => setTemplates(d.templates)).catch(errore('templates'));
   }, []);
   useEffect(() => { load(); }, [load]);
 
@@ -79,7 +86,7 @@ export default function AdminRewards() {
   };
 
   const caricaTemplate = async () => {
-    const file = fileRef.current.files[0];
+    const file = fileRef.current?.files[0];
     if (!file) return;
     const fd = new FormData();
     fd.append('immagine', file);
@@ -87,7 +94,8 @@ export default function AdminRewards() {
     try {
       await api.post('/voucher-templates', fd);
       setNomeTemplate('');
-      fileRef.current.value = '';
+      // Cambiando scheda durante l'invio il campo file non c'è più: il template è salvato comunque.
+      if (fileRef.current) fileRef.current.value = '';
       load();
     } catch (e) { alert(e.message); }
   };
@@ -155,7 +163,8 @@ export default function AdminRewards() {
           <section>
             <h2 className="font-display font-semibold text-sm mb-3">Catalogo</h2>
             <div className="grid gap-2 sm:grid-cols-2">
-              {rewards === null ? <div className="card animate-pulse h-14" /> : rewards.map((r) => (
+              {errori.rewards && <ErroreConRiprova messaggio={errori.rewards} onRiprova={load} />}
+              {rewards === null ? (errori.rewards ? null : <div className="card animate-pulse h-14" />) : rewards.map((r) => (
                 <div key={r.id} className={`card flex items-center justify-between gap-2 ${!r.attivo ? 'opacity-60' : ''}`}>
                   <div className="min-w-0">
                     <p className="font-medium text-sm truncate">
@@ -194,6 +203,7 @@ export default function AdminRewards() {
             <input placeholder="Nome template" className="input" value={nomeTemplate} onChange={(e) => setNomeTemplate(e.target.value)} />
             <button type="button" className="btn-outline w-full" onClick={caricaTemplate}><Plus size={15} /> Carica template</button>
           </div>
+          {errori.templates && <ErroreConRiprova messaggio={errori.templates} onRiprova={load} />}
           {templates.length > 0 && (
             <div className="grid grid-cols-3 gap-2">
               {templates.map((t) => (
@@ -202,9 +212,11 @@ export default function AdminRewards() {
                   <button
                     type="button"
                     onClick={() => eliminaTemplate(t.id)}
-                    className="absolute top-1 right-1 p-1 rounded bg-white/90 text-danger opacity-0 group-hover:opacity-100 transition-opacity"
+                    aria-label={`Elimina il template ${t.nome}`}
+                    title="Elimina"
+                    className="absolute top-1 right-1 p-1 rounded bg-white/90 text-danger opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity"
                   >
-                    <Trash2 size={12} />
+                    <Trash2 size={12} aria-hidden="true" />
                   </button>
                   <p className="text-xs text-muted mt-1 truncate">{t.nome}</p>
                 </div>
@@ -217,7 +229,8 @@ export default function AdminRewards() {
       {tab === 'richieste' && (
         <section>
           <div className="grid gap-2 lg:grid-cols-2">
-            {redemptions === null ? <div className="card animate-pulse h-14" /> : redemptions.length === 0 ? (
+            {errori.redemptions && <ErroreConRiprova messaggio={errori.redemptions} onRiprova={load} />}
+            {redemptions === null ? (errori.redemptions ? null : <div className="card animate-pulse h-14" />) : redemptions.length === 0 ? (
               <div className="card text-center py-6 text-sm text-muted">Nessuna richiesta al momento.</div>
             ) : redemptions.map((r) => (
               <div key={r.id} className="card flex items-center justify-between gap-3">

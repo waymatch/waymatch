@@ -1,5 +1,6 @@
-import React, { useEffect, useState, useCallback, useRef } from 'react';
+import React, { useEffect, useState, useCallback, useRef, useId } from 'react';
 import ErrorBanner from '../../components/ErrorBanner.jsx';
+import ErroreConRiprova from '../../components/ErroreConRiprova.jsx';
 import { Plus, Key, Ban, CheckCircle2, Upload, FileText, ArrowUp, ArrowDown, ArrowUpDown } from 'lucide-react';
 import { api } from '../../api.js';
 import { REQUISITI_PASSWORD } from '../../passwordPolicy.js';
@@ -26,11 +27,11 @@ const STATO_COLORE = {
 function Th({ label, campo, sort, onSort }) {
   const attivo = sort.campo === campo;
   return (
-    <th className="px-4 py-3 font-medium cursor-pointer select-none hover:text-ink" onClick={() => onSort(campo)}>
-      <span className="inline-flex items-center gap-1">
+    <th scope="col" className="px-4 py-3 font-medium select-none" aria-sort={attivo ? (sort.dir === 'asc' ? 'ascending' : 'descending') : 'none'}>
+      <button type="button" className="inline-flex items-center gap-1 font-medium hover:text-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary rounded" onClick={() => onSort(campo)}>
         {label}
-        {attivo ? (sort.dir === 'asc' ? <ArrowUp size={12} /> : <ArrowDown size={12} />) : <ArrowUpDown size={12} className="opacity-30" />}
-      </span>
+        {attivo ? (sort.dir === 'asc' ? <ArrowUp size={12} aria-hidden="true" /> : <ArrowDown size={12} aria-hidden="true" />) : <ArrowUpDown size={12} className="opacity-30" aria-hidden="true" />}
+      </button>
     </th>
   );
 }
@@ -41,31 +42,40 @@ export default function AdminUsers() {
   const [showForm, setShowForm] = useState(false);
   const [showImport, setShowImport] = useState(false);
   const [error, setError] = useState('');
+  const [erroreSedi, setErroreSedi] = useState('');
+  const richiesta = useRef(0); // l'ultimo caricamento degli utenti: le risposte superate si ignorano
   const [ricerca, setRicerca] = useState('');
   const [filtroSede, setFiltroSede] = useState('');
   const [sort, setSort] = useState({ campo: 'cognome', dir: 'asc' });
 
-  const load = useCallback(() => {
-    api.get('/users').then((d) => setUsers(d.users)).catch((e) => setError(e.message));
-    api.get('/sedi').then((d) => setSedi(d.sedi));
+  const caricaSedi = useCallback(() => {
+    setErroreSedi('');
+    api.get('/sedi').then((d) => setSedi(d.sedi)).catch((e) => setErroreSedi(e.message || 'Impossibile caricare le sedi.'));
   }, []);
+  const load = useCallback(() => {
+    const mia = ++richiesta.current;
+    api.get('/users')
+      .then((d) => { if (mia === richiesta.current) { setUsers(d.users); setError(''); } })
+      .catch((e) => { if (mia === richiesta.current) setError(e.message); });
+    caricaSedi();
+  }, [caricaSedi]);
   useEffect(() => { load(); }, [load]);
 
   const cambiaRuolo = async (u, ruolo) => {
     try {
-      await api.put(`/users/${u.id}`, { ...u, ruolo });
+      await api.put(`/users/${u.id}`, { ruolo });
       load();
     } catch (e) { alert(e.message); }
   };
   const cambiaSede = async (u, sede_id) => {
     try {
-      await api.put(`/users/${u.id}`, { ...u, sede_id: sede_id || null });
+      await api.put(`/users/${u.id}`, { sede_id: sede_id || null });
       load();
     } catch (e) { alert(e.message); }
   };
   const toggleAttivo = async (u) => {
     try {
-      await api.put(`/users/${u.id}`, { ...u, attivo: u.attivo ? 0 : 1 });
+      await api.put(`/users/${u.id}`, { attivo: u.attivo ? 0 : 1 });
       load();
     } catch (e) { alert(e.message); }
   };
@@ -136,12 +146,13 @@ export default function AdminUsers() {
         </select>
       </div>
 
-      {showImport && <ImportCsvForm onDone={() => { setShowImport(false); load(); }} />}
+      {showImport && <ImportCsvForm onImportato={load} onDone={() => { setShowImport(false); load(); }} />}
       {showForm && <NewUserForm sedi={sedi} onCreated={() => { setShowForm(false); load(); }} />}
-      {error && <ErrorBanner message={error} />}
+      {erroreSedi && <ErroreConRiprova messaggio={`Elenco delle sedi non disponibile: ${erroreSedi}`} onRiprova={caricaSedi} />}
+      {error && <ErroreConRiprova messaggio={error} onRiprova={load} />}
 
       {users === null ? (
-        <div className="card animate-pulse h-40" />
+        error ? null : <div className="card animate-pulse h-40" />
       ) : usersFiltrati.length === 0 ? (
         <div className="card text-center py-10 text-sm text-muted">Nessun utente corrisponde ai filtri.</div>
       ) : (
@@ -204,7 +215,8 @@ export default function AdminUsers() {
   );
 }
 
-function ImportCsvForm({ onDone }) {
+function ImportCsvForm({ onDone, onImportato }) {
+  const idForm = useId();
   const fileRef = useRef();
   const [risultato, setRisultato] = useState(null);
   const [error, setError] = useState('');
@@ -221,6 +233,7 @@ function ImportCsvForm({ onDone }) {
       form.append('file', file);
       const res = await api.post('/users/import-csv', form);
       setRisultato(res);
+      onImportato?.(); // l'elenco si aggiorna subito, anche se il riepilogo resta aperto
     } catch (e) {
       setError(e.message);
     } finally {
@@ -267,7 +280,8 @@ function ImportCsvForm({ onDone }) {
           )}
         </div>
       )}
-      <input ref={fileRef} type="file" accept=".csv,text/csv" className="input" />
+      <label htmlFor={`${idForm}-csv`} className="label">File CSV</label>
+      <input id={`${idForm}-csv`} ref={fileRef} type="file" accept=".csv,text/csv" className="input" />
       <button type="button" className="btn-primary w-full" disabled={loading} onClick={importa}>
         {loading ? 'Importazione...' : 'Importa'}
       </button>
@@ -310,10 +324,10 @@ function NewUserForm({ sedi, onCreated }) {
         <p className="text-xs text-muted mt-1">{REQUISITI_PASSWORD}</p>
       </div>
       <div className="grid grid-cols-2 gap-3">
-        <select className="input" value={form.ruolo} onChange={(e) => setForm({ ...form, ruolo: e.target.value })}>
+        <select aria-label="Ruolo" className="input" value={form.ruolo} onChange={(e) => setForm({ ...form, ruolo: e.target.value })}>
           {RUOLI.map((r) => <option key={r.value} value={r.value}>{r.label}</option>)}
         </select>
-        <select className="input" value={form.sede_id} onChange={(e) => setForm({ ...form, sede_id: e.target.value })}>
+        <select aria-label="Sede" className="input" value={form.sede_id} onChange={(e) => setForm({ ...form, sede_id: e.target.value })}>
           <option value="">Sede...</option>
           {sedi.map((s) => <option key={s.id} value={s.id}>{s.nome}</option>)}
         </select>

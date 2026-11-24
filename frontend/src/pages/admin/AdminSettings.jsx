@@ -2,6 +2,7 @@ import React, { useEffect, useState, useRef } from 'react';
 import { Upload, Palette, ClipboardCheck, CalendarDays, Mail, Send, CheckCircle2, XCircle, Leaf, RotateCcw, Pencil } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { api } from '../../api.js';
+import ErroreConRiprova from '../../components/ErroreConRiprova.jsx';
 import { useBranding } from '../../context/BrandingContext.jsx';
 import Schede from '../../components/Schede.jsx';
 import { GIORNI_SETTIMANA, descriviGiorni } from '../../giorni.js';
@@ -53,7 +54,9 @@ function BrandingTab() {
     setCompanyName(branding.company_name || '');
     setPrimaryColor(branding.primary_color || '#14424F');
     setAccentColor(branding.accent_color || '#3CC8B8');
-  }, [branding]);
+    // Solo i quattro valori salvati: un ricaricamento dopo il caricamento di un logo non ricopia
+    // sul modulo i valori vecchi, perdendo le modifiche non ancora salvate.
+  }, [branding.pwa_short_name, branding.company_name, branding.primary_color, branding.accent_color]);
 
   const save = async (e) => {
     e.preventDefault();
@@ -97,7 +100,7 @@ function BrandingTab() {
   const rimuoviIcona = async () => {
     setIconaMsg('');
     try {
-      await api.delete('/branding/icona');
+      await api.del('/branding/icona');
       await refresh();
       setIconaMsg('Icona rimossa.');
     } catch (err) { setIconaMsg(err.message); }
@@ -206,10 +209,13 @@ function CalendarioTab() {
   const [giorni, setGiorni] = useState(null);
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState('');
+  const [erroreCarica, setErroreCarica] = useState('');
 
-  useEffect(() => {
-    api.get('/settings').then((d) => setGiorni(d.settings.giorni_lavorativi));
-  }, []);
+  const carica = () => {
+    setErroreCarica('');
+    api.get('/settings').then((d) => setGiorni(d.settings.giorni_lavorativi)).catch((e) => setErroreCarica(e.message || 'Impossibile caricare le impostazioni.'));
+  };
+  useEffect(() => { carica(); }, []);
 
   const salva = async (nuovi) => {
     setSaving(true); setMsg('');
@@ -231,7 +237,7 @@ function CalendarioTab() {
     salva(nuovi);
   };
 
-  if (!giorni) return <div className="card animate-pulse h-40" />;
+  if (!giorni) return erroreCarica ? <ErroreConRiprova messaggio={erroreCarica} onRiprova={carica} /> : <div className="card animate-pulse h-40" />;
 
   return (
     <div className="card space-y-3">
@@ -262,13 +268,16 @@ function ValidazioneTab() {
   const [richiedeApprovazione, setRichiedeApprovazione] = useState(false);
   const [caricato, setCaricato] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [erroreCarica, setErroreCarica] = useState('');
 
-  useEffect(() => {
+  const carica = () => {
+    setErroreCarica('');
     api.get('/settings').then((d) => {
       setRichiedeApprovazione(!!d.settings.richiede_approvazione_completamento);
       setCaricato(true);
-    });
-  }, []);
+    }).catch((e) => setErroreCarica(e.message || 'Impossibile caricare le impostazioni.'));
+  };
+  useEffect(() => { carica(); }, []);
 
   const salva = async (valore) => {
     setSaving(true);
@@ -282,7 +291,7 @@ function ValidazioneTab() {
     }
   };
 
-  if (!caricato) return <div className="card animate-pulse h-40" />;
+  if (!caricato) return erroreCarica ? <ErroreConRiprova messaggio={erroreCarica} onRiprova={carica} /> : <div className="card animate-pulse h-40" />;
 
   return (
     <div className="card space-y-3">
@@ -324,11 +333,20 @@ function CostiCo2Tab() {
   const [edit, setEdit] = useState({});
   const [saving, setSaving] = useState(null);
   const [msg, setMsg] = useState('');
+  const [erroreCarica, setErroreCarica] = useState('');
 
-  const load = () => api.get('/reports/cost-co2-clusters').then((d) => {
-    setClusters(d.clusters);
-    setEdit(Object.fromEntries(d.clusters.map((c) => [c.alimentazione, { costo_km_eur: c.costo_km_eur, co2_g_km: c.co2_g_km }])));
-  });
+  // Dopo un salvataggio si riallinea al server solo la bozza di quell'alimentazione: le modifiche
+  // non salvate delle altre restano.
+  const load = (aggiornata = null) => {
+    setErroreCarica('');
+    return api.get('/reports/cost-co2-clusters').then((d) => {
+      setClusters(d.clusters);
+      setEdit((prev) => Object.fromEntries(d.clusters.map((c) => [
+        c.alimentazione,
+        aggiornata === c.alimentazione || !prev[c.alimentazione] ? { costo_km_eur: c.costo_km_eur, co2_g_km: c.co2_g_km } : prev[c.alimentazione],
+      ])));
+    }).catch((e) => setErroreCarica(e.message || 'Impossibile caricare i valori.'));
+  };
   useEffect(() => { load(); }, []);
 
   const salva = async (chiave) => {
@@ -336,7 +354,7 @@ function CostiCo2Tab() {
     setMsg('');
     try {
       await api.put(`/reports/cost-co2-clusters/${chiave}`, edit[chiave]);
-      await load();
+      await load(chiave);
       setMsg('Salvato.');
     } catch (e) {
       setMsg(e.message);
@@ -350,7 +368,7 @@ function CostiCo2Tab() {
     setMsg('');
     try {
       await api.del(`/reports/cost-co2-clusters/${chiave}`);
-      await load();
+      await load(chiave);
     } catch (e) {
       setMsg(e.message);
     } finally {
@@ -358,7 +376,7 @@ function CostiCo2Tab() {
     }
   };
 
-  if (clusters === null) return <div className="card animate-pulse h-40" />;
+  if (clusters === null) return erroreCarica ? <ErroreConRiprova messaggio={erroreCarica} onRiprova={() => load()} /> : <div className="card animate-pulse h-40" />;
 
   return (
     <div className="space-y-4">
@@ -377,16 +395,16 @@ function CostiCo2Tab() {
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label htmlFor="adminsettings-3" className="label">Costo /km (€)</label>
-                <input id="adminsettings-3"
+                <label htmlFor={`costo-${c.alimentazione}`} className="label">Costo /km (€)</label>
+                <input id={`costo-${c.alimentazione}`}
                   type="number" step="0.01" min="0" className="input"
                   value={edit[c.alimentazione]?.costo_km_eur ?? ''}
                   onChange={(e) => setEdit({ ...edit, [c.alimentazione]: { ...edit[c.alimentazione], costo_km_eur: e.target.value } })}
                 />
               </div>
               <div>
-                <label htmlFor="adminsettings-4" className="label">CO2 (g/km)</label>
-                <input id="adminsettings-4"
+                <label htmlFor={`co2-${c.alimentazione}`} className="label">CO2 (g/km)</label>
+                <input id={`co2-${c.alimentazione}`}
                   type="number" step="1" min="0" className="input"
                   value={edit[c.alimentazione]?.co2_g_km ?? ''}
                   onChange={(e) => setEdit({ ...edit, [c.alimentazione]: { ...edit[c.alimentazione], co2_g_km: e.target.value } })}
@@ -415,8 +433,13 @@ function EmailTab() {
   const [stato, setStato] = useState(null);
   const [inviando, setInviando] = useState(false);
   const [esito, setEsito] = useState(null);
+  const [erroreCarica, setErroreCarica] = useState('');
 
-  useEffect(() => { api.get('/email/stato').then(setStato); }, []);
+  const carica = () => {
+    setErroreCarica('');
+    api.get('/email/stato').then(setStato).catch((e) => setErroreCarica(e.message || 'Impossibile caricare lo stato.'));
+  };
+  useEffect(() => { carica(); }, []);
 
   const invia = async () => {
     setInviando(true);
@@ -439,8 +462,10 @@ function EmailTab() {
         serve solo a verificare che funzionino.
       </p>
 
+      {erroreCarica && <ErroreConRiprova messaggio={erroreCarica} onRiprova={carica} />}
+
       {stato === null ? (
-        <div className="card animate-pulse h-32" />
+        erroreCarica ? null : <div className="card animate-pulse h-32" />
       ) : (
         <div className="card space-y-3">
           <div className="flex items-center gap-2">
