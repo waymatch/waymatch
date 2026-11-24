@@ -100,7 +100,7 @@ export default function GuidaMarkdown({ testo, immagini = {} }) {
       // La prima riga si consuma sempre (anche "| nota" che non forma una tabella): senza, il
       // ciclo esterno non avanzerebbe e la pagina si bloccherebbe.
       p.push(righe[i++].trim());
-      while (i < righe.length && righe[i].trim() && !/^(#{1,3} |```|\||>|(\s*)([-*]|\d+\.) )/.test(righe[i])) p.push(righe[i++].trim());
+      while (i < righe.length && righe[i].trim() && !/^(#{1,3} | {0,3}`{3,}|\||>|(\s*)([-*]|\d+\.) )/.test(righe[i])) p.push(righe[i++].trim());
       blocchi.push(<p key={key} className="my-2 leading-relaxed">{inline(p.join(' '), immagini, key)}</p>);
     }
   }

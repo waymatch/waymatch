@@ -20,14 +20,15 @@ export default function LegalDocumentsGate({ children, tipo = 'generale' }) {
   const load = () => {
     setErroreCarica('');
     api.get(`/legal-documents/pending?tipo=${tipo}`)
-      .then((d) => setPending(d.documenti))
+      .then((d) => { setPending(d.documenti); setIndice(0); })
       .catch((e) => { setPending(null); setErroreCarica(e.message || 'Impossibile caricare i documenti da accettare.'); });
   };
   useEffect(() => { load(); }, [tipo]);
 
   if (erroreCarica) {
     return (
-      <FinestraModale titoloId="documento-legale-errore" className="fixed inset-0 z-[100] bg-black/60 flex items-center justify-center p-4">
+      // key: è una finestra nuova anche se prima c'era quella del documento, così il focus entra.
+      <FinestraModale key="errore" titoloId="documento-legale-errore" className="fixed inset-0 z-[100] bg-black/60 flex items-center justify-center p-4">
         <div className="bg-surface w-full max-w-sm rounded-2xl p-6 space-y-3" role="alert">
           <h2 id="documento-legale-errore" className="font-display font-semibold text-base">Documenti non disponibili</h2>
           <p className="text-sm text-muted">{erroreCarica}</p>
@@ -68,7 +69,7 @@ export default function LegalDocumentsGate({ children, tipo = 'generale' }) {
   };
 
   return (
-    <FinestraModale titoloId="documento-legale-titolo" className="fixed inset-0 z-[100] bg-black/60 flex items-center justify-center p-4">
+    <FinestraModale key="documento" titoloId="documento-legale-titolo" className="fixed inset-0 z-[100] bg-black/60 flex items-center justify-center p-4">
       <div className="bg-surface w-full max-w-lg rounded-2xl overflow-hidden flex flex-col max-h-[85vh]">
         <div className="px-5 py-4 border-b border-border flex items-center gap-2.5">
           <div className="w-9 h-9 rounded-lg bg-primary-light text-primary-dark flex items-center justify-center shrink-0">

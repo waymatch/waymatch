@@ -62,8 +62,14 @@ export default function NotificationBell() {
     setOpen(false);
     btnRef.current?.focus();
   }, []);
+  // Solo all'apertura: un ricalcolo della posizione (ridimensionamento) non sposta il focus.
+  const appenaAperto = useRef(false);
   useEffect(() => {
-    if (open && pos) panelRef.current?.focus();
+    if (!open) { appenaAperto.current = false; return; }
+    if (pos && !appenaAperto.current) {
+      appenaAperto.current = true;
+      panelRef.current?.focus();
+    }
   }, [open, pos]);
 
   useEffect(() => {

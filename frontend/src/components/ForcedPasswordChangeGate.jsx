@@ -60,7 +60,8 @@ export default function ForcedPasswordChangeGate({ children }) {
         {cambiata ? (
           <div className="space-y-3" role="status">
             <p className="text-sm">Password cambiata. Non è stato possibile aggiornare subito il profilo: ricarica la pagina per continuare.</p>
-            <button type="button" className="btn-primary w-full" onClick={() => window.location.reload()}>Continua</button>
+            {/* Il campo su cui si era premuto Invio non c'è più: il focus va a "Continua". */}
+            <button type="button" autoFocus className="btn-primary w-full" onClick={() => window.location.reload()}>Continua</button>
           </div>
         ) : (
           <form onSubmit={submit} className="space-y-3">
