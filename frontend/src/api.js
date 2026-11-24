@@ -64,6 +64,7 @@ async function fetchAutenticato(path, opzioni = {}) {
     headers: { ...opzioni.headers, ...(token ? { Authorization: `Bearer ${token}` } : {}) },
   });
   const token = getToken();
+  const gen = getGenerazione();
   let res = await esegui(token);
   if (res.status !== 401 || !token || SENZA_RINNOVO.includes(path)) return res;
 
@@ -74,6 +75,9 @@ async function fetchAutenticato(path, opzioni = {}) {
   } catch (e) {
     return res; // guasto temporaneo: l'utente resta dentro, la chiamata riporta l'errore
   }
+  // Nel frattempo c'è stato un accesso o un'uscita: la richiesta apparteneva alla sessione
+  // precedente e non va ripetuta con l'identità di quella nuova (né la si deve chiudere).
+  if (gen !== getGenerazione()) return res;
   if (!nuovo) {
     sessioneTerminata();
     return res;

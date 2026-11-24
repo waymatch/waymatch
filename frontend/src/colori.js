@@ -1,7 +1,8 @@
 // Colori e contrasto (WCAG 2.1). Funzioni pure: usate dal tema, dall'avviso nelle Impostazioni
 // e dal test che controlla il contrasto (AA) delle coppie testo/sfondo del tema.
 export function hexToRgb(hex) {
-  const pulito = (hex || '').replace('#', '');
+  const testo = String(hex || '');
+  const pulito = testo.startsWith('#') ? testo.slice(1) : testo; // '#' ammesso solo all'inizio
   const norm = pulito.length === 3 ? pulito.split('').map((c) => c + c).join('') : pulito;
   if (!/^[0-9a-f]{6}$/i.test(norm)) return null; // parseInt accetterebbe "12GGGG" come 0x12
   const num = parseInt(norm, 16);

@@ -6,7 +6,8 @@ precacheAndRoute(self.__WB_MANIFEST);
 // Le pagine dell'app (BrowserRouter) sono tutte servite da index.html: offline, ricaricando
 // /login o /i-miei-viaggi si usa la copia in cache. Escluse le API e i file del server.
 registerRoute(new NavigationRoute(createHandlerBoundToURL('/index.html'), {
-  denylist: [/^\/api\//, /^\/uploads\//, /^\/manifest\.webmanifest$/, /\.[a-z0-9]+$/i],
+  // Le espressioni si applicano a percorso + query: ognuna guarda solo la parte prima di "?".
+  denylist: [/^\/api\//, /^\/uploads\//, /^\/manifest\.webmanifest(\?|$)/, /^[^?]*\.[a-z0-9]+(\?|$)/i],
 }));
 
 self.addEventListener('push', (event) => {

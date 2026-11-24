@@ -21,7 +21,12 @@ export function prossimoOrarioMezzora(daData = new Date()) {
 // Se l'orario abituale (es. "08:00") è già passato rispetto ad adesso, propone il
 // prossimo orario utile arrotondato invece di un default già nel passato: evita l'errore
 // "orario già passato" al primo tentativo quando si offre un passaggio per oggi stesso.
+// Dopo le 23:30 la mezz'ora successiva cade domani: per oggi non resta un orario utile, quindi si
+// propone quello abituale (valido per i giorni successivi) invece di "00:00".
 export function orarioDefaultIntelligente(orarioAbituale) {
-  const ora = new Date().toTimeString().slice(0, 5);
-  return orarioAbituale > ora ? orarioAbituale : prossimoOrarioMezzora();
+  const adesso = new Date();
+  const ora = adesso.toTimeString().slice(0, 5);
+  if (orarioAbituale > ora) return orarioAbituale;
+  const prossimo = prossimoOrarioMezzora(adesso);
+  return prossimo > ora ? prossimo : orarioAbituale;
 }

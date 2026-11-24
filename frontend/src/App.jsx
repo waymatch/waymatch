@@ -81,7 +81,7 @@ function useMarkNotificationFromUrl() {
     }).catch(() => {});
     return () => { annullato = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [location.search, loading, user]);
+  }, [location.pathname, location.search, loading, user]);
 }
 
 function RedirectGuida() {
