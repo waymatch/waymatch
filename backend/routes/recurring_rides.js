@@ -6,12 +6,13 @@ const { registraAzione } = require('../utils/audit');
 const { notificaMatchProattivo, notificaPreferiti } = require('../utils/matching');
 const { notificaMassiva } = require('../utils/notify');
 const { asyncHandler } = require('../utils/asyncHandler');
+const { richiediDocumentiConducente } = require('../utils/documentiLegali');
 const { giorniLavorativi, NOMI } = require('../utils/calendario');
 const { geometriaValida, sosteValide } = require('../utils/geoDistance');
 
 const router = express.Router();
 
-router.post('/', requireAuth, asyncHandler(async (req, res) => {
+router.post('/', requireAuth, richiediDocumentiConducente, asyncHandler(async (req, res) => {
   const me = db.prepare('SELECT * FROM users WHERE id = ?').get(req.user.id);
   if (!me.sede_id) return res.status(400).json({ error: 'Imposta prima la tua sede nel profilo' });
 

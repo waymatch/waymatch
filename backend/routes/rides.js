@@ -9,6 +9,7 @@ const { notificaMatchProattivo, notificaPreferiti } = require('../utils/matching
 const { promuoviListaAttesa, notificaPromossi } = require('../utils/waitlist');
 const { distanzaPuntoDaPercorso, geometriaValida, sosteValide } = require('../utils/geoDistance');
 const { asyncHandler } = require('../utils/asyncHandler');
+const { richiediDocumentiConducente } = require('../utils/documentiLegali');
 
 const router = express.Router();
 
@@ -96,7 +97,7 @@ const eseguiCompletamento = db.transaction((ride) => {
 });
 
 // Crea un'offerta di passaggio (andata e/o ritorno -> se "entrambi", crea due rides)
-router.post('/', requireAuth, asyncHandler(async (req, res) => {
+router.post('/', requireAuth, richiediDocumentiConducente, asyncHandler(async (req, res) => {
   const me = db.prepare('SELECT * FROM users WHERE id = ?').get(req.user.id);
   const {
     tipo, data, ora_andata, ora_ritorno,
