@@ -81,7 +81,11 @@ export default function EditRideModal({ ride, minPosti, onClose, onSaved }) {
         setSceltaPercorso(0);
       }
     } catch (e) {
-      if (mia === richiestaCalcolo.current) setError('Impossibile ricalcolare il percorso, correggi i km manualmente.');
+      if (mia === richiestaCalcolo.current) {
+        // Percorso e km del punto precedente non valgono più: via anche la mappa e le alternative.
+        setKm(''); setGeometria(null); setAlternative([]); setSceltaPercorso(0);
+        setError('Impossibile ricalcolare il percorso: riprova con il pulsante di ricalcolo oppure inserisci i km a mano.');
+      }
     } finally {
       if (mia === richiestaCalcolo.current) setCalcolando(false);
     }
@@ -113,6 +117,12 @@ export default function EditRideModal({ ride, minPosti, onClose, onSaved }) {
       return;
     }
     if (calcolando) return;
+    // Dopo una modifica di sede, indirizzo o soste servono km validi (calcolati o inseriti a mano):
+    // non si salvano i dati del percorso precedente.
+    if (modificato.current && !(Number(km) > 0)) {
+      setError('Mancano i km del percorso: ricalcolalo con il pulsante oppure inseriscili a mano.');
+      return;
+    }
     setSaving(true);
     try {
       const sede = sedi.find((s) => String(s.id) === String(sedeId));
@@ -165,7 +175,7 @@ export default function EditRideModal({ ride, minPosti, onClose, onSaved }) {
 
           <div>
             <label htmlFor="editridemodal-2" className="label">{isAndata ? 'Destinazione (sede)' : 'Partenza (sede)'}</label>
-            <select id="editridemodal-2" className="input" value={sedeId} onChange={(e) => { modificato.current = true; richiestaCalcolo.current++; setCalcolando(false); setSedeId(e.target.value); setGeometria(null); }}>
+            <select id="editridemodal-2" className="input" value={sedeId} onChange={(e) => { modificato.current = true; richiestaCalcolo.current++; setCalcolando(false); setSedeId(e.target.value); setGeometria(null); setKm(''); setAlternative([]); setSceltaPercorso(0); }}>
               <option value="">Seleziona sede...</option>
               {sedi.map((s) => <option key={s.id} value={s.id}>{s.nome}</option>)}
             </select>

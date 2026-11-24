@@ -1,5 +1,5 @@
 import FinestraModale from './FinestraModale.jsx';
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import ErrorBanner from './ErrorBanner.jsx';
 import { Link } from 'react-router-dom';
 import { X, Sunrise, Sunset, ArrowLeftRight, Zap } from 'lucide-react';
@@ -32,11 +32,15 @@ export default function QuickOfferModal({ onClose, onDone }) {
 
   const oraMinima = data === oggi ? new Date().toTimeString().slice(0, 5) : undefined;
 
-  useEffect(() => {
-    if (user?.sede_id) {
-      api.get('/sedi').then((d) => setSede(d.sedi.find((s) => s.id === user.sede_id) || null));
-    }
+  const [erroreSede, setErroreSede] = useState('');
+  const caricaSede = useCallback(() => {
+    if (!user?.sede_id) return;
+    setErroreSede('');
+    api.get('/sedi')
+      .then((d) => setSede(d.sedi.find((s) => s.id === user.sede_id) || null))
+      .catch((e) => setErroreSede(e.message || 'Impossibile caricare la sede.'));
   }, [user]);
+  useEffect(() => { caricaSede(); }, [caricaSede]);
 
   const pronto = !!user?.sede_id && user?.casa_lat != null && user?.casa_lon != null;
 
@@ -113,6 +117,12 @@ export default function QuickOfferModal({ onClose, onDone }) {
         ) : (
           <form onSubmit={submit} className="p-5 space-y-4">
             {error && <ErrorBanner message={error} />}
+            {erroreSede && (
+              <div className="flex items-center justify-between gap-2" role="alert">
+                <ErrorBanner message={erroreSede} />
+                <button type="button" className="btn-outline !py-1 !text-xs shrink-0" onClick={caricaSede}>Riprova</button>
+              </div>
+            )}
             <p className="text-xs text-muted -mt-1">
               {user.indirizzo_casa} → {sede?.nome || 'sede'} (o viceversa), calcolato automaticamente.
             </p>
@@ -157,7 +167,7 @@ export default function QuickOfferModal({ onClose, onDone }) {
               <input id="quickoffermodal-3" type="number" min="1" max="8" className="input" value={posti} onChange={(e) => setPosti(e.target.value)} />
             </div>
 
-            <button type="submit" className="btn-primary w-full" disabled={saving || !sede}>{saving ? 'Pubblicazione...' : !sede ? 'Caricamento della sede...' : 'Pubblica subito'}</button>
+            <button type="submit" className="btn-primary w-full" disabled={saving || !sede}>{saving ? 'Pubblicazione...' : erroreSede ? 'Sede non disponibile' : !sede ? 'Caricamento della sede...' : 'Pubblica subito'}</button>
             <Link to="/offri" className="block text-center text-xs text-muted underline" onClick={onClose}>
               Serve aggiungere soste o creare un turno fisso? Vai al modulo completo
             </Link>
