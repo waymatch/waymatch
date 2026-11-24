@@ -334,18 +334,23 @@ function CostiCo2Tab() {
   const [saving, setSaving] = useState(null);
   const [msg, setMsg] = useState('');
   const [erroreCarica, setErroreCarica] = useState('');
+  const daRiallineare = useRef(null); // alimentazione appena modificata: un nuovo tentativo ripete solo la lettura
 
   // Dopo un salvataggio si riallinea al server solo la bozza di quell'alimentazione: le modifiche
   // non salvate delle altre restano.
+  // Restituisce true se la lettura è riuscita.
   const load = (aggiornata = null) => {
     setErroreCarica('');
+    daRiallineare.current = aggiornata;
     return api.get('/reports/cost-co2-clusters').then((d) => {
+      daRiallineare.current = null;
       setClusters(d.clusters);
       setEdit((prev) => Object.fromEntries(d.clusters.map((c) => [
         c.alimentazione,
         aggiornata === c.alimentazione || !prev[c.alimentazione] ? { costo_km_eur: c.costo_km_eur, co2_g_km: c.co2_g_km } : prev[c.alimentazione],
       ])));
-    }).catch((e) => setErroreCarica(e.message || 'Impossibile caricare i valori.'));
+      return true;
+    }).catch((e) => { setErroreCarica(e.message || 'Impossibile caricare i valori.'); return false; });
   };
   useEffect(() => { load(); }, []);
 
@@ -354,8 +359,8 @@ function CostiCo2Tab() {
     setMsg('');
     try {
       await api.put(`/reports/cost-co2-clusters/${chiave}`, edit[chiave]);
-      await load(chiave);
-      setMsg('Salvato.');
+      // Se la rilettura fallisce la modifica è comunque salvata: lo dice l'errore, con "Riprova".
+      setMsg((await load(chiave)) ? 'Salvato.' : 'Salvato, ma i valori mostrati non sono aggiornati.');
     } catch (e) {
       setMsg(e.message);
     } finally {
@@ -376,7 +381,8 @@ function CostiCo2Tab() {
     }
   };
 
-  if (clusters === null) return erroreCarica ? <ErroreConRiprova messaggio={erroreCarica} onRiprova={() => load()} /> : <div className="card animate-pulse h-40" />;
+  const riprova = () => load(daRiallineare.current);
+  if (clusters === null) return erroreCarica ? <ErroreConRiprova messaggio={erroreCarica} onRiprova={riprova} /> : <div className="card animate-pulse h-40" />;
 
   return (
     <div className="space-y-4">
@@ -385,6 +391,7 @@ function CostiCo2Tab() {
         (un'elettrica e un diesel non risparmiano la stessa cosa). Puoi personalizzarli e tornare
         al valore predefinito quando vuoi.
       </p>
+      {erroreCarica && <ErroreConRiprova messaggio={erroreCarica} onRiprova={riprova} />}
       {msg && <p className="text-sm text-muted">{msg}</p>}
       <div className="space-y-2">
         {clusters.map((c) => (
