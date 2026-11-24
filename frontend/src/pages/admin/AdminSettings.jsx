@@ -334,20 +334,21 @@ function CostiCo2Tab() {
   const [saving, setSaving] = useState(null);
   const [msg, setMsg] = useState('');
   const [erroreCarica, setErroreCarica] = useState('');
-  const daRiallineare = useRef(null); // alimentazione appena modificata: un nuovo tentativo ripete solo la lettura
+  const daRiallineare = useRef(new Set()); // alimentazioni modificate e non ancora rilette: un nuovo tentativo ripete solo la lettura
 
-  // Dopo un salvataggio si riallinea al server solo la bozza di quell'alimentazione: le modifiche
-  // non salvate delle altre restano.
+  // Dopo un salvataggio si riallineano al server solo le bozze delle alimentazioni modificate e non
+  // ancora rilette (anche se una lettura precedente è fallita): le modifiche non salvate delle altre restano.
   // Restituisce true se la lettura è riuscita.
   const load = (aggiornata = null) => {
     setErroreCarica('');
-    daRiallineare.current = aggiornata;
+    if (aggiornata) daRiallineare.current.add(aggiornata);
+    const inAttesa = new Set(daRiallineare.current);
     return api.get('/reports/cost-co2-clusters').then((d) => {
-      daRiallineare.current = null;
+      inAttesa.forEach((chiave) => daRiallineare.current.delete(chiave));
       setClusters(d.clusters);
       setEdit((prev) => Object.fromEntries(d.clusters.map((c) => [
         c.alimentazione,
-        aggiornata === c.alimentazione || !prev[c.alimentazione] ? { costo_km_eur: c.costo_km_eur, co2_g_km: c.co2_g_km } : prev[c.alimentazione],
+        inAttesa.has(c.alimentazione) || !prev[c.alimentazione] ? { costo_km_eur: c.costo_km_eur, co2_g_km: c.co2_g_km } : prev[c.alimentazione],
       ])));
       return true;
     }).catch((e) => { setErroreCarica(e.message || 'Impossibile caricare i valori.'); return false; });
@@ -381,7 +382,7 @@ function CostiCo2Tab() {
     }
   };
 
-  const riprova = () => load(daRiallineare.current);
+  const riprova = () => load();
   if (clusters === null) return erroreCarica ? <ErroreConRiprova messaggio={erroreCarica} onRiprova={riprova} /> : <div className="card animate-pulse h-40" />;
 
   return (
