@@ -116,50 +116,65 @@ function iconaPush() {
   return ic.sorgente() ? `/api/branding/icona/192.png?v=${ic.versione()}` : undefined;
 }
 
+// Tempo massimo per un invio push: un servizio che non risponde non deve bloccare gli invii
+// successivi (né i cicli dello scheduler).
+const TIMEOUT_PUSH_MS = 10000;
+
+// Una notifica non fa mai fallire l'operazione che l'ha generata: la notifica in-app è
+// scritta subito, push ed email sono un tentativo in più. Gli errori finiscono nel log e la
+// funzione non rifiuta mai, quindi chi la chiama non deve proteggersi.
 async function notifica(userId, tipo, messaggio, rideId = null) {
-  const url = destinazionePer(tipo);
-  const info = db.prepare(`
-    INSERT INTO notifications (user_id, tipo, messaggio, ride_id, url) VALUES (?, ?, ?, ?, ?)
-  `).run(userId, tipo, messaggio, rideId, url);
+  try {
+    const url = destinazionePer(tipo);
+    const info = db.prepare(`
+      INSERT INTO notifications (user_id, tipo, messaggio, ride_id, url) VALUES (?, ?, ?, ?, ?)
+    `).run(userId, tipo, messaggio, rideId, url);
 
-  const categoria = getCategoria(tipo);
-  const pref = preferenza(userId, categoria);
+    const pref = preferenza(userId, getCategoria(tipo));
 
-  if (pref.push) {
-    ensureVapid();
-    const subs = db.prepare('SELECT * FROM push_subscriptions WHERE user_id = ?').all(userId);
-    const payload = JSON.stringify({
-      title: 'WayMatch',
-      body: messaggio,
-      icon: iconaPush(),
-      url: `${url}${url.includes('?') ? '&' : '?'}nid=${info.lastInsertRowid}`,
-    });
-    for (const sub of subs) {
-      try {
-        await webpush.sendNotification(
-          { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } },
-          payload
-        );
-      } catch (e) {
-        if (e.statusCode === 404 || e.statusCode === 410) {
-          db.prepare('DELETE FROM push_subscriptions WHERE id = ?').run(sub.id);
-        } else {
-          console.error('Errore invio push:', e.message);
+    if (pref.push) {
+      ensureVapid();
+      const subs = db.prepare('SELECT * FROM push_subscriptions WHERE user_id = ?').all(userId);
+      const payload = JSON.stringify({
+        title: 'WayMatch',
+        body: messaggio,
+        icon: iconaPush(),
+        url: `${url}${url.includes('?') ? '&' : '?'}nid=${info.lastInsertRowid}`,
+      });
+      for (const sub of subs) {
+        try {
+          await webpush.sendNotification(
+            { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } },
+            payload,
+            { timeout: TIMEOUT_PUSH_MS }
+          );
+        } catch (e) {
+          if (e.statusCode === 404 || e.statusCode === 410) {
+            db.prepare('DELETE FROM push_subscriptions WHERE id = ?').run(sub.id);
+          } else {
+            console.error('Errore invio push:', e.message);
+          }
         }
       }
     }
-  }
 
-  if (pref.email && smtpAttivo()) {
-    const utente = db.prepare('SELECT email FROM users WHERE id = ?').get(userId);
-    if (utente?.email) {
-      await inviaEmail(utente.email, 'Carpooling — nuova notifica', messaggio);
+    if (pref.email && smtpAttivo()) {
+      const utente = db.prepare('SELECT email FROM users WHERE id = ?').get(userId);
+      if (utente?.email) {
+        try {
+          await inviaEmail(utente.email, 'WayMatch — nuova notifica', messaggio);
+        } catch (e) {
+          console.error('Errore invio email di notifica:', e.message);
+        }
+      }
     }
+  } catch (e) {
+    console.error(`[notifiche] notifica "${tipo}" all'utente ${userId} non completata:`, e.message);
   }
 }
 
 // In parallelo invece che in sequenza: chi annulla un viaggio con più passeggeri non deve
-// aspettare un invio push/email dopo l'altro.
+// aspettare un invio push/email dopo l'altro. Come notifica, non rifiuta mai.
 async function notificaMassiva(userIds, tipo, messaggio, rideId = null) {
   await Promise.all(
     [...new Set(userIds)].map((uid) => notifica(uid, tipo, messaggio, rideId))

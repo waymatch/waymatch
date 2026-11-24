@@ -35,4 +35,21 @@ function distanzaPuntoDaPercorso(lat, lon, punti) {
   return min;
 }
 
-module.exports = { distanzaPuntoDaPercorso };
+// Un percorso salvato deve essere una lista di punti [lat, lon] con coordinate valide: dati
+// malformati non devono poter rompere il calcolo delle distanze per tutti.
+const MAX_PUNTI_PERCORSO = 20000;
+function geometriaValida(punti) {
+  return Array.isArray(punti) && punti.length > 0 && punti.length <= MAX_PUNTI_PERCORSO
+    && punti.every((p) => Array.isArray(p) && p.length >= 2
+      && Number.isFinite(p[0]) && Number.isFinite(p[1])
+      && Math.abs(p[0]) <= 90 && Math.abs(p[1]) <= 180);
+}
+
+// Distanza in linea d'aria (km) tra due punti, con la formula dell'emisenoverso.
+function distanzaKm(lat1, lon1, lat2, lon2) {
+  const r = (g) => (g * Math.PI) / 180;
+  const a = Math.sin(r(lat2 - lat1) / 2) ** 2 + Math.cos(r(lat1)) * Math.cos(r(lat2)) * Math.sin(r(lon2 - lon1) / 2) ** 2;
+  return 2 * 6371 * Math.asin(Math.sqrt(a));
+}
+
+module.exports = { distanzaPuntoDaPercorso, geometriaValida, distanzaKm };

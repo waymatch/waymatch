@@ -15,14 +15,9 @@ async function notificaMatchProattivo(ride) {
               - (CAST(substr(?,1,2) AS INTEGER) * 60 + CAST(substr(?,4,2) AS INTEGER))) <= 60
   `).all(ride.sede_id, ride.tipo, ride.driver_id, ride.ora, ride.ora);
 
+  // La notifica in-app arriva sempre; push ed email seguono le preferenze (le applica
+  // notifica, che non fallisce mai: un invio non riuscito non salta gli altri destinatari).
   for (const c of candidati) {
-    const pref = db.prepare(`
-      SELECT push, email FROM notification_preferences WHERE user_id = ? AND categoria = 'matching_proattivo'
-    `).get(c.driver_id);
-    // Default: attivo se l'utente non ha mai impostato una preferenza esplicita
-    const attivo = pref ? (pref.push || pref.email) : true;
-    if (!attivo) continue;
-
     await notifica(
       c.driver_id, 'matching_proattivo',
       `È stato pubblicato un passaggio ${ride.tipo === 'andata' ? 'di andata' : 'di ritorno'} alle ${ride.ora} compatibile con il tuo turno abituale.`,
@@ -39,12 +34,6 @@ async function notificaPreferiti(ride) {
   `).all(ride.driver_id, ride.tipo);
 
   for (const f of follower) {
-    const pref = db.prepare(`
-      SELECT push, email FROM notification_preferences WHERE user_id = ? AND categoria = 'passaggi_preferiti'
-    `).get(f.follower_id);
-    const attivo = pref ? (pref.push || pref.email) : true;
-    if (!attivo) continue;
-
     await notifica(
       f.follower_id, 'passaggio_preferito_pubblicato',
       `Un autista che segui ha pubblicato un nuovo passaggio ${ride.tipo === 'andata' ? 'di andata' : 'di ritorno'} alle ${ride.ora}.`,

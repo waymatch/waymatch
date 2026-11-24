@@ -19,7 +19,9 @@ if (!fs.existsSync(UPLOAD_DIR)) fs.mkdirSync(UPLOAD_DIR, { recursive: true });
 // Content-Type falsificato a "image/png" supererebbe il filtro e finirebbe comunque
 // salvato con estensione .svg. SVG non è incluso: se servito con quell'estensione può
 // contenere script eseguiti dal browser se l'URL viene aperto direttamente.
-const MIME_EXT = { 'image/png': '.png', 'image/jpeg': '.jpg', 'image/webp': '.webp' };
+// Solo i formati che la libreria di immagini (Jimp) sa leggere: un WebP passerebbe il filtro
+// e poi fallirebbe alla lettura.
+const MIME_EXT = { 'image/png': '.png', 'image/jpeg': '.jpg' };
 const storage = multer.diskStorage({
   destination: (req, file, cb) => cb(null, UPLOAD_DIR),
   filename: (req, file, cb) => cb(null, nomeCasuale(MIME_EXT[file.mimetype] || '.png')),
@@ -28,7 +30,7 @@ const upload = multer({
   storage,
   limits: { fileSize: 2 * 1024 * 1024 },
   fileFilter: (req, file, cb) => {
-    if (!MIME_EXT[file.mimetype]) return cb(new Error('Formato immagine non supportato (PNG, JPG o WEBP)'));
+    if (!MIME_EXT[file.mimetype]) return cb(new Error('Formato immagine non supportato (PNG o JPG)'));
     cb(null, true);
   },
 });
@@ -49,7 +51,11 @@ router.get('/', (req, res) => {
 });
 
 router.put('/', requireAuth, requireRole('mobility_manager'), (req, res) => {
-  const { company_name, primary_color, accent_color, pwa_short_name } = req.body;
+  const { primary_color, accent_color, pwa_short_name } = req.body;
+  const company_name = typeof req.body.company_name === 'string' ? req.body.company_name.trim() : '';
+  if (!company_name || company_name.length > 100) return res.status(400).json({ error: 'Il nome dell\'azienda è obbligatorio (al massimo 100 caratteri)' });
+  const coloreValido = (c) => c === undefined || c === null || c === '' || /^#[0-9a-fA-F]{6}$/.test(c);
+  if (!coloreValido(primary_color) || !coloreValido(accent_color)) return res.status(400).json({ error: 'Colore non valido (formato #RRGGBB)' });
   db.prepare(`
     UPDATE system_settings SET company_name = ?, primary_color = ?, accent_color = ? WHERE id = 1
   `).run(company_name, primary_color || '#14424F', accent_color || '#3CC8B8');
@@ -74,12 +80,20 @@ router.post('/logo', requireAuth, requireRole('mobility_manager'), upload.single
   }
   const relPath = '/uploads/' + req.file.filename;
   const precedente = db.prepare('SELECT logo_path FROM system_settings WHERE id = 1').get().logo_path;
-  db.prepare('UPDATE system_settings SET logo_path = ? WHERE id = 1').run(relPath);
+  // Se il salvataggio fallisce, il file appena caricato non resta su disco senza riferimenti.
+  try {
+    db.transaction(() => {
+      db.prepare('UPDATE system_settings SET logo_path = ? WHERE id = 1').run(relPath);
+      registraAzione(req.user.id, 'logo_aggiornato', null);
+    })();
+  } catch (e) {
+    fs.unlink(req.file.path, () => {});
+    throw e;
+  }
   if (precedente && precedente !== relPath && precedente.startsWith('/uploads/')) {
     const vecchio = path.normalize(percorsoSicuro(UPLOAD_DIR, precedente.replace('/uploads/', '')));
     if (vecchio.startsWith(path.normalize(UPLOAD_DIR) + path.sep)) fs.unlink(vecchio, () => {});
   }
-  registraAzione(req.user.id, 'logo_aggiornato', null);
   res.json({ logo_path: relPath });
 }));
 

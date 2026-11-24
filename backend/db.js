@@ -353,6 +353,9 @@ addColumnIfMissing('system_settings', 'richiede_approvazione_completamento', 'IN
 addColumnIfMissing('system_settings', 'giorni_lavorativi', "TEXT DEFAULT '1,2,3,4,5,6'");
 addColumnIfMissing('system_settings', 'icon_path', 'TEXT');
 addColumnIfMissing('system_settings', 'pwa_short_name', 'TEXT');
+// Perché un'occorrenza di un turno fisso è stata annullata: 'sospensione_turno' permette di
+// ripristinare solo quelle quando il turno viene riattivato.
+addColumnIfMissing('rides', 'motivo_annullamento', 'TEXT');
 
 // Migrazioni una tantum, numerate con PRAGMA user_version: ognuna gira una sola volta per database.
 const versioneSchema = db.pragma('user_version', { simple: true });

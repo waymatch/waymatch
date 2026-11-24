@@ -6,7 +6,7 @@ const { registraAzione } = require('../utils/audit');
 const { asyncHandler } = require('../utils/asyncHandler');
 const {
   co2GramsForTrip, kmRisparmiati, costoRisparmiato, costoKmPerAlimentazione,
-  getAllClusters, setClusterOverride, resetClusterOverride,
+  getAllClusters, setClusterOverride, resetClusterOverride, clusterEsistente,
 } = require('../utils/co2');
 
 const router = express.Router();
@@ -26,34 +26,44 @@ function computeSavings(where = '', params = []) {
   `).all(...params);
 
   let totKm = 0, totCo2g = 0, totCosto = 0, totPassaggi = rides.length, totPasseggeriTrasportati = 0;
-  const perSede = {};
-  const perMese = {};
+  // Le sedi si raggruppano per id (due sedi possono avere lo stesso nome); i viaggi senza sede
+  // hanno un gruppo a parte. Le mappe evitano chiavi come "__proto__".
+  const gruppiSede = new Map();
+  const gruppiMese = new Map();
+  const vuoto = () => ({ km: 0, co2_kg: 0, costo: 0, passaggi: 0 });
+  const nomiSede = new Map();
+  for (const r of rides) if (r.sede_id != null) nomiSede.set(r.sede_id, r.sede_nome);
+  const conteggioNomi = new Map();
+  for (const nome of nomiSede.values()) conteggioNomi.set(nome, (conteggioNomi.get(nome) || 0) + 1);
+  const etichettaSede = (r) => {
+    if (r.sede_id == null) return 'Senza sede';
+    const nome = r.sede_nome || 'Sede';
+    return conteggioNomi.get(nome) > 1 || nome === 'Senza sede' ? `${nome} (#${r.sede_id})` : nome;
+  };
 
   for (const r of rides) {
-    if (r.passeggeri <= 0) continue;
-    const km = kmRisparmiati(r.km_stimati, r.passeggeri);
-    const co2g = co2GramsForTrip(km, r.auto_alimentazione);
-    const costo = costoRisparmiato(km, costoKmPerAlimentazione(r.auto_alimentazione));
+    // Anche un viaggio senza passeggeri conta tra i viaggi completati, senza risparmi.
+    const conPasseggeri = r.passeggeri > 0;
+    const km = conPasseggeri ? kmRisparmiati(r.km_stimati, r.passeggeri) : 0;
+    const co2g = conPasseggeri ? co2GramsForTrip(km, r.auto_alimentazione) : 0;
+    const costo = conPasseggeri ? costoRisparmiato(km, costoKmPerAlimentazione(r.auto_alimentazione)) : 0;
 
     totKm += km;
     totCo2g += co2g;
     totCosto += costo;
-    totPasseggeriTrasportati += r.passeggeri;
+    totPasseggeriTrasportati += Math.max(0, r.passeggeri);
 
-    const sedeKey = r.sede_nome || 'Senza sede';
-    perSede[sedeKey] ||= { km: 0, co2_kg: 0, costo: 0, passaggi: 0 };
-    perSede[sedeKey].km += km;
-    perSede[sedeKey].co2_kg += co2g / 1000;
-    perSede[sedeKey].costo += costo;
-    perSede[sedeKey].passaggi += 1;
-
-    const mese = r.data.slice(0, 7); // YYYY-MM
-    perMese[mese] ||= { km: 0, co2_kg: 0, costo: 0, passaggi: 0 };
-    perMese[mese].km += km;
-    perMese[mese].co2_kg += co2g / 1000;
-    perMese[mese].costo += costo;
-    perMese[mese].passaggi += 1;
+    for (const [gruppi, chiave] of [[gruppiSede, etichettaSede(r)], [gruppiMese, r.data.slice(0, 7)]]) {
+      if (!gruppi.has(chiave)) gruppi.set(chiave, vuoto());
+      const g = gruppi.get(chiave);
+      g.km += km;
+      g.co2_kg += co2g / 1000;
+      g.costo += costo;
+      g.passaggi += 1;
+    }
   }
+  const perSede = Object.fromEntries(gruppiSede);
+  const perMese = Object.fromEntries(gruppiMese);
 
   return {
     totali: {
@@ -89,6 +99,7 @@ router.get('/summary', requireAuth, requireRole('mobility_manager', 'supervisor'
     ORDER BY punti DESC LIMIT 10
   `).all();
 
+  res.set('Cache-Control', 'private, no-store');
   res.json({ ...report, top_utenti: topUtenti });
 });
 
@@ -99,6 +110,7 @@ router.get('/cost-co2-clusters', requireAuth, requireRole('mobility_manager'), (
 });
 
 router.put('/cost-co2-clusters/:alimentazione', requireAuth, requireRole('mobility_manager'), (req, res) => {
+  if (!clusterEsistente(req.params.alimentazione)) return res.status(400).json({ error: 'Alimentazione sconosciuta' });
   const costo = Number(req.body.costo_km_eur);
   const co2 = Number(req.body.co2_g_km);
   if (!Number.isFinite(costo) || costo < 0 || !Number.isFinite(co2) || co2 < 0) {
@@ -110,6 +122,7 @@ router.put('/cost-co2-clusters/:alimentazione', requireAuth, requireRole('mobili
 });
 
 router.delete('/cost-co2-clusters/:alimentazione', requireAuth, requireRole('mobility_manager'), (req, res) => {
+  if (!clusterEsistente(req.params.alimentazione)) return res.status(400).json({ error: 'Alimentazione sconosciuta' });
   resetClusterOverride(req.params.alimentazione);
   registraAzione(req.user.id, 'cluster_costo_co2_ripristinato', req.params.alimentazione);
   res.json({ clusters: getAllClusters() });

@@ -9,10 +9,30 @@ router.get('/public-key', requireAuth, (req, res) => {
   res.json({ publicKey: s.vapid_public_key });
 });
 
+// Il server contatta l'endpoint di ogni sottoscrizione: si accettano solo i servizi push dei
+// browser, in HTTPS, così nessuno può far chiamare al server un indirizzo interno.
+const SERVIZI_PUSH = [
+  /^fcm\.googleapis\.com$/, /^android\.googleapis\.com$/,       // Chrome, Edge su Android
+  /^updates\.push\.services\.mozilla\.com$/,                     // Firefox
+  /^web\.push\.apple\.com$/, /\.push\.apple\.com$/,              // Safari
+  /\.notify\.windows\.com$/,                                     // Edge su Windows
+];
+function endpointAmmesso(endpoint) {
+  try {
+    const u = new URL(endpoint);
+    return u.protocol === 'https:' && !u.port && SERVIZI_PUSH.some((rx) => rx.test(u.hostname));
+  } catch {
+    return false;
+  }
+}
+
 router.post('/subscribe', requireAuth, (req, res) => {
   const { endpoint, keys } = req.body;
-  if (!endpoint || !keys?.p256dh || !keys?.auth) {
+  if (typeof endpoint !== 'string' || typeof keys?.p256dh !== 'string' || typeof keys?.auth !== 'string') {
     return res.status(400).json({ error: 'Sottoscrizione non valida' });
+  }
+  if (!endpointAmmesso(endpoint)) {
+    return res.status(400).json({ error: 'Servizio di notifiche push non riconosciuto' });
   }
   db.prepare(`
     INSERT INTO push_subscriptions (user_id, endpoint, p256dh, auth) VALUES (?, ?, ?, ?)

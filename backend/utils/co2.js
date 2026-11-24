@@ -62,6 +62,12 @@ function getAllClusters() {
   });
 }
 
+// Nelle modifiche la chiave deve essere esatta: con il ripiego su "altro" un errore di
+// battitura cambierebbe o cancellerebbe i valori di un altro cluster.
+function clusterEsistente(alimentazione) {
+  return CLUSTER_KEYS.includes(alimentazione);
+}
+
 function setClusterOverride(alimentazione, { costo_km_eur, co2_g_km }) {
   const chiave = chiaveCluster(alimentazione);
   db.prepare(`
@@ -93,6 +99,7 @@ function costoRisparmiato(kmRisparmiatiTot, kmCostEur) {
 }
 
 module.exports = {
+  clusterEsistente,
   co2GramsForTrip, kmRisparmiati, costoRisparmiato, costoKmPerAlimentazione,
   getAllClusters, setClusterOverride, resetClusterOverride, CLUSTER_KEYS,
 };

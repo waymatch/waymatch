@@ -11,6 +11,7 @@ const db = require('../db');
 const { percorsoSicuro } = require('./safePath');
 
 const LATO = 512;
+// Zona sicura delle icone "maskable": un cerchio di diametro pari all'80% del lato.
 const ZONA_SICURA = 0.8;
 const DIMENSIONI = [32, 180, 192, 512];
 const UPLOAD_DIR = process.env.UPLOAD_DIR || path.join(__dirname, '..', 'uploads');
@@ -18,8 +19,14 @@ const UPLOAD_DIR = process.env.UPLOAD_DIR || path.join(__dirname, '..', 'uploads
 // Converte un'immagine (qualsiasi formato decodificabile e proporzione) nel master 512x512.
 async function creaMaster(sorgente) {
   const img = await Jimp.read(sorgente);
-  const area = Math.round(LATO * ZONA_SICURA);
-  img.scaleToFit({ w: area, h: area });
+  // Il logo, qualunque proporzione abbia, deve stare tutto dentro il cerchio: la sua
+  // diagonale non supera il diametro della zona sicura (un quadrato pieno ne sporgerebbe
+  // con gli angoli, tagliati dalla maschera rotonda di Android).
+  const diametro = LATO * ZONA_SICURA;
+  const rapporto = img.width / img.height;
+  const altezza = Math.max(1, Math.floor(diametro / Math.sqrt(1 + rapporto * rapporto)));
+  const larghezza = Math.max(1, Math.floor(altezza * rapporto));
+  img.resize({ w: larghezza, h: altezza });
   const base = new Jimp({ width: LATO, height: LATO, color: 0xffffffff });
   base.composite(img, Math.round((LATO - img.width) / 2), Math.round((LATO - img.height) / 2));
   return base.getBuffer('image/png');

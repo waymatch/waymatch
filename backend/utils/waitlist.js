@@ -18,7 +18,7 @@ function promuoviListaAttesa(rideId) {
     if (impegnati >= ride.posti_totali) break;
 
     const prossimo = db.prepare(`
-      SELECT * FROM bookings WHERE ride_id = ? AND stato = 'lista_attesa' ORDER BY created_at ASC LIMIT 1
+      SELECT * FROM bookings WHERE ride_id = ? AND stato = 'lista_attesa' ORDER BY created_at ASC, id ASC LIMIT 1
     `).get(rideId);
     if (!prossimo) break;
 
@@ -29,6 +29,7 @@ function promuoviListaAttesa(rideId) {
 }
 
 // Notifica passeggero e autista per ciascuna promozione da lista d'attesa a "richiesto".
+// notifica non rifiuta mai, quindi un invio fallito non salta gli altri destinatari.
 async function notificaPromossi(promossi) {
   for (const p of promossi) {
     await notifica(
@@ -36,6 +37,10 @@ async function notificaPromossi(promossi) {
       `Si è liberato un posto nel passaggio ${p.ride.tipo} del ${p.ride.data} alle ${p.ride.ora}: la tua richiesta è stata inviata automaticamente al conducente.`,
       p.ride.id
     );
+    // Nel frattempo il passeggero potrebbe aver già annullato: l'autista va avvisato solo di
+    // una richiesta ancora valida.
+    const ancoraRichiesta = db.prepare('SELECT stato FROM bookings WHERE id = ?').get(p.id)?.stato === 'richiesto';
+    if (!ancoraRichiesta) continue;
     await notifica(
       p.ride.driver_id, 'nuova_richiesta',
       `Un passeggero dalla lista d'attesa ha una nuova richiesta per il tuo passaggio ${p.ride.tipo} del ${p.ride.data} alle ${p.ride.ora}.`,

@@ -9,6 +9,11 @@ const { asyncHandler } = require('../utils/asyncHandler');
 
 const router = express.Router();
 
+// Passaggio non ancora partito (data e ora locali).
+const FUTURO = `(data > date('now','localtime') OR (data = date('now','localtime') AND ora >= strftime('%H:%M','now','localtime')))`;
+// Istante con i millisecondi: ordina la lista d'attesa anche tra richieste nello stesso secondo.
+const ADESSO_MS = "strftime('%Y-%m-%d %H:%M:%f','now')";
+
 // Richiedi un posto in un passaggio. Il limite si basa su richieste+conferme totali (non
 // solo sui posti già confermati), così un'offerta non riceve più richieste di quanti
 // posti abbia davvero, anche prima che l'autista le approvi. Se il passaggio è già al
@@ -18,6 +23,9 @@ router.post('/rides/:rideId/book', requireAuth, asyncHandler(async (req, res) =>
   const { punto_salita } = req.body;
   const ride = db.prepare('SELECT * FROM rides WHERE id = ?').get(req.params.rideId);
   if (!ride || ride.stato !== 'attivo') return res.status(404).json({ error: 'Passaggio non disponibile' });
+  if (!db.prepare(`SELECT 1 FROM rides WHERE id = ? AND ${FUTURO}`).get(ride.id)) {
+    return res.status(400).json({ error: 'Questo passaggio è già partito' });
+  }
   if (ride.driver_id === req.user.id) return res.status(400).json({ error: 'Non puoi prenotare il tuo stesso passaggio' });
 
   const esistente = db.prepare(
@@ -42,13 +50,13 @@ router.post('/rides/:rideId/book', requireAuth, asyncHandler(async (req, res) =>
       // Richiesta precedente annullata o rifiutata: riattiviamo la stessa riga invece di
       // inserirne una nuova (il vincolo unico ride+passeggero non permetterebbe un duplicato).
       db.prepare(`
-        UPDATE bookings SET stato = ?, punto_salita = ?, check_in = 0, check_in_at = NULL, created_at = datetime('now')
+        UPDATE bookings SET stato = ?, punto_salita = ?, check_in = 0, check_in_at = NULL, created_at = ${ADESSO_MS}
         WHERE id = ?
       `).run(nuovoStato, punto_salita || null, esistente.id);
       bookingId = esistente.id;
     } else {
       const info = db.prepare(`
-        INSERT INTO bookings (ride_id, passenger_id, stato, punto_salita) VALUES (?, ?, ?, ?)
+        INSERT INTO bookings (ride_id, passenger_id, stato, punto_salita, created_at) VALUES (?, ?, ?, ?, ${ADESSO_MS})
       `).run(ride.id, req.user.id, nuovoStato, punto_salita || null);
       bookingId = info.lastInsertRowid;
     }
@@ -97,14 +105,25 @@ router.put('/:id', requireAuth, asyncHandler(async (req, res) => {
     return res.status(403).json({ error: 'Puoi solo annullare la tua richiesta' });
   }
 
+  // Gli esiti di un viaggio concluso (completato, assente, viaggio non più attivo) non si
+  // riscrivono: cambierebbero lo storico senza rettificare i punti.
+  if (['completato', 'no_show'].includes(booking.stato) || ride.stato !== 'attivo') {
+    return res.status(400).json({ error: 'Questo passaggio è concluso o non è più attivo: la prenotazione non si può modificare' });
+  }
+
   const statoPrecedente = booking.stato;
   let esito = null;
+  let promossi = [];
   const tx = db.transaction(() => {
+    const r = db.prepare('SELECT posti_disponibili, posti_totali FROM rides WHERE id = ?').get(ride.id);
     if (stato === 'confermato' && statoPrecedente !== 'confermato') {
-      // Ricontrolla la capienza al momento della conferma: statoPrecedente potrebbe essere
-      // 'rifiutato' o 'annullato' (richiesta riattivata da un'azione precedente), quindi non
-      // basta fidarsi del conteggio fatto quando la richiesta era stata creata.
-      if (ride.posti_disponibili <= 0) {
+      // Ricontrolla la capienza al momento della conferma. Una richiesta 'richiesto' è già
+      // contata tra gli impegni; da lista d'attesa, rifiutata o annullata invece aggiunge un
+      // impegno, quindi servono sia un posto libero sia spazio tra richieste e conferme.
+      const impegniAltri = db.prepare(`
+        SELECT COUNT(*) AS n FROM bookings WHERE ride_id = ? AND id != ? AND stato IN ('richiesto','confermato')
+      `).get(ride.id, booking.id).n;
+      if (r.posti_disponibili <= 0 || (statoPrecedente !== 'richiesto' && impegniAltri >= r.posti_totali)) {
         esito = 'pieno';
         return;
       }
@@ -113,7 +132,17 @@ router.put('/:id', requireAuth, asyncHandler(async (req, res) => {
     if ((stato === 'rifiutato' || stato === 'annullato') && statoPrecedente === 'confermato') {
       db.prepare('UPDATE rides SET posti_disponibili = posti_disponibili + 1 WHERE id = ?').run(ride.id);
     }
-    db.prepare('UPDATE bookings SET stato = ? WHERE id = ?').run(stato, booking.id);
+    // Chi perde la conferma perde anche il check-in: una conferma successiva ne richiede uno nuovo.
+    if (statoPrecedente === 'confermato' && stato !== 'confermato') {
+      db.prepare('UPDATE bookings SET stato = ?, check_in = 0, check_in_at = NULL WHERE id = ?').run(stato, booking.id);
+    } else {
+      db.prepare('UPDATE bookings SET stato = ? WHERE id = ?').run(stato, booking.id);
+    }
+    // Rifiutare o annullare una richiesta o una conferma libera un posto: chi è in lista
+    // d'attesa viene promosso nella stessa transazione, prima che qualcun altro lo occupi.
+    if (['rifiutato', 'annullato'].includes(stato) && ['richiesto', 'confermato'].includes(statoPrecedente)) {
+      promossi = promuoviListaAttesa(ride.id);
+    }
   });
   tx();
   if (esito === 'pieno') return res.status(400).json({ error: 'Non ci sono più posti disponibili su questo passaggio' });
@@ -134,12 +163,7 @@ router.put('/:id', requireAuth, asyncHandler(async (req, res) => {
     registraAzione(req.user.id, 'richiesta_annullata', `Passaggio #${ride.id}`, 'utente');
   }
 
-  // Rifiutare o annullare una richiesta 'richiesto'/'confermato' libera un posto (di
-  // capienza, non necessariamente confermato): se qualcuno è in lista d'attesa, viene
-  // promosso automaticamente. No-op se non c'era nulla da liberare.
-  if (['rifiutato', 'annullato'].includes(stato) && ['richiesto', 'confermato'].includes(statoPrecedente)) {
-    await notificaPromossi(promuoviListaAttesa(ride.id));
-  }
+  await notificaPromossi(promossi);
 
   res.json({ ok: true });
 }));
@@ -191,7 +215,9 @@ router.get('/mie', requireAuth, (req, res) => {
   const { storico } = req.query;
   const upcoming = `(r.data > date('now','localtime') OR (r.data = date('now','localtime') AND r.ora >= strftime('%H:%M','now','localtime')))`;
   const filtro = storico === '1'
-    ? `AND (b.stato IN ('completato','no_show','rifiutato','annullato') OR (b.stato IN ('richiesto','confermato','lista_attesa') AND r.stato = 'annullato'))`
+    ? `AND (b.stato IN ('completato','no_show','rifiutato','annullato')
+         OR (b.stato IN ('richiesto','confermato','lista_attesa') AND r.stato = 'annullato')
+         OR (b.stato IN ('richiesto','confermato','lista_attesa') AND r.stato = 'attivo' AND NOT ${upcoming}))`
     : `AND b.stato IN ('richiesto','confermato','lista_attesa') AND (r.stato = 'in_approvazione' OR (r.stato = 'attivo' AND ${upcoming}))`;
 
   const bookings = db.prepare(`

@@ -15,34 +15,43 @@ router.get('/', requireAuth, requireRole('mobility_manager'), (req, res) => {
 // offerta_creata, viaggio_completato_autista, viaggio_completato_passeggero,
 // punto_per_km, km_cap_bonus.
 router.put('/:chiave', requireAuth, requireRole('mobility_manager'), (req, res) => {
-  const { punti, attivo } = req.body;
   const rule = db.prepare('SELECT * FROM point_rules WHERE chiave = ?').get(req.params.chiave);
   if (!rule) return res.status(404).json({ error: 'Regola non trovata' });
-  if (!rule.modificabile && attivo === 0) {
+  // Valore e stato sono entrambi facoltativi: si aggiorna solo ciò che arriva.
+  const nuovoAttivo = req.body.attivo === undefined ? rule.attivo : (req.body.attivo ? 1 : 0);
+  if (!rule.modificabile && nuovoAttivo === 0) {
     return res.status(400).json({ error: 'Questa regola strutturale non può essere disattivata' });
   }
-  if (punti === undefined || Number(punti) < 0) {
-    return res.status(400).json({ error: 'Valore punti non valido' });
+  let nuoviPunti = rule.punti;
+  if (req.body.punti !== undefined) {
+    nuoviPunti = Number(req.body.punti);
+    if (!Number.isInteger(nuoviPunti) || nuoviPunti < 0 || nuoviPunti > 100000) {
+      return res.status(400).json({ error: 'Valore punti non valido' });
+    }
   }
-  db.prepare('UPDATE point_rules SET punti = ?, attivo = ? WHERE chiave = ?')
-    .run(Number(punti), attivo === undefined ? rule.attivo : (attivo ? 1 : 0), req.params.chiave);
-  registraAzione(req.user.id, 'regola_punteggio_modificata', `${rule.nome}: ${punti} pt`);
+  db.prepare('UPDATE point_rules SET punti = ?, attivo = ? WHERE chiave = ?').run(nuoviPunti, nuovoAttivo, req.params.chiave);
+  registraAzione(req.user.id, 'regola_punteggio_modificata', `${rule.nome}: ${nuoviPunti} pt${nuovoAttivo ? '' : ' (disattivata)'}`);
   res.json({ rule: db.prepare('SELECT * FROM point_rules WHERE chiave = ?').get(req.params.chiave) });
 });
 
 // Assegnazione manuale di punti bonus (es. premio "collega del mese", riconoscimento contest, ecc.)
 router.post('/manual-award', requireAuth, requireRole('mobility_manager'), (req, res) => {
-  const { user_id, punti, motivo } = req.body;
-  if (!user_id || !punti || !motivo) {
+  const { user_id, motivo } = req.body;
+  const punti = Math.round(Number(req.body.punti));
+  if (!user_id || !Number.isFinite(punti) || punti === 0 || typeof motivo !== 'string' || !motivo.trim()) {
     return res.status(400).json({ error: 'Utente, punti e motivo sono obbligatori' });
   }
   const utente = db.prepare('SELECT id FROM users WHERE id = ?').get(user_id);
   if (!utente) return res.status(404).json({ error: 'Utente non trovato' });
 
-  db.prepare(`
-    INSERT INTO manual_point_awards (user_id, assegnato_da, punti, motivo) VALUES (?, ?, ?, ?)
-  `).run(user_id, req.user.id, Math.round(Number(punti)), motivo);
-  registraAzione(req.user.id, 'punti_manuali_assegnati', `${punti} pt a utente #${user_id}: ${motivo}`);
+  // Accredito e registro insieme: se il registro fallisce, l'accredito si annulla e un nuovo
+  // invio non raddoppia i punti.
+  db.transaction(() => {
+    db.prepare(`
+      INSERT INTO manual_point_awards (user_id, assegnato_da, punti, motivo) VALUES (?, ?, ?, ?)
+    `).run(user_id, req.user.id, punti, motivo.trim());
+    registraAzione(req.user.id, 'punti_manuali_assegnati', `${punti} pt a utente #${user_id}: ${motivo.trim()}`);
+  })();
   res.json({ ok: true });
 });
 

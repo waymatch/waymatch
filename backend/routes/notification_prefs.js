@@ -27,11 +27,19 @@ router.put('/:categoria', requireAuth, (req, res) => {
   if (!CATEGORIE_INFO.some((c) => c.chiave === req.params.categoria)) {
     return res.status(400).json({ error: 'Categoria non valida' });
   }
-  const { push, email, minuti_anticipo } = req.body;
+  const { push, email } = req.body;
+  // Anticipo del promemoria: da 0 (alla partenza) a 120 minuti, la finestra dello scheduler.
+  let minuti_anticipo = 30;
+  if (req.body.minuti_anticipo !== undefined && req.body.minuti_anticipo !== null) {
+    minuti_anticipo = Number(req.body.minuti_anticipo);
+    if (!Number.isInteger(minuti_anticipo) || minuti_anticipo < 0 || minuti_anticipo > 120) {
+      return res.status(400).json({ error: 'L\'anticipo del promemoria va da 0 a 120 minuti' });
+    }
+  }
   db.prepare(`
     INSERT INTO notification_preferences (user_id, categoria, push, email, minuti_anticipo) VALUES (?, ?, ?, ?, ?)
     ON CONFLICT(user_id, categoria) DO UPDATE SET push = excluded.push, email = excluded.email, minuti_anticipo = excluded.minuti_anticipo
-  `).run(req.user.id, req.params.categoria, push ? 1 : 0, email ? 1 : 0, Number(minuti_anticipo) || 30);
+  `).run(req.user.id, req.params.categoria, push ? 1 : 0, email ? 1 : 0, minuti_anticipo);
   res.json({ ok: true });
 });
 

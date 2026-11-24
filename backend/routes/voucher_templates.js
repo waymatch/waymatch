@@ -16,7 +16,9 @@ if (!fs.existsSync(TEMPLATES_DIR)) fs.mkdirSync(TEMPLATES_DIR, { recursive: true
 
 // Estensione decisa dal mimetype validato, non dal nome file originale (controllato dal
 // client) — vedi lo stesso commento in routes/branding.js.
-const MIME_EXT = { 'image/png': '.png', 'image/jpeg': '.jpg', 'image/webp': '.webp' };
+// Solo i formati che la libreria di immagini (Jimp) sa leggere: un WebP passerebbe il filtro
+// e poi fallirebbe alla lettura.
+const MIME_EXT = { 'image/png': '.png', 'image/jpeg': '.jpg' };
 const storage = multer.diskStorage({
   destination: (req, file, cb) => cb(null, TEMPLATES_DIR),
   filename: (req, file, cb) => cb(null, nomeCasuale(MIME_EXT[file.mimetype] || '.png')),
@@ -25,7 +27,7 @@ const upload = multer({
   storage,
   limits: { fileSize: 4 * 1024 * 1024 },
   fileFilter: (req, file, cb) => {
-    if (!MIME_EXT[file.mimetype]) return cb(new Error('Formato immagine non supportato (PNG, JPG o WEBP)'));
+    if (!MIME_EXT[file.mimetype]) return cb(new Error('Formato immagine non supportato (PNG o JPG)'));
     cb(null, true);
   },
 });
@@ -63,8 +65,9 @@ router.post('/', requireAuth, requireRole('mobility_manager'), upload.single('im
 }));
 
 router.delete('/:id', requireAuth, requireRole('mobility_manager'), (req, res) => {
-  const inUso = db.prepare('SELECT COUNT(*) as n FROM rewards WHERE voucher_template_id = ? AND attivo = 1').get(req.params.id).n;
-  if (inUso > 0) return res.status(400).json({ error: 'Template in uso da uno o più premi attivi: disattiva prima quei premi.' });
+  // Anche un premio disattivato può avere voucher già emessi che usano questo template.
+  const inUso = db.prepare('SELECT COUNT(*) as n FROM rewards WHERE voucher_template_id = ?').get(req.params.id).n;
+  if (inUso > 0) return res.status(400).json({ error: 'Template usato da uno o più premi, anche disattivati: assegna prima un altro template a quei premi.' });
   db.prepare('DELETE FROM voucher_templates WHERE id = ?').run(req.params.id);
   res.json({ ok: true });
 });

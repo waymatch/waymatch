@@ -97,62 +97,72 @@ function pulisciDatiScaduti() {
 // poi rimossi dal database applicativo. Il log punti non viene solo cancellato: le righe
 // vecchie di ogni utente vengono consolidate in un'unica riga che ne conserva la somma,
 // altrimenti il saldo punti (calcolato come SOMMA di tutte le righe, vedi utils/points.js)
-// cambierebbe silenziosamente. La riga di consolidamento viene datata esattamente al
-// limite della finestra, così un calcolo per periodo (es. classifica "ultimi 12 mesi")
-// continua a escluderla correttamente, come farebbe con le righe originali.
+// cambierebbe silenziosamente. Si consolida per utente e per mese, datando ogni riga
+// all'ultimo evento di quel mese: un calcolo per periodo (es. classifica "ultimi 12 mesi")
+// sbaglia al massimo di un mese, invece di attribuire a una data recente punti vecchi.
 function archiviaDatiStorici() {
-  const cutoff = `datetime('now', '-${RITENZIONE_STORICO_MESI} months')`;
-  const cutoffData = `date('now', '-${RITENZIONE_STORICO_MESI} months')`;
+  // Soglia calcolata una volta sola: selezione e cancellazione devono vedere le stesse righe.
+  const soglie = db.prepare(`SELECT datetime('now', ?) AS istante, date('now', ?) AS giorno`)
+    .get(`-${RITENZIONE_STORICO_MESI} months`, `-${RITENZIONE_STORICO_MESI} months`);
+  const cutoff = soglie.istante;
+  const cutoffData = soglie.giorno;
 
-  const vecchiAudit = db.prepare(`SELECT * FROM audit_log WHERE created_at < ${cutoff}`).all();
-  for (const riga of vecchiAudit) logEvent('audit_log_archiviato', riga);
-  const auditRimossi = db.prepare(`DELETE FROM audit_log WHERE created_at < ${cutoff}`).run().changes;
+  const auditRimossi = db.transaction(() => {
+    const vecchiAudit = db.prepare('SELECT * FROM audit_log WHERE created_at < ?').all(cutoff);
+    for (const riga of vecchiAudit) logEvent('audit_log_archiviato', riga);
+    const elimina = db.prepare('DELETE FROM audit_log WHERE id = ?');
+    for (const riga of vecchiAudit) elimina.run(riga.id);
+    return vecchiAudit.length;
+  })();
 
   const consolidaPunti = db.transaction(() => {
-    const utenti = db.prepare(`
-      SELECT DISTINCT user_id FROM points_log WHERE created_at < ${cutoff} AND tipo_evento != 'consolidamento_storico'
-    `).all();
-    let righeConsolidate = 0;
-    for (const { user_id } of utenti) {
-      const vecchie = db.prepare(`
-        SELECT * FROM points_log WHERE user_id = ? AND created_at < ${cutoff} AND tipo_evento != 'consolidamento_storico'
-      `).all(user_id);
-      if (vecchie.length === 0) continue;
-      for (const riga of vecchie) logEvent('points_log_archiviato', riga);
-      const somma = vecchie.reduce((tot, r) => tot + r.punti, 0);
-      // Cancellazione per id esatti (non per intervallo di date): evita di toccare per
-      // sbaglio un'eventuale riga di consolidamento precedente che ricadesse nello stesso
-      // intervallo.
-      const eliminaRiga = db.prepare('DELETE FROM points_log WHERE id = ?');
-      for (const riga of vecchie) eliminaRiga.run(riga.id);
-      if (somma !== 0) {
-        db.prepare(`
-          INSERT INTO points_log (user_id, tipo_evento, punti, note, created_at)
-          VALUES (?, 'consolidamento_storico', ?, ?, ${cutoffData})
-        `).run(user_id, somma, `Somma di ${vecchie.length} eventi precedenti, archiviati nel log esterno`);
-      }
-      righeConsolidate += vecchie.length;
+    const vecchie = db.prepare(`
+      SELECT * FROM points_log WHERE created_at < ? AND tipo_evento != 'consolidamento_storico'
+    `).all(cutoff);
+    // Gruppi per utente e mese; cancellazione per id esatti, così non si tocca un'eventuale
+    // riga di consolidamento precedente che ricadesse nello stesso intervallo.
+    const gruppi = new Map();
+    for (const riga of vecchie) {
+      const chiave = `${riga.user_id}|${String(riga.created_at).slice(0, 7)}`;
+      if (!gruppi.has(chiave)) gruppi.set(chiave, []);
+      gruppi.get(chiave).push(riga);
     }
-    return righeConsolidate;
+    const eliminaRiga = db.prepare('DELETE FROM points_log WHERE id = ?');
+    const inserisci = db.prepare(`
+      INSERT INTO points_log (user_id, tipo_evento, punti, note, created_at)
+      VALUES (?, 'consolidamento_storico', ?, ?, ?)
+    `);
+    for (const righe of gruppi.values()) {
+      for (const riga of righe) logEvent('points_log_archiviato', riga);
+      for (const riga of righe) eliminaRiga.run(riga.id);
+      const somma = righe.reduce((tot, r) => tot + r.punti, 0);
+      const ultima = righe.reduce((max, r) => (r.created_at > max ? r.created_at : max), righe[0].created_at);
+      if (somma !== 0) {
+        inserisci.run(righe[0].user_id, somma, `Somma di ${righe.length} eventi del mese, archiviati nel log esterno`, ultima);
+      }
+    }
+    return vecchie.length;
   });
   const puntiConsolidati = consolidaPunti();
 
   // Solo viaggi conclusi (completati o annullati): un viaggio attivo/in approvazione non
   // può per definizione essere più vecchio della finestra di conservazione. La cancellazione
   // trascina con sé, in automatico (ON DELETE CASCADE), le relative prenotazioni e soste.
-  const vecchiRides = db.prepare(`
-    SELECT r.*,
-      (SELECT json_group_array(json_object('id', b.id, 'passenger_id', b.passenger_id, 'stato', b.stato))
-       FROM bookings b WHERE b.ride_id = r.id) as prenotazioni_json
-    FROM rides r WHERE r.data < ${cutoffData} AND r.stato IN ('completato', 'annullato')
-  `).all();
-  for (const riga of vecchiRides) {
-    const { prenotazioni_json, ...ride } = riga;
-    logEvent('viaggio_archiviato', { ...ride, prenotazioni: JSON.parse(prenotazioni_json || '[]') });
-  }
-  const rideRimosse = db.prepare(`
-    DELETE FROM rides WHERE data < ${cutoffData} AND stato IN ('completato', 'annullato')
-  `).run().changes;
+  const rideRimosse = db.transaction(() => {
+    const vecchiRides = db.prepare(`
+      SELECT r.*,
+        (SELECT json_group_array(json_object('id', b.id, 'passenger_id', b.passenger_id, 'stato', b.stato))
+         FROM bookings b WHERE b.ride_id = r.id) as prenotazioni_json
+      FROM rides r WHERE r.data < ? AND r.stato IN ('completato', 'annullato')
+    `).all(cutoffData);
+    const elimina = db.prepare('DELETE FROM rides WHERE id = ?');
+    for (const riga of vecchiRides) {
+      const { prenotazioni_json, ...ride } = riga;
+      logEvent('viaggio_archiviato', { ...ride, prenotazioni: JSON.parse(prenotazioni_json || '[]') });
+      elimina.run(riga.id);
+    }
+    return vecchiRides.length;
+  })();
 
   if (auditRimossi > 0 || puntiConsolidati > 0 || rideRimosse > 0) {
     console.log(`[scheduler] Archiviazione storico (oltre ${RITENZIONE_STORICO_MESI} mesi): ${auditRimossi} voci di log attività, ${puntiConsolidati} righe di log punti consolidate, ${rideRimosse} viaggi rimossi.`);
@@ -194,16 +204,14 @@ async function inviaRiepilogoSettimanale() {
 }
 
 async function inviaPromemoriaPartenza() {
-  // Considera solo i viaggi che partono nelle prossime 2 ore (copre qualunque anticipo
-  // configurato dagli utenti, fino a 120 minuti).
+  // Viaggi che partono nelle prossime 2 ore (copre qualunque anticipo configurabile, fino a
+  // 120 minuti). Si confronta l'istante completo di partenza, così un viaggio alle 00:10
+  // rientra già nel controllo delle 23:50 del giorno prima.
   const rides = db.prepare(`
-    SELECT * FROM rides
+    SELECT *, CAST(round((julianday(data || ' ' || ora) - julianday('now', 'localtime')) * 1440) AS INTEGER) AS minuti_mancanti
+    FROM rides
     WHERE stato = 'attivo'
-      AND data = date('now', 'localtime')
-      AND (
-        (CAST(substr(ora,1,2) AS INTEGER) * 60 + CAST(substr(ora,4,2) AS INTEGER))
-        - (CAST(strftime('%H','now','localtime') AS INTEGER) * 60 + CAST(strftime('%M','now','localtime') AS INTEGER))
-      ) BETWEEN 0 AND 120
+      AND julianday(data || ' ' || ora) BETWEEN julianday('now', 'localtime') AND julianday('now', 'localtime', '+120 minutes')
   `).all();
 
   for (const ride of rides) {
@@ -212,27 +220,24 @@ async function inviaPromemoriaPartenza() {
     for (const c of confermati) partecipanti.push({ user_id: c.passenger_id, ruolo: 'passeggero' });
 
     for (const p of partecipanti) {
+      // La notifica in-app arriva sempre; push ed email seguono le preferenze (le gestisce notifica).
       const pref = db.prepare(`
-        SELECT push, email, minuti_anticipo FROM notification_preferences WHERE user_id = ? AND categoria = 'promemoria_partenza'
+        SELECT minuti_anticipo FROM notification_preferences WHERE user_id = ? AND categoria = 'promemoria_partenza'
       `).get(p.user_id);
-      const attivo = pref ? (pref.push || pref.email) : true; // default: attivo
-      if (!attivo) continue;
       const minutiAnticipo = pref?.minuti_anticipo ?? 30;
-
-      const [oreP, minP] = ride.ora.split(':').map(Number);
-      const oraNow = db.prepare(`SELECT CAST(strftime('%H','now','localtime') AS INTEGER) as h, CAST(strftime('%M','now','localtime') AS INTEGER) as m`).get();
-      const minutiMancanti = (oreP * 60 + minP) - (oraNow.h * 60 + oraNow.m);
+      const minutiMancanti = ride.minuti_mancanti;
       if (minutiMancanti > minutiAnticipo || minutiMancanti < 0) continue;
 
-      const giaInviato = db.prepare('SELECT 1 FROM reminder_sent WHERE ride_id = ? AND user_id = ?').get(ride.id, p.user_id);
-      if (giaInviato) continue;
+      // Il promemoria si "prenota" prima dell'invio: due giri dello scheduler sovrapposti non
+      // possono mandarlo due volte. notifica non fallisce mai, quindi non va perso.
+      const prenotato = db.prepare('INSERT OR IGNORE INTO reminder_sent (ride_id, user_id) VALUES (?, ?)').run(ride.id, p.user_id).changes === 1;
+      if (!prenotato) continue;
 
       await notifica(
         p.user_id, 'promemoria_partenza',
         `Il tuo passaggio ${ride.tipo} delle ${ride.ora} parte tra circa ${minutiMancanti} minuti.`,
         ride.id
       );
-      db.prepare('INSERT OR IGNORE INTO reminder_sent (ride_id, user_id) VALUES (?, ?)').run(ride.id, p.user_id);
     }
   }
 }

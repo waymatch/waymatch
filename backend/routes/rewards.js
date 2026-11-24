@@ -16,6 +16,16 @@ function generaCodiceVoucher() {
   return `${bytes.slice(0, 4)}-${bytes.slice(4, 8)}-${bytes.slice(8, 12)}`;
 }
 
+// Punti di un premio: intero positivo. Un valore negativo trasformerebbe il riscatto in un accredito.
+function puntiValidi(v) {
+  const n = Number(v);
+  return Number.isInteger(n) && n > 0 && n <= 1000000 ? n : null;
+}
+
+// Importo storico di un riscatto: quanto è stato davvero addebitato, non il prezzo attuale
+// del premio (che il mobility manager può cambiare dopo).
+const PUNTI_ADDEBITATI = `(SELECT -COALESCE(SUM(m.punti), 0) FROM manual_point_awards m WHERE m.redemption_id = rr.id AND m.punti < 0)`;
+
 router.get('/', requireAuth, (req, res) => {
   const rewards = db.prepare('SELECT * FROM rewards WHERE attivo = 1 ORDER BY punti_richiesti').all();
   res.json({ rewards, punti_disponibili: totalePunti(req.user.id) });
@@ -29,8 +39,10 @@ router.get('/admin/tutti', requireAuth, requireRole('mobility_manager'), (req, r
 });
 
 router.post('/', requireAuth, requireRole('mobility_manager'), (req, res) => {
-  const { nome, descrizione, punti_richiesti, tipo, voucher_template_id } = req.body;
-  if (!nome || !punti_richiesti) return res.status(400).json({ error: 'Dati mancanti' });
+  const { nome, descrizione, tipo, voucher_template_id } = req.body;
+  const punti_richiesti = puntiValidi(req.body.punti_richiesti);
+  if (!nome) return res.status(400).json({ error: 'Dati mancanti' });
+  if (!punti_richiesti) return res.status(400).json({ error: 'I punti richiesti devono essere un numero intero positivo' });
   const tipoFinale = tipo === 'voucher_digitale' ? 'voucher_digitale' : 'fisico';
   const info = db.prepare(`
     INSERT INTO rewards (nome, descrizione, punti_richiesti, tipo, voucher_template_id) VALUES (?, ?, ?, ?, ?)
@@ -40,8 +52,10 @@ router.post('/', requireAuth, requireRole('mobility_manager'), (req, res) => {
 });
 
 router.put('/:id', requireAuth, requireRole('mobility_manager'), (req, res) => {
-  const { nome, descrizione, punti_richiesti, attivo, tipo, voucher_template_id } = req.body;
-  if (!nome || !punti_richiesti) return res.status(400).json({ error: 'Dati mancanti' });
+  const { nome, descrizione, attivo, tipo, voucher_template_id } = req.body;
+  const punti_richiesti = puntiValidi(req.body.punti_richiesti);
+  if (!nome) return res.status(400).json({ error: 'Dati mancanti' });
+  if (!punti_richiesti) return res.status(400).json({ error: 'I punti richiesti devono essere un numero intero positivo' });
   const tipoFinale = tipo === 'voucher_digitale' ? 'voucher_digitale' : 'fisico';
   db.prepare(`
     UPDATE rewards SET nome = ?, descrizione = ?, punti_richiesti = ?, attivo = ?, tipo = ?, voucher_template_id = ? WHERE id = ?
@@ -81,7 +95,7 @@ router.post('/:id/redeem', requireAuth, (req, res) => {
 // Storico dei riscatti dell'utente corrente (per la sezione Premi)
 router.get('/redemptions/mie', requireAuth, (req, res) => {
   const redemptions = db.prepare(`
-    SELECT rr.*, r.nome as reward_nome, r.punti_richiesti
+    SELECT rr.*, r.nome as reward_nome, ${PUNTI_ADDEBITATI} as punti_richiesti
     FROM reward_redemptions rr
     JOIN rewards r ON r.id = rr.reward_id
     WHERE rr.user_id = ?
@@ -92,7 +106,7 @@ router.get('/redemptions/mie', requireAuth, (req, res) => {
 
 router.get('/redemptions/list', requireAuth, requireRole('mobility_manager'), (req, res) => {
   const redemptions = db.prepare(`
-    SELECT rr.*, u.nome, u.cognome, r.nome as reward_nome, r.punti_richiesti
+    SELECT rr.*, u.nome, u.cognome, r.nome as reward_nome, ${PUNTI_ADDEBITATI} as punti_richiesti
     FROM reward_redemptions rr
     JOIN users u ON u.id = rr.user_id
     JOIN rewards r ON r.id = rr.reward_id
@@ -102,6 +116,14 @@ router.get('/redemptions/list', requireAuth, requireRole('mobility_manager'), (r
 });
 
 const STATI_REDEMPTION_VALIDI = ['approvato', 'rifiutato', 'consegnato'];
+// Passaggi di stato ammessi: rifiutato e consegnato sono definitivi, così un riscatto non
+// può essere rimborsato due volte (rifiutato → approvato → rifiutato).
+const TRANSIZIONI = {
+  in_attesa: ['approvato', 'rifiutato', 'consegnato'],
+  approvato: ['consegnato', 'rifiutato'],
+  consegnato: [],
+  rifiutato: [],
+};
 
 router.put('/redemptions/:id', requireAuth, requireRole('mobility_manager'), asyncHandler(async (req, res) => {
   const { stato } = req.body; // approvato | rifiutato | consegnato
@@ -117,19 +139,35 @@ router.put('/redemptions/:id', requireAuth, requireRole('mobility_manager'), asy
   if (!redemption) return res.status(404).json({ error: 'Non trovata' });
 
   const statoPrecedente = redemption.stato;
+  if (stato === statoPrecedente) return res.json({ ok: true, codice_voucher: redemption.codice_voucher });
+  if (!(TRANSIZIONI[statoPrecedente] || []).includes(stato)) {
+    return res.status(400).json({ error: `Un riscatto ${statoPrecedente.replace('_', ' ')} non può diventare ${stato}` });
+  }
   let codiceVoucher = redemption.codice_voucher;
   if (stato === 'approvato' && redemption.reward_tipo === 'voucher_digitale' && !codiceVoucher) {
     codiceVoucher = generaCodiceVoucher();
   }
-  db.prepare('UPDATE reward_redemptions SET stato = ?, codice_voucher = COALESCE(?, codice_voucher) WHERE id = ?')
-    .run(stato, codiceVoucher, req.params.id);
+  // Stato, rimborso e registro in un'unica transazione: un errore a metà non lascia un
+  // riscatto rifiutato senza rimborso. Le notifiche partono dopo.
+  db.transaction(() => {
+    db.prepare('UPDATE reward_redemptions SET stato = ?, codice_voucher = COALESCE(?, codice_voucher) WHERE id = ?')
+      .run(stato, codiceVoucher, redemption.id);
+    if (stato === 'rifiutato') {
+      // Si rimborsa quanto addebitato davvero, non il prezzo attuale del premio.
+      const addebitati = db.prepare(`
+        SELECT -COALESCE(SUM(punti), 0) AS n FROM manual_point_awards WHERE redemption_id = ? AND punti < 0
+      `).get(redemption.id).n;
+      if (addebitati > 0) {
+        db.prepare(`
+          INSERT INTO manual_point_awards (user_id, assegnato_da, punti, motivo, redemption_id)
+          VALUES (?, ?, ?, ?, ?)
+        `).run(redemption.user_id, req.user.id, addebitati, `Rimborso riscatto rifiutato: ${redemption.reward_nome}`, redemption.id);
+      }
+    }
+    registraAzione(req.user.id, `riscatto_${stato}_mm`, `${redemption.utente_nome} ${redemption.utente_cognome} — ${redemption.reward_nome}`);
+  })();
 
-  // Riaccredito automatico se il riscatto viene rifiutato (e non lo era già)
-  if (stato === 'rifiutato' && statoPrecedente !== 'rifiutato') {
-    db.prepare(`
-      INSERT INTO manual_point_awards (user_id, assegnato_da, punti, motivo, redemption_id)
-      VALUES (?, ?, ?, ?, ?)
-    `).run(redemption.user_id, req.user.id, redemption.punti_richiesti, `Rimborso riscatto rifiutato: ${redemption.reward_nome}`, redemption.id);
+  if (stato === 'rifiutato') {
     await notifica(redemption.user_id, 'riscatto_rifiutato', `La richiesta per "${redemption.reward_nome}" è stata rifiutata: punti riaccreditati.`);
   }
   if (stato === 'approvato') {
@@ -139,7 +177,6 @@ router.put('/redemptions/:id', requireAuth, requireRole('mobility_manager'), asy
     await notifica(redemption.user_id, 'riscatto_consegnato', `Il premio "${redemption.reward_nome}" è pronto/consegnato.`);
   }
 
-  registraAzione(req.user.id, `riscatto_${stato}_mm`, `${redemption.utente_nome} ${redemption.utente_cognome} — ${redemption.reward_nome}`);
   res.json({ ok: true, codice_voucher: codiceVoucher });
 }));
 
@@ -181,7 +218,8 @@ router.get('/redemptions/:id/voucher-image', requireAuth, asyncHandler(async (re
     const y = image.bitmap.height - bandHeight + (bandHeight - 32) / 2;
     image.print({ font, x, y, text: testo });
     const buffer = await image.getBuffer('image/png');
-    res.set('Content-Type', 'image/png');
+    // Contiene il codice personale del voucher: niente cache.
+    res.set({ 'Content-Type': 'image/png', 'Cache-Control': 'private, no-store' });
     res.send(buffer);
   } catch (e) {
     console.error('Errore generazione immagine voucher:', e.message);

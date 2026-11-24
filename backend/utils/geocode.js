@@ -6,24 +6,33 @@
 // I server pubblici (nominatim.openstreetmap.org, router.project-osrm.org) sono gratuiti
 // ma pensati per un uso leggero/di test, con policy di utilizzo (rate limit, User-Agent
 // obbligatorio, niente carichi intensivi). Per un utilizzo aziendale continuativo con
-// 500 persone è consigliabile, in un secondo momento, ospitare una propria istanza di
-// Nominatim/OSRM (o usare un provider gestito) e cambiare NOMINATIM_URL/OSRM_URL.
+// molti utenti è consigliabile ospitare una propria istanza di Nominatim/OSRM (o usare un
+// provider gestito) e cambiare NOMINATIM_URL/OSRM_URL.
 // Qui viene comunque applicato un rate limiting lato server per rispettare la policy
 // di Nominatim (max 1 richiesta al secondo).
 
 const NOMINATIM_URL = process.env.NOMINATIM_URL || 'https://nominatim.openstreetmap.org';
 const PHOTON_URL = process.env.PHOTON_URL || 'https://photon.komoot.io';
 const OSRM_URL = process.env.OSRM_URL || 'https://router.project-osrm.org';
-const USER_AGENT = process.env.OSM_USER_AGENT || 'CarpoolingAziendale/1.0 (uso interno)';
+const USER_AGENT = process.env.OSM_USER_AGENT || 'WayMatch/1.0 (self-hosted)';
 const COUNTRY_CODES = process.env.GEO_COUNTRY_CODES || 'it'; // limita i risultati, es. "it" oppure "it,ch,fr"
+const PAESI = COUNTRY_CODES.split(',').map((c) => c.trim().toUpperCase()).filter(Boolean);
 
-// Rate limiter minimale: al massimo 1 richiesta al secondo verso Nominatim
-let lastNominatimCall = 0;
-async function throttleNominatim() {
-  const now = Date.now();
-  const wait = Math.max(0, 1100 - (now - lastNominatimCall));
-  if (wait > 0) await new Promise((r) => setTimeout(r, wait));
-  lastNominatimCall = Date.now();
+// Tempo massimo per una richiesta a un provider (risposta e lettura del corpo): un servizio
+// lento non deve tenere in sospeso la ricerca quando l'altro ha già risposto.
+const TIMEOUT_MS = 8000;
+function chiedi(url) {
+  return fetch(url, { headers: { 'User-Agent': USER_AGENT }, signal: AbortSignal.timeout(TIMEOUT_MS) });
+}
+
+// Al massimo 1 richiesta al secondo verso Nominatim, per tutta l'applicazione: le richieste
+// si mettono in fila, ognuna parte almeno 1,1 secondi dopo la precedente.
+let codaNominatim = Promise.resolve();
+function throttleNominatim() {
+  const turno = codaNominatim.then(() => new Promise((r) => setTimeout(r, 1100)));
+  const mioTurno = codaNominatim;
+  codaNominatim = turno;
+  return mioTurno;
 }
 
 async function searchNominatim(query) {
@@ -37,9 +46,7 @@ async function searchNominatim(query) {
   });
   if (COUNTRY_CODES) params.set('countrycodes', COUNTRY_CODES);
 
-  const res = await fetch(`${NOMINATIM_URL}/search?${params.toString()}`, {
-    headers: { 'User-Agent': USER_AGENT },
-  });
+  const res = await chiedi(`${NOMINATIM_URL}/search?${params.toString()}`);
   if (!res.ok) throw new Error('Servizio di ricerca indirizzi non disponibile');
   const data = await res.json();
   return data.map((r) => ({
@@ -72,7 +79,7 @@ function componiCitta(comune, frazione, fallback) {
 async function reverseNominatim(lat, lon) {
   await throttleNominatim();
   const params = new URLSearchParams({ lat: String(lat), lon: String(lon), format: 'jsonv2', addressdetails: '1' });
-  const res = await fetch(`${NOMINATIM_URL}/reverse?${params.toString()}`, { headers: { 'User-Agent': USER_AGENT } });
+  const res = await chiedi(`${NOMINATIM_URL}/reverse?${params.toString()}`);
   if (!res.ok) return null;
   const data = await res.json();
   return data.address || null;
@@ -80,7 +87,7 @@ async function reverseNominatim(lat, lon) {
 
 async function reversePhoton(lat, lon) {
   const params = new URLSearchParams({ lon: String(lon), lat: String(lat) });
-  const res = await fetch(`${PHOTON_URL}/reverse?${params.toString()}`, { headers: { 'User-Agent': USER_AGENT } });
+  const res = await chiedi(`${PHOTON_URL}/reverse?${params.toString()}`);
   if (!res.ok) return null;
   const data = await res.json();
   return data.features?.[0]?.properties || null;
@@ -114,18 +121,20 @@ async function reverseGeocodeCitta(lat, lon) {
 // Photon (komoot.de, gratuito, anch'esso su dati OpenStreetMap ma con un motore di
 // ricerca diverso — full-text/Elasticsearch): spesso trova meglio nomi di attività
 // commerciali (bar, negozi...) rispetto alla sola ricerca per via/civico di Nominatim.
-// Se non risponde o va in errore, semplicemente non aggiunge risultati (non blocca mai
-// la ricerca principale).
+// Se non risponde o va in errore restituisce null: non blocca la ricerca principale, ma
+// searchAddress sa distinguere un guasto da una ricerca senza risultati.
 async function searchPhoton(query) {
   try {
     // Photon supporta come "lang" solo default/de/en/fr (l'italiano non è tra le lingue
     // con nomi tradotti): 'it' viene rifiutato con un errore 200 senza "features", che
     // altrimenti passa inosservato e fa sembrare Photon silenziosamente senza risultati.
     const params = new URLSearchParams({ q: query, limit: '6' });
-    const res = await fetch(`${PHOTON_URL}/api/?${params.toString()}`, { headers: { 'User-Agent': USER_AGENT } });
-    if (!res.ok) return [];
+    const res = await chiedi(`${PHOTON_URL}/api/?${params.toString()}`);
+    if (!res.ok) return null;
     const data = await res.json();
-    return (data.features || []).map((f) => {
+    // Stesso limite geografico di Nominatim (GEO_COUNTRY_CODES), applicato ai risultati.
+    const features = (data.features || []).filter((f) => !PAESI.length || PAESI.includes(String(f.properties?.countrycode || '').toUpperCase()));
+    return features.map((f) => {
       const p = f.properties || {};
       const via = p.street ? `${p.street}${p.housenumber ? ' ' + p.housenumber : ''}` : null;
       const parti = [p.name, via, p.city, p.postcode].filter(Boolean);
@@ -141,7 +150,7 @@ async function searchPhoton(query) {
       };
     });
   } catch (e) {
-    return [];
+    return null;
   }
 }
 
@@ -149,16 +158,20 @@ async function searchAddress(query) {
   if (!query || query.trim().length < 3) return [];
 
   const [nominatimResults, photonResults] = await Promise.all([
-    searchNominatim(query).catch(() => []),
+    searchNominatim(query).catch(() => null),
     searchPhoton(query),
   ]);
+  // Entrambi i provider guasti: è un disservizio, non una ricerca senza risultati.
+  if (nominatimResults === null && photonResults === null) {
+    throw new Error('Servizio di ricerca indirizzi non disponibile');
+  }
 
   // Unione con deduplica approssimativa: stesso punto (entro ~50 metri) non viene ripetuto,
   // ma il comune dei due duplicati viene fuso prima di scartare quello di Photon — per un
   // indirizzo rurale Nominatim a volte manca proprio il comune (visto su un caso reale),
   // mentre Photon di solito ce l'ha. La frazione resta invece solo quella di Nominatim.
-  const risultati = [...nominatimResults];
-  for (const p of photonResults) {
+  const risultati = [...(nominatimResults || [])];
+  for (const p of photonResults || []) {
     const esistente = risultati.find((n) => Math.abs(n.lat - p.lat) < 0.0005 && Math.abs(n.lon - p.lon) < 0.0005);
     if (esistente) {
       esistente.comune = esistente.comune || p.comune;
@@ -177,7 +190,7 @@ async function searchAddress(query) {
 
 async function calcRoute(fromLat, fromLon, toLat, toLon) {
   const url = `${OSRM_URL}/route/v1/driving/${fromLon},${fromLat};${toLon},${toLat}?overview=full&geometries=geojson&alternatives=true`;
-  const res = await fetch(url, { headers: { 'User-Agent': USER_AGENT } });
+  const res = await chiedi(url);
   if (!res.ok) throw new Error('Servizio di calcolo percorso non disponibile');
   const data = await res.json();
   if (data.code !== 'Ok' || !data.routes || !data.routes[0]) {
@@ -204,7 +217,7 @@ async function calcRouteMultiPoint(punti) {
   if (!Array.isArray(punti) || punti.length < 2) throw new Error('Servono almeno due punti');
   const coordStr = punti.map((p) => `${p.lon},${p.lat}`).join(';');
   const url = `${OSRM_URL}/route/v1/driving/${coordStr}?overview=full&geometries=geojson`;
-  const res = await fetch(url, { headers: { 'User-Agent': USER_AGENT } });
+  const res = await chiedi(url);
   if (!res.ok) throw new Error('Servizio di calcolo percorso non disponibile');
   const data = await res.json();
   if (data.code !== 'Ok' || !data.routes || !data.routes[0]) {

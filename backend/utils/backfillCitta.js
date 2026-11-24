@@ -19,8 +19,10 @@ async function backfillCittaMancanti() {
   for (const u of utenti) {
     const citta = await reverseGeocodeCitta(u.casa_lat, u.casa_lon);
     if (citta) {
-      db.prepare('UPDATE users SET citta_casa = ? WHERE id = ?').run(citta, u.id);
-      aggiornati++;
+      // Solo se nel frattempo l'utente non ha cambiato indirizzo o città.
+      aggiornati += db.prepare(`
+        UPDATE users SET citta_casa = ? WHERE id = ? AND casa_lat = ? AND casa_lon = ? AND (citta_casa IS NULL OR citta_casa = '')
+      `).run(citta, u.id, u.casa_lat, u.casa_lon).changes;
     }
   }
 
@@ -40,8 +42,10 @@ async function backfillCittaMancanti() {
     const lon = r.tipo === 'andata' ? r.partenza_lon : r.arrivo_lon;
     const citta = await reverseGeocodeCitta(lat, lon);
     if (citta) {
-      db.prepare('UPDATE rides SET citta_domicilio = ? WHERE id = ?').run(citta, r.id);
-      aggiornati++;
+      aggiornati += db.prepare(`
+        UPDATE rides SET citta_domicilio = ? WHERE id = ? AND (citta_domicilio IS NULL OR citta_domicilio = '')
+          AND (CASE WHEN tipo = 'andata' THEN partenza_lat = ? AND partenza_lon = ? ELSE arrivo_lat = ? AND arrivo_lon = ? END)
+      `).run(citta, r.id, lat, lon, lat, lon).changes;
     }
   }
 
@@ -59,8 +63,10 @@ async function backfillCittaMancanti() {
     const lon = t.tipo === 'andata' ? t.partenza_lon : t.arrivo_lon;
     const citta = await reverseGeocodeCitta(lat, lon);
     if (citta) {
-      db.prepare('UPDATE recurring_rides SET citta_domicilio = ? WHERE id = ?').run(citta, t.id);
-      aggiornati++;
+      aggiornati += db.prepare(`
+        UPDATE recurring_rides SET citta_domicilio = ? WHERE id = ? AND (citta_domicilio IS NULL OR citta_domicilio = '')
+          AND (CASE WHEN tipo = 'andata' THEN partenza_lat = ? AND partenza_lon = ? ELSE arrivo_lat = ? AND arrivo_lon = ? END)
+      `).run(citta, t.id, lat, lon, lat, lon).changes;
     }
   }
 

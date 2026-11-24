@@ -7,7 +7,7 @@ const { notifica, notificaMassiva } = require('../utils/notify');
 const { registraAzione } = require('../utils/audit');
 const { notificaMatchProattivo, notificaPreferiti } = require('../utils/matching');
 const { promuoviListaAttesa, notificaPromossi } = require('../utils/waitlist');
-const { distanzaPuntoDaPercorso } = require('../utils/geoDistance');
+const { distanzaPuntoDaPercorso, geometriaValida, distanzaKm } = require('../utils/geoDistance');
 const { asyncHandler } = require('../utils/asyncHandler');
 
 const router = express.Router();
@@ -16,6 +16,27 @@ const router = express.Router();
 // orario non ancora passato). Usa 'localtime' così rispetta il fuso orario del server
 // (impostare TZ nel docker-compose, es. Europe/Rome).
 const UPCOMING_SQL = `(r.data > date('now','localtime') OR (r.data = date('now','localtime') AND r.ora >= strftime('%H:%M','now','localtime')))`;
+
+// Orario nel formato HH:MM a due cifre: i confronti con l'ora corrente sono tra stringhe,
+// quindi "9:00" verrebbe ordinato dopo "10:00".
+const ORA_VALIDA = /^([01]\d|2[0-3]):[0-5]\d$/;
+const TIPI_OFFERTA = ['andata', 'ritorno', 'entrambi'];
+
+// Un percorso ricevuto dal client si salva solo se è una lista di coordinate valide.
+function percorsoDaSalvare(geometria) {
+  if (geometria == null) return { ok: true, valore: null };
+  return geometriaValida(geometria) ? { ok: true, valore: JSON.stringify(geometria) } : { ok: false };
+}
+
+// Chilometri usati per i punti: quelli dichiarati, ma mai più del doppio della distanza in
+// linea d'aria tra partenza e arrivo (più un margine), quando le coordinate sono note. Il
+// valore inserito a mano non può così gonfiare il bonus oltre un percorso plausibile.
+function kmPerPunti(ride) {
+  const km = Number(ride.km_stimati) || 0;
+  const coordinate = [ride.partenza_lat, ride.partenza_lon, ride.arrivo_lat, ride.arrivo_lon];
+  if (coordinate.some((c) => c == null || !Number.isFinite(c))) return km;
+  return Math.min(km, 2 * distanzaKm(...coordinate) + 2);
+}
 
 function isPastDateTime(dataStr, oraStr) {
   if (!dataStr || !oraStr) return false;
@@ -44,9 +65,10 @@ function getRideFull(id) {
 
 // Esegue l'assegnazione punti effettiva a completamento viaggio (usata sia in modalità
 // "conferma diretta" che dopo l'approvazione di un Mobility Manager).
-function eseguiCompletamento(ride) {
-  // LIMIT esplicito e verificabile: un viaggio ha al massimo 8 posti, 50 è un margine ampio.
-  const confermate = db.prepare(`SELECT * FROM bookings WHERE ride_id = ? AND stato = 'confermato' LIMIT 50`).all(ride.id).slice(0, 50);
+// Tutte le scritture (stato del viaggio, prenotazioni, punti) avvengono in un'unica
+// transazione: se una fallisce non resta un completamento a metà, e si può riprovare.
+const eseguiCompletamento = db.transaction((ride) => {
+  const confermate = db.prepare(`SELECT * FROM bookings WHERE ride_id = ? AND stato = 'confermato'`).all(ride.id);
   const aBordo = confermate.filter((b) => b.check_in === 1);
   const assenti = confermate.filter((b) => b.check_in !== 1);
 
@@ -63,7 +85,7 @@ function eseguiCompletamento(ride) {
   // più senso: il viaggio è già avvenuto, non c'è più nessun posto da promuovere.
   db.prepare(`UPDATE bookings SET stato = 'annullato' WHERE ride_id = ? AND stato IN ('richiesto','lista_attesa')`).run(ride.id);
   if (aBordo.length > 0) {
-    const bonusKm = calcolaBonusKm(ride.km_stimati, aBordo.length);
+    const bonusKm = calcolaBonusKm(kmPerPunti(ride), aBordo.length);
     assegnaPunti(ride.driver_id, 'viaggio_completato_autista', getRule('viaggio_completato_autista') + bonusKm, ride.id);
   }
   if (aBordo.length > 0 && aBordo.length >= ride.posti_totali) {
@@ -73,7 +95,7 @@ function eseguiCompletamento(ride) {
     }
   }
   return { passeggeri_a_bordo: aBordo.length, passeggeri_assenti: assenti.length };
-}
+});
 
 // Crea un'offerta di passaggio (andata e/o ritorno -> se "entrambi", crea due rides)
 router.post('/', requireAuth, (req, res) => {
@@ -91,6 +113,19 @@ router.post('/', requireAuth, (req, res) => {
   } = req.body;
 
   if (!data || !tipo) return res.status(400).json({ error: 'Dati mancanti' });
+  if (!TIPI_OFFERTA.includes(tipo)) return res.status(400).json({ error: 'Tipo di passaggio non valido' });
+  const conAndata = tipo === 'andata' || tipo === 'entrambi';
+  const conRitorno = tipo === 'ritorno' || tipo === 'entrambi';
+  // Tutte le tratte si validano prima di scrivere: un errore sul ritorno non deve lasciare
+  // pubblicata la sola andata.
+  if (conAndata && (!ora_andata || !punto_partenza)) return res.status(400).json({ error: 'Dati andata mancanti' });
+  if (conRitorno && (!ora_ritorno || !punto_arrivo_ritorno)) return res.status(400).json({ error: 'Dati ritorno mancanti' });
+  if ((conAndata && !ORA_VALIDA.test(ora_andata)) || (conRitorno && !ORA_VALIDA.test(ora_ritorno))) {
+    return res.status(400).json({ error: 'Orario non valido (formato HH:MM)' });
+  }
+  const percorsoAndata = percorsoDaSalvare(conAndata ? geometria_andata : null);
+  const percorsoRitorno = percorsoDaSalvare(conRitorno ? geometria_ritorno : null);
+  if (!percorsoAndata.ok || !percorsoRitorno.ok) return res.status(400).json({ error: 'Percorso non valido' });
   if (!me.sede_id) return res.status(400).json({ error: 'Imposta prima la tua sede nel profilo' });
   if (!dataLavorativa(data)) return res.status(400).json({ error: messaggioGiornoNonLavorativo(data) });
 
@@ -105,7 +140,7 @@ router.post('/', requireAuth, (req, res) => {
   const posti = Math.max(1, Math.min(8, Number(posti_totali) || me.auto_posti || 3));
   const created = [];
 
-  const insertOne = (t, ora, partenza, arrivo, soste, pLat, pLon, aLat, aLon, km, geometria, citta) => {
+  const insertOne = (t, ora, partenza, arrivo, soste, pLat, pLon, aLat, aLon, km, geometriaJson, citta) => {
     const sedeRide = t === 'andata' ? (sede_id_andata || me.sede_id) : (sede_id_ritorno || me.sede_id);
     const info = db.prepare(`
       INSERT INTO rides (driver_id, sede_id, tipo, data, ora, punto_partenza, punto_arrivo,
@@ -114,41 +149,44 @@ router.post('/', requireAuth, (req, res) => {
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
       me.id, sedeRide, t, data, ora, partenza, arrivo,
-      pLat || null, pLon || null, aLat || null, aLon || null,
+      pLat ?? null, pLon ?? null, aLat ?? null, aLon ?? null,
       Number(km) || 0, km_calcolati_auto ? 1 : 0,
-      geometria ? JSON.stringify(geometria) : null,
+      geometriaJson,
       posti, posti, note || null, citta || null
     );
     const rideId = info.lastInsertRowid;
     if (Array.isArray(soste)) {
       const ins = db.prepare('INSERT INTO ride_stops (ride_id, orario, luogo, descrizione, lat, lon) VALUES (?, ?, ?, ?, ?, ?)');
       for (const s of soste) {
-        if (s && s.luogo) ins.run(rideId, s.orario || null, s.luogo, s.descrizione || null, s.lat || null, s.lon || null);
+        if (s && s.luogo) ins.run(rideId, s.orario || null, s.luogo, s.descrizione || null, s.lat ?? null, s.lon ?? null);
       }
     }
     assegnaPunti(me.id, 'offerta_creata', getRule('offerta_creata'), rideId, `Passaggio ${t} del ${data}`);
     registraAzione(me.id, 'passaggio_offerto', `${t} del ${data} alle ${ora}`, 'utente');
     created.push(rideId);
-    const rideAppenaCreato = db.prepare('SELECT * FROM rides WHERE id = ?').get(rideId);
-    notificaMatchProattivo(rideAppenaCreato).catch((e) => console.error('Errore matching proattivo:', e.message));
-    notificaPreferiti(rideAppenaCreato).catch((e) => console.error('Errore notifica preferiti:', e.message));
   };
 
   const sedeInfo = (id) => db.prepare('SELECT * FROM sedi WHERE id = ?').get(id || me.sede_id);
 
-  if (tipo === 'andata' || tipo === 'entrambi') {
-    if (!ora_andata || !punto_partenza) return res.status(400).json({ error: 'Dati andata mancanti' });
-    const sede = sedeInfo(sede_id_andata);
-    insertOne('andata', ora_andata, punto_partenza, sede?.nome || punto_arrivo || 'Sede aziendale', soste_andata,
-      partenza_lat, partenza_lon, sede?.lat, sede?.lon, km_stimati_andata, geometria_andata, citta_andata);
-  }
-  if (tipo === 'ritorno' || tipo === 'entrambi') {
-    if (!ora_ritorno || !punto_arrivo_ritorno) return res.status(400).json({ error: 'Dati ritorno mancanti' });
-    const sede = sedeInfo(sede_id_ritorno);
-    insertOne('ritorno', ora_ritorno, sede?.nome || punto_partenza_ritorno || 'Sede aziendale', punto_arrivo_ritorno, soste_ritorno,
-      sede?.lat, sede?.lon, partenza_ritorno_lat, partenza_ritorno_lon, km_stimati_ritorno, geometria_ritorno, citta_ritorno);
-  }
+  // Andata e ritorno, soste e punti in un'unica transazione; gli avvisi partono dopo.
+  db.transaction(() => {
+    if (conAndata) {
+      const sede = sedeInfo(sede_id_andata);
+      insertOne('andata', ora_andata, punto_partenza, sede?.nome || punto_arrivo || 'Sede aziendale', soste_andata,
+        partenza_lat, partenza_lon, sede?.lat, sede?.lon, km_stimati_andata, percorsoAndata.valore, citta_andata);
+    }
+    if (conRitorno) {
+      const sede = sedeInfo(sede_id_ritorno);
+      insertOne('ritorno', ora_ritorno, sede?.nome || punto_partenza_ritorno || 'Sede aziendale', punto_arrivo_ritorno, soste_ritorno,
+        sede?.lat, sede?.lon, partenza_ritorno_lat, partenza_ritorno_lon, km_stimati_ritorno, percorsoRitorno.valore, citta_ritorno);
+    }
+  })();
 
+  for (const rideId of created) {
+    const rideAppenaCreato = db.prepare('SELECT * FROM rides WHERE id = ?').get(rideId);
+    notificaMatchProattivo(rideAppenaCreato).catch((e) => console.error('Errore matching proattivo:', e.message));
+    notificaPreferiti(rideAppenaCreato).catch((e) => console.error('Errore notifica preferiti:', e.message));
+  }
   res.json({ ride_ids: created });
 });
 
@@ -219,9 +257,10 @@ router.get('/', requireAuth, (req, res) => {
       r.richieste_in_sospeso = allB.filter((b) => b.stato === 'richiesto').length;
       const miaPrenotazione = allB.find((b) => b.passenger_id === req.user.id);
       r.mia_prenotazione = miaPrenotazione ? miaPrenotazione.stato : null;
-      r.distanza_casa_m = (casaUtente?.casa_lat != null && casaUtente?.casa_lon != null && r.geometria)
-        ? Math.round(distanzaPuntoDaPercorso(casaUtente.casa_lat, casaUtente.casa_lon, r.geometria))
+      const distanza = (casaUtente?.casa_lat != null && casaUtente?.casa_lon != null && geometriaValida(r.geometria))
+        ? distanzaPuntoDaPercorso(casaUtente.casa_lat, casaUtente.casa_lon, r.geometria)
         : null;
+      r.distanza_casa_m = Number.isFinite(distanza) ? Math.round(distanza) : null;
       r.preferito = !!preferitoStmt.get(req.user.id, r.driver_id, r.tipo);
     }
   }
@@ -259,10 +298,20 @@ router.get('/:id', requireAuth, (req, res) => {
   const ride = getRideFull(req.params.id);
   if (!ride) return res.status(404).json({ error: 'Passaggio non trovato' });
   const isDriver = ride.driver_id === req.user.id;
-  const isPassenger = ride.prenotazioni.some((b) => b.passenger_id === req.user.id);
   const isMM = req.user.ruolo === 'mobility_manager';
+  const mia = ride.prenotazioni.find((b) => b.passenger_id === req.user.id);
+  // Vede il passaggio chi ha una prenotazione ancora valida o conclusa; i recapiti (telefoni
+  // di autista e passeggeri) solo chi è stato confermato. Una richiesta rifiutata o annullata
+  // non dà più accesso.
+  const statoMio = mia?.stato;
+  const isPassenger = ['richiesto', 'confermato', 'lista_attesa', 'completato', 'no_show'].includes(statoMio);
   if (!isDriver && !isPassenger && !isMM) {
     return res.status(403).json({ error: 'Non autorizzato' });
+  }
+  const conRecapiti = isDriver || isMM || ['confermato', 'completato', 'no_show'].includes(statoMio);
+  if (!conRecapiti) {
+    ride.driver_telefono = null;
+    for (const b of ride.prenotazioni) b.telefono = null;
   }
   res.json({ ride });
 });
@@ -287,6 +336,9 @@ router.put('/:id', requireAuth, asyncHandler(async (req, res) => {
 
   const nuovaData = data || ride.data;
   const nuovaOra = ora || ride.ora;
+  if (!ORA_VALIDA.test(nuovaOra)) return res.status(400).json({ error: 'Orario non valido (formato HH:MM)' });
+  const percorso = percorsoDaSalvare(geometria);
+  if (!percorso.ok) return res.status(400).json({ error: 'Percorso non valido' });
   if (nuovaData !== ride.data && !dataLavorativa(nuovaData)) return res.status(400).json({ error: messaggioGiornoNonLavorativo(nuovaData) });
   if (isPastDateTime(nuovaData, nuovaOra)) {
     return res.status(400).json({ error: 'Non puoi impostare un orario già passato.' });
@@ -300,6 +352,7 @@ router.put('/:id', requireAuth, asyncHandler(async (req, res) => {
     return res.status(400).json({ error: `Non puoi scendere sotto ${impegnati} posti: ci sono già richieste/conferme attive.` });
   }
 
+  let promossi = [];
   const tx = db.transaction(() => {
     db.prepare(`
       UPDATE rides SET data = ?, ora = ?, punto_partenza = ?, punto_arrivo = ?, sede_id = ?,
@@ -312,7 +365,7 @@ router.put('/:id', requireAuth, asyncHandler(async (req, res) => {
       sede_id || ride.sede_id,
       partenza_lat ?? ride.partenza_lat, partenza_lon ?? ride.partenza_lon,
       arrivo_lat ?? ride.arrivo_lat, arrivo_lon ?? ride.arrivo_lon,
-      km_stimati ?? ride.km_stimati, geometria ? JSON.stringify(geometria) : ride.geometria,
+      km_stimati ?? ride.km_stimati, percorso.valore ?? ride.geometria,
       nuoviPosti, nuoviPosti, note ?? ride.note, citta_domicilio ?? ride.citta_domicilio,
       ride.id
     );
@@ -320,29 +373,27 @@ router.put('/:id', requireAuth, asyncHandler(async (req, res) => {
       db.prepare('DELETE FROM ride_stops WHERE ride_id = ?').run(ride.id);
       const ins = db.prepare('INSERT INTO ride_stops (ride_id, orario, luogo, descrizione, lat, lon) VALUES (?, ?, ?, ?, ?, ?)');
       for (const s of soste) {
-        if (s && s.luogo) ins.run(ride.id, s.orario || null, s.luogo, s.descrizione || null, s.lat || null, s.lon || null);
+        if (s && s.luogo) ins.run(ride.id, s.orario || null, s.luogo, s.descrizione || null, s.lat ?? null, s.lon ?? null);
       }
     }
+    registraAzione(req.user.id, 'passaggio_modificato', `Passaggio #${ride.id}, ${nuovaData} ${nuovaOra}`, 'utente');
+    // Più posti di prima: chi era in lista d'attesa viene promosso subito.
+    if (nuoviPosti > ride.posti_totali) promossi = promuoviListaAttesa(ride.id);
   });
   tx();
 
   if (impegnati > 0) {
     const passeggeri = db.prepare(`
-      SELECT passenger_id FROM bookings WHERE ride_id = ? AND stato IN ('richiesto','confermato') LIMIT 50
-    `).all(ride.id).slice(0, 50).map((b) => b.passenger_id);
-    notificaMassiva(
+      SELECT passenger_id FROM bookings WHERE ride_id = ? AND stato IN ('richiesto','confermato')
+    `).all(ride.id).map((b) => b.passenger_id);
+    await notificaMassiva(
       passeggeri, 'passaggio_modificato',
       `Il passaggio ${ride.tipo} del ${nuovaData} è stato modificato dall'autista (nuovo orario: ${nuovaOra}). Controlla i dettagli.`,
       ride.id
     );
   }
 
-  registraAzione(req.user.id, 'passaggio_modificato', `Passaggio #${ride.id}, ${nuovaData} ${nuovaOra}`, 'utente');
-
-  // Più posti disponibili di prima: se qualcuno era in lista d'attesa, promuovilo.
-  if (nuoviPosti > ride.posti_totali) {
-    await notificaPromossi(promuoviListaAttesa(ride.id));
-  }
+  await notificaPromossi(promossi);
 
   res.json({ ride: getRideFull(ride.id) });
 }));
@@ -353,18 +404,24 @@ router.delete('/:id', requireAuth, asyncHandler(async (req, res) => {
   if (ride.driver_id !== req.user.id && req.user.ruolo !== 'mobility_manager') {
     return res.status(403).json({ error: 'Non autorizzato' });
   }
-  const passeggeriCoinvolti = db.prepare(`
-    SELECT passenger_id FROM bookings WHERE ride_id = ? AND stato IN ('richiesto','confermato','lista_attesa') LIMIT 50
-  `).all(req.params.id).slice(0, 50).map((b) => b.passenger_id);
+  // Un viaggio completato (o in attesa di approvazione) ha già un esito e dei punti: non si annulla.
+  if (ride.stato !== 'attivo') return res.status(400).json({ error: 'Si possono annullare solo i passaggi ancora attivi' });
 
-  db.prepare(`UPDATE rides SET stato = 'annullato' WHERE id = ?`).run(req.params.id);
-  db.prepare(`UPDATE bookings SET stato = 'annullato' WHERE ride_id = ? AND stato IN ('richiesto','confermato','lista_attesa')`).run(req.params.id);
-
-  if (ride.driver_id !== req.user.id) {
-    registraAzione(req.user.id, 'passaggio_annullato_da_mm', `Passaggio #${ride.id} di un altro utente, ${ride.data} ${ride.ora}`);
-  } else {
-    registraAzione(req.user.id, 'passaggio_annullato', `Passaggio #${ride.id}, ${ride.data} ${ride.ora}`, 'utente');
-  }
+  // Annullamento, prenotazioni e registro in un'unica transazione; gli avvisi partono dopo e
+  // un loro errore non cambia l'esito.
+  const passeggeriCoinvolti = db.transaction(() => {
+    const coinvolti = db.prepare(`
+      SELECT passenger_id FROM bookings WHERE ride_id = ? AND stato IN ('richiesto','confermato','lista_attesa')
+    `).all(ride.id).map((b) => b.passenger_id);
+    db.prepare(`UPDATE rides SET stato = 'annullato' WHERE id = ?`).run(ride.id);
+    db.prepare(`UPDATE bookings SET stato = 'annullato' WHERE ride_id = ? AND stato IN ('richiesto','confermato','lista_attesa')`).run(ride.id);
+    if (ride.driver_id !== req.user.id) {
+      registraAzione(req.user.id, 'passaggio_annullato_da_mm', `Passaggio #${ride.id} di un altro utente, ${ride.data} ${ride.ora}`);
+    } else {
+      registraAzione(req.user.id, 'passaggio_annullato', `Passaggio #${ride.id}, ${ride.data} ${ride.ora}`, 'utente');
+    }
+    return coinvolti;
+  })();
 
   if (passeggeriCoinvolti.length > 0) {
     await notificaMassiva(
@@ -387,8 +444,8 @@ router.post('/:id/ritardo', requireAuth, asyncHandler(async (req, res) => {
   if (ride.stato !== 'attivo') return res.status(400).json({ error: 'Questo passaggio non è più attivo' });
 
   const daAvvisare = db.prepare(`
-    SELECT passenger_id FROM bookings WHERE ride_id = ? AND stato = 'confermato' AND check_in != 1 LIMIT 50
-  `).all(ride.id).slice(0, 50).map((b) => b.passenger_id);
+    SELECT passenger_id FROM bookings WHERE ride_id = ? AND stato = 'confermato' AND check_in != 1
+  `).all(ride.id).map((b) => b.passenger_id);
 
   if (daAvvisare.length === 0) return res.json({ ok: true, avvisati: 0 });
 
@@ -415,19 +472,24 @@ router.post('/:id/completa', requireAuth, asyncHandler(async (req, res) => {
   const settings = db.prepare('SELECT richiede_approvazione_completamento FROM system_settings WHERE id = 1').get();
 
   if (settings.richiede_approvazione_completamento) {
-    db.prepare(`UPDATE rides SET stato = 'in_approvazione' WHERE id = ?`).run(ride.id);
+    db.transaction(() => {
+      db.prepare(`UPDATE rides SET stato = 'in_approvazione' WHERE id = ?`).run(ride.id);
+      registraAzione(req.user.id, 'completamento_richiesto', `Passaggio #${ride.id}, in attesa di approvazione`, 'utente');
+    })();
     const mm = db.prepare(`SELECT id FROM users WHERE ruolo = 'mobility_manager' AND attivo = 1`).all();
     await notificaMassiva(
       mm.map((m) => m.id), 'completamento_da_approvare',
       `Nuovo viaggio da approvare: ${ride.tipo} del ${ride.data} alle ${ride.ora}.`,
       ride.id
     );
-    registraAzione(req.user.id, 'completamento_richiesto', `Passaggio #${ride.id}, in attesa di approvazione`, 'utente');
     return res.json({ ok: true, stato: 'in_approvazione' });
   }
 
-  const risultato = eseguiCompletamento(ride);
-  registraAzione(req.user.id, 'viaggio_completato', `Passaggio #${ride.id}, ${risultato.passeggeri_a_bordo} a bordo`, 'utente');
+  const risultato = db.transaction(() => {
+    const r = eseguiCompletamento(ride);
+    registraAzione(req.user.id, 'viaggio_completato', `Passaggio #${ride.id}, ${r.passeggeri_a_bordo} a bordo`, 'utente');
+    return r;
+  })();
   res.json({ ok: true, stato: 'completato', ...risultato });
 }));
 
@@ -451,10 +513,13 @@ router.post('/:id/approva-completamento', requireAuth, requireRole('mobility_man
   const ride = db.prepare('SELECT * FROM rides WHERE id = ?').get(req.params.id);
   if (!ride || ride.stato !== 'in_approvazione') return res.status(400).json({ error: 'Nessuna approvazione in sospeso per questo viaggio' });
 
-  const risultato = eseguiCompletamento(ride);
+  const risultato = db.transaction(() => {
+    const r = eseguiCompletamento(ride);
+    registraAzione(req.user.id, 'completamento_approvato', `Passaggio #${ride.id}`);
+    return r;
+  })();
   await notifica(ride.driver_id, 'completamento_approvato',
     `Il tuo viaggio ${ride.tipo} del ${ride.data} è stato approvato: punti assegnati.`, ride.id);
-  registraAzione(req.user.id, 'completamento_approvato', `Passaggio #${ride.id}`);
   res.json({ ok: true, ...risultato });
 }));
 
@@ -463,10 +528,12 @@ router.post('/:id/rifiuta-completamento', requireAuth, requireRole('mobility_man
   const ride = db.prepare('SELECT * FROM rides WHERE id = ?').get(req.params.id);
   if (!ride || ride.stato !== 'in_approvazione') return res.status(400).json({ error: 'Nessuna approvazione in sospeso per questo viaggio' });
 
-  db.prepare(`UPDATE rides SET stato = 'attivo' WHERE id = ?`).run(ride.id);
+  db.transaction(() => {
+    db.prepare(`UPDATE rides SET stato = 'attivo' WHERE id = ?`).run(ride.id);
+    registraAzione(req.user.id, 'completamento_rifiutato_mm', `Passaggio #${ride.id}${motivo ? `: ${motivo}` : ''}`);
+  })();
   await notifica(ride.driver_id, 'completamento_rifiutato',
     `Il completamento del viaggio del ${ride.data} è stato rifiutato${motivo ? `: ${motivo}` : ''}. Puoi correggere e riprovare.`, ride.id);
-  registraAzione(req.user.id, 'completamento_rifiutato_mm', `Passaggio #${ride.id}${motivo ? `: ${motivo}` : ''}`);
   res.json({ ok: true });
 }));
 
