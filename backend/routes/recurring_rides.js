@@ -265,6 +265,10 @@ function generaOccorrenzePerTemplate(recurringId, giorni) {
     const esiste = db.prepare('SELECT 1 FROM rides WHERE recurring_ride_id = ? AND data = ?').get(t.id, data);
     if (esiste) continue;
 
+    // Mai un'occorrenza già partita (oggi, con l'orario passato): niente punti né avvisi.
+    const giaPartita = db.prepare(`SELECT ? < date('now','localtime') OR (? = date('now','localtime') AND ? < strftime('%H:%M','now','localtime')) AS p`).get(data, data, t.ora).p;
+    if (giaPartita) continue;
+
     const saltata = db.prepare('SELECT 1 FROM recurring_ride_exceptions WHERE recurring_ride_id = ? AND data = ?').get(t.id, data);
     if (saltata) continue;
 
