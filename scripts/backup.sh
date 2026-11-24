@@ -19,27 +19,35 @@ TENERE="${2:-14}"
 mkdir -p "$DEST"
 umask 077
 FILE="$DEST/waymatch-$(date +%Y%m%d-%H%M%S).tar.gz"
+# Il nome temporaneo contiene il PID: due esecuzioni nello stesso secondo non si pestano i piedi.
+PARZIALE="$FILE.parziale.$$"
+trap 'rm -f "$PARZIALE"' EXIT
 
 # Dentro il container: istantanea del database in /tmp, poi un unico archivio su stdout
 # (database + cartella uploads). Così non servono permessi sulle cartelle dei volumi.
 if ! docker compose exec -T waymatch sh -c \
-  'rm -f /tmp/db.bak && node scripts/backup-db.js /tmp/db.bak >&2 && tar -czf - -C /tmp db.bak -C /app uploads; rm -f /tmp/db.bak' \
-  > "$FILE.parziale"; then
-  rm -f "$FILE.parziale"
+  'rm -f /tmp/db.bak && node scripts/backup-db.js /tmp/db.bak >&2 && tar -czf - -C /tmp db.bak -C /app uploads; esito=$?; rm -f /tmp/db.bak; exit $esito' \
+  > "$PARZIALE"; then
+  rm -f "$PARZIALE"
   echo "Backup fallito: l'app è in funzione? (docker compose ps)" >&2
   exit 1
 fi
 
 # Controlla che l'archivio sia leggibile e contenga il database.
-ELENCO="$(tar -tzf "$FILE.parziale")" || ELENCO=""
+ELENCO="$(tar -tzf "$PARZIALE")" || ELENCO=""
 if ! grep -qx 'db.bak' <<<"$ELENCO"; then
-  rm -f "$FILE.parziale"
+  rm -f "$PARZIALE"
   echo "Backup scartato: l'archivio non contiene il database." >&2
   exit 1
 fi
-mv "$FILE.parziale" "$FILE"
+mv "$PARZIALE" "$FILE"
 
 # Tiene solo le ultime N copie.
-ls -1t "$DEST"/waymatch-*.tar.gz "$DEST"/carpooling-*.tar.gz 2>/dev/null | tail -n +"$((TENERE + 1))" | xargs -r rm -f --
+# (prefisso "carpooling-" delle versioni precedenti incluso; senza archivi non c'è nulla da potare)
+shopt -s nullglob
+VECCHI=("$DEST"/waymatch-*.tar.gz "$DEST"/carpooling-*.tar.gz)
+if [ "${#VECCHI[@]}" -gt "$TENERE" ]; then
+  ls -1t -- "${VECCHI[@]}" | tail -n +"$((TENERE + 1))" | xargs -r rm -f --
+fi
 
 echo "✔ Backup creato: $FILE ($(du -h "$FILE" | cut -f1))"
