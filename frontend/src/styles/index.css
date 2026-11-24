@@ -1,0 +1,67 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  /* WayMatch · palette Acqua (vedi assets/brand/colors.css). Predefiniti del tema: l'azienda può
+     sostituire primario e accento da Impostazioni → Branding. */
+  --wm-petrol: #14424F;
+  --wm-aqua: #3CC8B8;
+  --wm-aqua-dark: #0B6E66;
+  --wm-mist: #F3F7F5;
+  --wm-white: #FFFFFF;
+  --color-primary: 20 66 79;          /* #14424F petrolio: bianco su primario 10,9:1 */
+  --color-primary-dark: 15 50 59;     /* #0F323B */
+  --color-primary-light: 220 227 229; /* #DCE3E5 */
+  --color-accent: 60 200 184;         /* #3CC8B8 acqua: riempimenti e segni, mai testo su chiaro (1,9:1) */
+  --color-accent-dark: 11 110 102;    /* #0B6E66 acqua scuro: testo su chiaro, 5,7:1 */
+  --color-accent-light: 226 247 244;  /* #E2F7F4 */
+  --color-on-accent: 20 66 79;        /* testo sopra l'accento: petrolio, 5,3:1 */
+}
+
+@layer base {
+  /* Chi ha chiesto meno movimento al sistema non vede transizioni né scorrimenti animati. */
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; scroll-behavior: auto !important; }
+  }
+  html { -webkit-tap-highlight-color: transparent; }
+  body { font-family: 'Inter', sans-serif; }
+  h1, h2, h3, .font-display { font-family: 'Space Grotesk', sans-serif; }
+  :focus-visible { outline: 2px solid rgb(var(--color-primary)); outline-offset: 2px; }
+}
+
+@layer components {
+  .card {
+    /* min-w-0 evita che, dentro una griglia CSS, un contenuto che non può andare a capo
+       (es. un indirizzo lunghissimo) forzi la card oltre la larghezza dello schermo. */
+    @apply bg-surface border border-border rounded-card p-4 min-w-0;
+  }
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 font-medium text-sm transition-colors disabled:opacity-50 disabled:pointer-events-none;
+  }
+  .btn-primary {
+    @apply btn bg-primary text-white hover:bg-primary-dark;
+  }
+  .btn-accent {
+    /* Il testo sopra l'accento si sceglie per contrasto (petrolio sull'acqua: 5,3:1; il bianco sarebbe 2,1:1). */
+    @apply btn bg-accent hover:brightness-95;
+    color: rgb(var(--color-on-accent));
+  }
+  .btn-outline {
+    @apply btn border border-border bg-surface text-ink hover:bg-bg;
+  }
+  .btn-ghost {
+    @apply btn text-muted hover:bg-bg;
+  }
+  .input {
+    @apply w-full rounded-xl border border-border bg-surface px-3.5 py-2.5 text-sm text-ink placeholder:text-muted focus:border-primary focus:ring-1 focus:ring-primary outline-none;
+  }
+  .label {
+    @apply block text-sm font-medium text-ink mb-1.5;
+  }
+  .badge {
+    @apply inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium;
+  }
+  .badge-primary { @apply badge bg-primary-light text-primary-dark; }
+  .badge-accent { @apply badge bg-accent-light text-accent-dark; }
+}
