@@ -69,15 +69,23 @@ router.post('/', requireAuth, requireRole('mobility_manager'), asyncHandler(asyn
   }
 }));
 
+// Aggiornamento parziale: cambiano solo i campi presenti nella richiesta, gli altri restano come
+// sono nel database. Una tabella non aggiornata nel browser non può così riportare ruolo, sede o
+// stato di un utente a valori superati modificandone un altro campo.
 router.put('/:id', requireAuth, requireRole('mobility_manager'), (req, res) => {
-  const { nome, cognome, email, ruolo, sede_id, attivo } = req.body;
+  const b = req.body || {};
+  const prima = db.prepare('SELECT * FROM users WHERE id = ?').get(req.params.id);
+  if (!prima) return res.status(404).json({ error: 'Utente non trovato' });
+  const nome = b.nome !== undefined ? b.nome : prima.nome;
+  const cognome = b.cognome !== undefined ? b.cognome : prima.cognome;
+  const email = b.email !== undefined ? b.email : prima.email;
   if (!nome || !cognome || !email) {
     return res.status(400).json({ error: 'Nome, cognome ed email sono obbligatori' });
   }
-  const ruoloFinale = RUOLI_VALIDI.includes(ruolo) ? ruolo : 'utente';
-  const prima = db.prepare('SELECT * FROM users WHERE id = ?').get(req.params.id);
-  if (!prima) return res.status(404).json({ error: 'Utente non trovato' });
-  if (Number(req.params.id) === req.user.id && !attivo) {
+  const ruoloFinale = b.ruolo === undefined ? prima.ruolo : (RUOLI_VALIDI.includes(b.ruolo) ? b.ruolo : 'utente');
+  const sedeFinale = b.sede_id === undefined ? prima.sede_id : (b.sede_id || null);
+  const attivoFinale = b.attivo === undefined ? prima.attivo : (b.attivo ? 1 : 0);
+  if (Number(req.params.id) === req.user.id && !attivoFinale) {
     return res.status(400).json({ error: 'Non puoi disattivare il tuo stesso account' });
   }
   try {
@@ -85,7 +93,7 @@ router.put('/:id', requireAuth, requireRole('mobility_manager'), (req, res) => {
       db.prepare(`
         UPDATE users SET nome = ?, cognome = ?, email = ?, ruolo = ?, sede_id = ?, attivo = ?
         WHERE id = ?
-      `).run(nome, cognome, email.toLowerCase().trim(), ruoloFinale, sede_id || null, attivo ? 1 : 0, req.params.id);
+      `).run(nome, cognome, String(email).toLowerCase().trim(), ruoloFinale, sedeFinale, attivoFinale, req.params.id);
       verificaResteUnAdmin();
     })();
   } catch (e) {
@@ -95,8 +103,8 @@ router.put('/:id', requireAuth, requireRole('mobility_manager'), (req, res) => {
   }
   const cambi = [];
   if (prima.ruolo !== ruoloFinale) cambi.push(`ruolo: ${prima.ruolo} → ${ruoloFinale}`);
-  if (prima.sede_id !== (sede_id || null)) cambi.push(`sede cambiata`);
-  if (prima.attivo !== (attivo ? 1 : 0)) cambi.push(attivo ? 'riattivato' : 'disattivato');
+  if (prima.sede_id !== sedeFinale) cambi.push(`sede cambiata`);
+  if (prima.attivo !== attivoFinale) cambi.push(attivoFinale ? 'riattivato' : 'disattivato');
   if (cambi.length > 0) {
     registraAzione(req.user.id, 'utente_modificato', `${nome} ${cognome} (${email}): ${cambi.join(', ')}`);
   }
