@@ -1,4 +1,4 @@
-import React, { useEffect, useState, Suspense, lazy } from 'react';
+import React, { useEffect, useState, Suspense, lazy as reactLazy } from 'react';
 import { Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { api } from './api.js';
 import { useAuth } from './context/AuthContext.jsx';
@@ -6,6 +6,23 @@ import Layout from './components/Layout.jsx';
 
 // Ogni pagina in un chunk separato: la mappa (Leaflet) e i grafici (Recharts), usati solo
 // da alcune pagine, non appesantiscono più il caricamento iniziale (login/home).
+// Dopo un aggiornamento dell'app i chunk della versione precedente non esistono più: se una
+// scheda aperta da prima ne chiede uno, la pagina si ricarica (una volta) con la versione nuova.
+const RICARICATO = 'waymatch_ricarica_chunk';
+function lazy(importa) {
+  return reactLazy(() => importa().then((modulo) => {
+    try { sessionStorage.removeItem(RICARICATO); } catch { /* storage non disponibile */ }
+    return modulo;
+  }, (errore) => {
+    let giaRicaricato = false;
+    try { giaRicaricato = sessionStorage.getItem(RICARICATO) === '1'; sessionStorage.setItem(RICARICATO, '1'); } catch { /* storage non disponibile */ }
+    if (!giaRicaricato) {
+      window.location.reload();
+      return new Promise(() => {}); // la pagina si sta ricaricando
+    }
+    throw errore;
+  }));
+}
 const Setup = lazy(() => import('./pages/Setup.jsx'));
 const Login = lazy(() => import('./pages/Login.jsx'));
 const ResetPassword = lazy(() => import('./pages/ResetPassword.jsx'));
@@ -45,19 +62,26 @@ function ProtectedRoute({ children, roles }) {
   return children;
 }
 
+// Aprendo una notifica push l'indirizzo contiene ?nid=: la notifica si segna come letta, ma
+// solo dopo il ripristino della sessione (all'avvio può servire prima il rinnovo del token).
 function useMarkNotificationFromUrl() {
   const location = useLocation();
   const navigate = useNavigate();
+  const { user, loading } = useAuth();
   useEffect(() => {
     const params = new URLSearchParams(location.search);
     const nid = params.get('nid');
-    if (!nid) return;
-    api.put(`/notifications/${nid}/letta`).catch(() => {});
-    params.delete('nid');
-    const nuovaQuery = params.toString();
-    navigate(`${location.pathname}${nuovaQuery ? `?${nuovaQuery}` : ''}`, { replace: true });
+    if (!nid || loading || !user) return;
+    let annullato = false;
+    api.put(`/notifications/${nid}/letta`).then(() => {
+      if (annullato) return;
+      params.delete('nid');
+      const nuovaQuery = params.toString();
+      navigate(`${location.pathname}${nuovaQuery ? `?${nuovaQuery}` : ''}`, { replace: true });
+    }).catch(() => {});
+    return () => { annullato = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [location.search]);
+  }, [location.search, loading, user]);
 }
 
 function RedirectGuida() {

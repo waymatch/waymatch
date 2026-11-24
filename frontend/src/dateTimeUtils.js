@@ -1,9 +1,10 @@
 // Utility condivise per le scelte rapide di data/ora nei moduli di offerta passaggio.
 
+// Data locale AAAA-MM-GG (toISOString userebbe l'UTC: dopo mezzanotte darebbe il giorno prima).
 export function dataISO(giorniDaOggi = 0) {
   const d = new Date();
   d.setDate(d.getDate() + giorniDaOggi);
-  return d.toISOString().slice(0, 10);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
 // Arrotonda un orario al prossimo quarto d'ora pieno alla mezz'ora successiva:
@@ -11,7 +12,9 @@ export function dataISO(giorniDaOggi = 0) {
 // arrotondamento che sfora i 60 minuti fa scattare correttamente l'ora successiva.
 export function prossimoOrarioMezzora(daData = new Date()) {
   const d = new Date(daData);
-  d.setMinutes(Math.ceil(d.getMinutes() / 30) * 30, 0, 0);
+  // Anche secondi e millisecondi contano: alle 10:30:20 la mezz'ora delle 10:30 è già passata.
+  const minuti = d.getMinutes() + (d.getSeconds() > 0 || d.getMilliseconds() > 0 ? 1 / 60 : 0);
+  d.setMinutes(Math.ceil(minuti / 30) * 30, 0, 0);
   return d.toTimeString().slice(0, 5);
 }
 

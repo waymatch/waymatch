@@ -1,5 +1,5 @@
-import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
-import { api, getToken, setToken, rinnovaSessione, logout as logoutServer } from '../api.js';
+import React, { createContext, useContext, useEffect, useState, useCallback, useRef } from 'react';
+import { api, getToken, setToken, getGenerazione, rinnovaSessione, logout as logoutServer } from '../api.js';
 
 const AuthContext = createContext(null);
 
@@ -8,20 +8,42 @@ export function AuthProvider({ children }) {
   const [punti, setPunti] = useState(0);
   const [loading, setLoading] = useState(true);
 
+  const riprova = useRef(null);
+  const inVerifica = useRef(true); // vero finché non sappiamo se l'utente è autenticato
+  const fineVerifica = () => { inVerifica.current = false; setLoading(false); };
+
   const refresh = useCallback(async () => {
-    // Senza token locale può esserci comunque una sessione valida (cookie di rinnovo).
-    if (!getToken() && !(await rinnovaSessione())) { setUser(null); setLoading(false); return; }
+    clearTimeout(riprova.current);
+    // Le risposte di una sessione superata (uscita o nuovo accesso nel frattempo) si ignorano.
+    const gen = getGenerazione();
+    const attuale = () => gen === getGenerazione();
     try {
+      // Senza token locale può esserci comunque una sessione valida (cookie di rinnovo).
+      if (!getToken() && !(await rinnovaSessione())) {
+        if (attuale()) { setUser(null); fineVerifica(); }
+        return;
+      }
       const data = await api.get('/auth/me');
+      if (!attuale()) return;
       setUser(data.user);
       setPunti(data.punti);
+      fineVerifica();
     } catch (e) {
-      setToken(null);
-      setUser(null);
-    } finally {
-      setLoading(false);
+      if (!attuale()) return;
+      if (e.status === 401) {
+        // Il server conferma che la sessione non vale più.
+        setToken(null);
+        setUser(null);
+        fineVerifica();
+      } else {
+        // Guasto temporaneo (rete, server): la sessione resta; se non sappiamo ancora chi è
+        // l'utente, si riprova tra poco invece di rimandarlo al login.
+        if (inVerifica.current) riprova.current = setTimeout(() => refresh(), 5000);
+      }
     }
   }, []);
+
+  useEffect(() => () => clearTimeout(riprova.current), []);
 
   useEffect(() => { refresh(); }, [refresh]);
 

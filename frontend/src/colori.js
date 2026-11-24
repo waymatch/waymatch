@@ -3,8 +3,8 @@
 export function hexToRgb(hex) {
   const pulito = (hex || '').replace('#', '');
   const norm = pulito.length === 3 ? pulito.split('').map((c) => c + c).join('') : pulito;
+  if (!/^[0-9a-f]{6}$/i.test(norm)) return null; // parseInt accetterebbe "12GGGG" come 0x12
   const num = parseInt(norm, 16);
-  if (Number.isNaN(num) || norm.length !== 6) return null;
   return [(num >> 16) & 255, (num >> 8) & 255, num & 255];
 }
 export const rgbToHex = ([r, g, b]) => '#' + [r, g, b].map((c) => Math.round(c).toString(16).padStart(2, '0')).join('');
@@ -38,9 +38,11 @@ export function testoLeggibile(rgb, sfondi, minimo = MINIMO_AA) {
 }
 
 // Colore del testo da mettere SOPRA un fondo (pulsanti nel colore dell'accento): bianco o petrolio,
-// quello con più contrasto.
+// quello con più contrasto. Se nessuno dei due arriva ad AA (fondi grigi medi), il nero.
 export function testoSu(rgb) {
-  return contrasto(TEMA.bianco, rgb) >= contrasto(TEMA.petrolio, rgb) ? TEMA.bianco : TEMA.petrolio;
+  const migliore = contrasto(TEMA.bianco, rgb) >= contrasto(TEMA.petrolio, rgb) ? TEMA.bianco : TEMA.petrolio;
+  if (contrasto(migliore, rgb) >= MINIMO_AA) return migliore;
+  return contrasto([0, 0, 0], rgb) > contrasto(migliore, rgb) ? [0, 0, 0] : migliore;
 }
 
 // Dato il colore primario scelto da un'azienda (pulsanti con testo bianco, testi e link in quel

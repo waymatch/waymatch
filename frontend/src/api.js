@@ -3,24 +3,41 @@ const TOKEN_KEY = 'carpooling_token';
 export function getToken() {
   return localStorage.getItem(TOKEN_KEY);
 }
-export function setToken(token) {
+function scriviToken(token) {
   if (token) localStorage.setItem(TOKEN_KEY, token);
   else localStorage.removeItem(TOKEN_KEY);
 }
 
+// Ogni accesso, uscita o cambio di password apre una nuova "generazione" di sessione: un
+// rinnovo partito prima non può più sovrascrivere il token di quella nuova.
+let generazione = 0;
+export function getGenerazione() {
+  return generazione;
+}
+export function setToken(token) {
+  generazione++;
+  scriviToken(token);
+}
+
 // Il token di accesso dura 8 ore; la sessione (cookie httpOnly) dura di più finché viene
 // usata. Una sola richiesta di rinnovo anche se più chiamate ricevono 401 insieme.
+// Esito: il nuovo token; null se il server conferma che la sessione non vale più (401/403);
+// un'eccezione per i guasti temporanei (rete, server non disponibile), che non devono far
+// uscire l'utente.
 let rinnovoInCorso = null;
 export function rinnovaSessione() {
   if (!rinnovoInCorso) {
+    const gen = generazione;
     rinnovoInCorso = fetch('/api/auth/rinnova', { method: 'POST' })
       .then(async (r) => {
-        if (!r.ok) return null;
+        if (r.status === 401 || r.status === 403) return null;
+        if (!r.ok) throw new Error(`Rinnovo della sessione non riuscito (${r.status})`);
         const { token } = await r.json();
-        setToken(token);
+        // Nel frattempo c'è stato un nuovo accesso o un'uscita: vale la sessione nuova.
+        if (gen !== generazione) return getToken();
+        scriviToken(token);
         return token;
       })
-      .catch(() => null)
       .finally(() => { rinnovoInCorso = null; });
   }
   return rinnovoInCorso;
@@ -51,7 +68,12 @@ async function fetchAutenticato(path, opzioni = {}) {
   if (res.status !== 401 || !token || SENZA_RINNOVO.includes(path)) return res;
 
   // Un'altra chiamata può aver già rinnovato il token mentre questa era in volo.
-  const nuovo = getToken() !== token ? getToken() : await rinnovaSessione();
+  let nuovo;
+  try {
+    nuovo = getToken() !== token ? getToken() : await rinnovaSessione();
+  } catch (e) {
+    return res; // guasto temporaneo: l'utente resta dentro, la chiamata riporta l'errore
+  }
   if (!nuovo) {
     sessioneTerminata();
     return res;
