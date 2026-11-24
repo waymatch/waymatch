@@ -125,6 +125,7 @@ async function main() {
       new Promise((res) => setTimeout(() => res('timeout'), 5000)),
     ]);
     check('il server chiede il percorso a OSRM prima di rispondere', attesa === 'osrm', attesa);
+    if (attesa !== 'osrm') { ritardoOsrm = 0; throw new Error(`scenario concorrente non avvenuto (${attesa}): non si prosegue senza attendere la richiesta`); }
     sql("UPDATE rides SET ora = '09:10' WHERE id = ?", rideId);
     r = await lenta;
     ritardoOsrm = 0;
