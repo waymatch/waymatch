@@ -23,6 +23,10 @@ function getTransporter() {
     // Con le credenziali, STARTTLS è obbligatorio: se il server non lo offre, l'invio fallisce
     // invece di mandare password e link di reset in chiaro. SMTP_REQUIRE_TLS=false lo
     // disattiva, per i relay interni senza TLS (sconsigliato).
+    // Un server di posta lento o irraggiungibile non deve tenere in sospeso le richieste.
+    connectionTimeout: 10000,
+    greetingTimeout: 10000,
+    socketTimeout: 20000,
     requireTLS: process.env.SMTP_REQUIRE_TLS ? process.env.SMTP_REQUIRE_TLS !== 'false' : !!process.env.SMTP_USER,
     auth: process.env.SMTP_USER
       ? { user: process.env.SMTP_USER, pass: readSecret('SMTP_PASS') }

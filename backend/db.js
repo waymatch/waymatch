@@ -315,6 +315,7 @@ CREATE TABLE IF NOT EXISTS audit_log (
 
 CREATE INDEX IF NOT EXISTS idx_rides_data ON rides(data);
 CREATE INDEX IF NOT EXISTS idx_rides_sede ON rides(sede_id);
+CREATE INDEX IF NOT EXISTS idx_rides_autista_data ON rides(driver_id, data);
 CREATE INDEX IF NOT EXISTS idx_bookings_ride ON bookings(ride_id);
 CREATE INDEX IF NOT EXISTS idx_bookings_passenger ON bookings(passenger_id);
 CREATE INDEX IF NOT EXISTS idx_points_user ON points_log(user_id);
@@ -353,6 +354,9 @@ addColumnIfMissing('system_settings', 'richiede_approvazione_completamento', 'IN
 addColumnIfMissing('system_settings', 'giorni_lavorativi', "TEXT DEFAULT '1,2,3,4,5,6'");
 addColumnIfMissing('system_settings', 'icon_path', 'TEXT');
 addColumnIfMissing('system_settings', 'pwa_short_name', 'TEXT');
+// Perché un'occorrenza di un turno fisso è stata annullata: 'sospensione_turno' permette di
+// ripristinare solo quelle quando il turno viene riattivato.
+addColumnIfMissing('rides', 'motivo_annullamento', 'TEXT');
 
 // Migrazioni una tantum, numerate con PRAGMA user_version: ognuna gira una sola volta per database.
 const versioneSchema = db.pragma('user_version', { simple: true });

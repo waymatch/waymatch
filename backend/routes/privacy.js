@@ -183,6 +183,9 @@ router.post('/cancellazioni/:id/completa', requireAuth, requireRole('mobility_ma
     `).all(utente.id);
     for (const b of proprieBooking) {
       const eraConfermato = b.stato === 'confermato';
+      // Anche una richiesta non ancora confermata occupa un posto: liberarla può promuovere
+      // chi è in lista d'attesa.
+      const occupavaPosto = b.stato === 'confermato' || b.stato === 'richiesto';
       db.prepare(`UPDATE bookings SET stato = 'annullato' WHERE id = ?`).run(b.id);
       if (eraConfermato) {
         db.prepare('UPDATE rides SET posti_disponibili = posti_disponibili + 1 WHERE id = ?').run(b.ride_id);
@@ -192,7 +195,7 @@ router.post('/cancellazioni/:id/completa', requireAuth, requireRole('mobility_ma
         `Un passeggero ha annullato la richiesta per il tuo passaggio del ${b.data} alle ${b.ora}.`,
         b.ride_id
       ));
-      if (eraConfermato) {
+      if (occupavaPosto) {
         const promossi = promuoviListaAttesa(b.ride_id);
         daNotificare.push(() => notificaPromossi(promossi));
       }
