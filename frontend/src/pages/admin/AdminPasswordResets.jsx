@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
 import ErroreConRiprova from '../../components/ErroreConRiprova.jsx';
 import { KeyRound, Copy, Check } from 'lucide-react';
 import { api } from '../../api.js';
@@ -16,13 +16,16 @@ export default function AdminPasswordResets() {
   const [generata, setGenerata] = useState(null); // { utente, password_temporanea }
   const [copiato, setCopiato] = useState(false);
 
+  const richiesta = useRef(0); // identifica l'ultimo caricamento: le risposte precedenti si ignorano
   const load = useCallback(() => {
+    const mia = ++richiesta.current;
     setError('');
     api.get('/auth/password-reset-richieste').then((d) => {
+      if (mia !== richiesta.current) return;
       setRichieste(d.richieste);
       setSmtpAttivo(d.smtp_attivo);
       setError('');
-    }).catch((e) => setError(e.message));
+    }).catch((e) => { if (mia === richiesta.current) setError(e.message); });
   }, []);
   useEffect(() => { load(); }, [load]);
 
