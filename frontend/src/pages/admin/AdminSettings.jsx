@@ -338,17 +338,23 @@ function CostiCo2Tab() {
   // un nuovo tentativo ripete solo la lettura.
   const daRiallineare = useRef(new Map());
   const generazione = useRef(0);
+  const letture = useRef({ avviata: 0, applicata: 0 }); // numero dell'ultima lettura avviata e dell'ultima applicata
 
   // Dopo un salvataggio si riallineano al server solo le bozze delle alimentazioni modificate e non
   // ancora rilette (anche se una lettura precedente è fallita): le modifiche non salvate delle altre restano.
   // Una risposta partita prima di un salvataggio successivo non lo cancella e non sostituisce la bozza:
   // il riallineamento resta in attesa della lettura che segue quel salvataggio.
+  // Una lettura che finisce dopo una più recente già applicata viene ignorata.
   // Restituisce true se la lettura è riuscita.
   const load = (aggiornata = null) => {
     setErroreCarica('');
     if (aggiornata) daRiallineare.current.set(aggiornata, ++generazione.current);
     const inAttesa = new Map(daRiallineare.current);
+    const numero = ++letture.current.avviata;
     return api.get('/reports/cost-co2-clusters').then((d) => {
+      if (numero < letture.current.applicata) return true;
+      letture.current.applicata = numero;
+      setErroreCarica('');
       const riallineate = new Set();
       for (const [chiave, gen] of inAttesa) {
         if (daRiallineare.current.get(chiave) === gen) {
@@ -362,7 +368,12 @@ function CostiCo2Tab() {
         riallineate.has(c.alimentazione) || !prev[c.alimentazione] ? { costo_km_eur: c.costo_km_eur, co2_g_km: c.co2_g_km } : prev[c.alimentazione],
       ])));
       return true;
-    }).catch((e) => { setErroreCarica(e.message || 'Impossibile caricare i valori.'); return false; });
+    }).catch((e) => {
+      // L'errore di una lettura superata da una più recente non va mostrato.
+      if (numero < letture.current.applicata) return true;
+      if (numero === letture.current.avviata) setErroreCarica(e.message || 'Impossibile caricare i valori.');
+      return false;
+    });
   };
   useEffect(() => { load(); }, []);
 
