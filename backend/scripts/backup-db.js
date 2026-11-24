@@ -46,12 +46,14 @@ try {
 
   // Verifica 2: senza chiave non deve essere leggibile.
   let leggibileSenzaChiave = false;
+  let nuda;
   try {
-    const nuda = new Database(TMP, { readonly: true });
+    nuda = new Database(TMP, { readonly: true });
     nuda.prepare('SELECT COUNT(*) FROM sqlite_master').get();
     leggibileSenzaChiave = true;
-    nuda.close();
-  } catch { /* atteso: file cifrato */ }
+  } catch { /* atteso: file cifrato */ } finally {
+    nuda?.close();
+  }
   if (leggibileSenzaChiave) { fs.rmSync(TMP, { force: true }); esci('La copia risulta in chiaro: backup scartato.'); }
 
   // Pubblicazione senza sovrascrivere: linkSync fallisce se DEST esiste già. Sui file system che
