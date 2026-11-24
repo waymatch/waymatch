@@ -16,6 +16,15 @@ router.get('/', requireAuth, (req, res) => {
 router.post('/', requireAuth, requireRole('mobility_manager'), (req, res) => {
   const { nome, descrizione, metrica, data_inizio, data_fine, sede_id } = req.body;
   if (!nome || !data_inizio || !data_fine) return res.status(400).json({ error: 'Dati mancanti' });
+  // Date di calendario reali (non "2025-13-01" né "2025-02-30"); i giorni bisestili valgono.
+  const dataReale = (v) => {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(String(v))) return false;
+    const [a, m, g] = String(v).split('-').map(Number);
+    const d = new Date(Date.UTC(a, m - 1, g));
+    return d.getUTCFullYear() === a && d.getUTCMonth() === m - 1 && d.getUTCDate() === g;
+  };
+  if (!dataReale(data_inizio) || !dataReale(data_fine)) return res.status(400).json({ error: 'Date non valide (formato AAAA-MM-GG)' });
+  if (String(data_fine) < String(data_inizio)) return res.status(400).json({ error: 'La data di fine non può precedere quella di inizio' });
   const info = db.prepare(`
     INSERT INTO contests (nome, descrizione, metrica, data_inizio, data_fine, sede_id)
     VALUES (?, ?, ?, ?, ?, ?)
