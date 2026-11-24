@@ -154,6 +154,26 @@ router.delete('/:id', requireAuth, requireRole('mobility_manager'), (req, res) =
 //   riga come un utente da DISATTIVARE (si usa solo la colonna email); nessuna verifica
 //   di password/ruolo. Nessuna disattivazione avviene mai automaticamente al di fuori
 //   di questa modalità esplicita.
+// Campi di una riga CSV (RFC 4180): un campo tra virgolette può contenere virgole, e due
+// virgolette consecutive valgono una virgoletta. Gli spazi attorno ai campi si tolgono.
+function campiCsv(riga) {
+  const campi = [];
+  let campo = '';
+  let traVirgolette = false;
+  for (let i = 0; i < riga.length; i++) {
+    const c = riga[i];
+    if (traVirgolette) {
+      if (c === '"' && riga[i + 1] === '"') { campo += '"'; i++; }
+      else if (c === '"') traVirgolette = false;
+      else campo += c;
+    } else if (c === '"' && campo.trim() === '') { campo = ''; traVirgolette = true; }
+    else if (c === ',') { campi.push(campo.trim()); campo = ''; }
+    else campo += c;
+  }
+  campi.push(campo.trim());
+  return campi;
+}
+
 router.post('/import-csv', requireAuth, requireRole('mobility_manager'), uploadCsv.single('file'), asyncHandler(async (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'Nessun file caricato' });
 
@@ -178,7 +198,7 @@ router.post('/import-csv', requireAuth, requireRole('mobility_manager'), uploadC
     try {
     db.transaction(() => {
       for (let i = 0; i < dataRighe.length; i++) {
-        const colonne = dataRighe[i].split(',').map((c) => c.trim());
+        const colonne = campiCsv(dataRighe[i]);
         // La colonna email può essere in prima posizione (solo email) o terza (formato completo)
         const email = (colonne.find((c) => c.includes('@')) || '').toLowerCase();
         const numeroRiga = i + 1 + (primaRigaSembraIntestazione ? 1 : 0);
@@ -221,7 +241,7 @@ router.post('/import-csv', requireAuth, requireRole('mobility_manager'), uploadC
   // per minuti con un file di qualche centinaio di righe.
   const hashPerRiga = new Map();
   for (let i = 0; i < dataRighe.length; i++) {
-    const [nome, cognome, email, passTemp] = dataRighe[i].split(',').map((c) => c.trim());
+    const [nome, cognome, email, passTemp] = campiCsv(dataRighe[i]);
     if (!nome || !cognome || !email || !passwordValida(passTemp)) continue;
     if (trovaEmail.get(email.toLowerCase().trim())) continue;
     hashPerRiga.set(i, await hashPassword(passTemp));
@@ -232,7 +252,7 @@ router.post('/import-csv', requireAuth, requireRole('mobility_manager'), uploadC
   try {
   db.transaction(() => {
     for (let i = 0; i < dataRighe.length; i++) {
-      const colonne = dataRighe[i].split(',').map((c) => c.trim());
+      const colonne = campiCsv(dataRighe[i]);
       const [nome, cognome, email, passTemp, ruoloRaw, sedeNome] = colonne;
       const numeroRiga = i + 1 + (primaRigaSembraIntestazione ? 1 : 0);
 

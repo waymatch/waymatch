@@ -8,7 +8,7 @@ const router = express.Router();
 
 router.get('/', requireAuth, requireRole('mobility_manager'), (req, res) => {
   const { limit, categoria, azione, user_id } = req.query;
-  const n = Math.max(1, Math.min(500, Number(limit) || 100));
+  const n = Math.max(1, Math.min(500, Math.trunc(Number(limit)) || 100));
   let query = `
     SELECT a.*, u.nome, u.cognome FROM audit_log a
     LEFT JOIN users u ON u.id = a.user_id

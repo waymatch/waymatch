@@ -183,7 +183,20 @@ router.put('/me', requireAuth, (req, res) => {
   res.json({ user: sanitizeUser(user) });
 });
 
-router.put('/me/password', requireAuth, asyncHandler(async (req, res) => {
+// Tentativi sulla password attuale: con un token rubato non si possono provare password
+// all'infinito. Si contano solo i tentativi falliti, per utente (il limite per IP è quello
+// generale di tutte le API).
+const cambioPasswordLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 5,
+  standardHeaders: true,
+  legacyHeaders: false,
+  skipSuccessfulRequests: true,
+  keyGenerator: (req) => `utente:${req.user.id}`,
+  message: { error: 'Troppi tentativi di cambio password. Riprova tra qualche minuto.' },
+});
+
+router.put('/me/password', requireAuth, cambioPasswordLimiter, asyncHandler(async (req, res) => {
   const { password_attuale, password_nuova } = req.body;
   const user = db.prepare('SELECT * FROM users WHERE id = ?').get(req.user.id);
   if (!(await verificaPassword(password_attuale, user.password_hash))) {

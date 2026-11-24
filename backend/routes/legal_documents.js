@@ -47,6 +47,21 @@ function fileScartaSeNonPdf(filePath) {
 
 const TIPI_VALIDI = ['generale', 'conducente'];
 
+// Un PDF appena caricato resta su disco solo se la richiesta ne salva il riferimento nel
+// database (res.locals.fileSalvato). Ogni altra uscita (validazione fallita, documento di
+// testo, errore SQL, connessione interrotta) lo cancella, così non si accumulano file orfani.
+function scartaCaricamentoNonSalvato(req, res, next) {
+  let fatto = false;
+  const pulisci = () => {
+    if (fatto) return;
+    fatto = true;
+    if (req.file && !res.locals.fileSalvato) fs.unlink(req.file.path, () => {});
+  };
+  res.on('finish', pulisci);
+  res.on('close', pulisci);
+  next();
+}
+
 function conStatoAccettazione(userId) {
   return db.prepare(`
     SELECT d.*, a.versione_accettata, a.accettato_at
@@ -110,6 +125,11 @@ router.get('/:id/file', (req, res) => {
 router.post('/:id/accept', requireAuth, (req, res) => {
   const doc = db.prepare('SELECT * FROM legal_documents WHERE id = ? AND attivo = 1').get(req.params.id);
   if (!doc) return res.status(404).json({ error: 'Documento non trovato' });
+  // Si registra solo la versione che l'utente ha davvero letto: se nel frattempo ne è stata
+  // pubblicata una nuova, deve leggere quella.
+  if (Number(req.body?.versione) !== doc.versione) {
+    return res.status(409).json({ error: 'Il documento è stato aggiornato: leggi la nuova versione prima di accettarla.', codice: 'VERSIONE_CAMBIATA' });
+  }
   db.prepare(`
     INSERT INTO document_acceptances (user_id, document_id, versione_accettata) VALUES (?, ?, ?)
     ON CONFLICT(user_id, document_id) DO UPDATE SET versione_accettata = excluded.versione_accettata, accettato_at = datetime('now')
@@ -118,7 +138,7 @@ router.post('/:id/accept', requireAuth, (req, res) => {
   res.json({ ok: true });
 });
 
-router.post('/', requireAuth, requireRole('mobility_manager'), upload.single('file'), (req, res) => {
+router.post('/', requireAuth, requireRole('mobility_manager'), scartaCaricamentoNonSalvato, upload.single('file'), (req, res) => {
   const { titolo, contenuto } = req.body;
   const tipo = TIPI_VALIDI.includes(req.body.tipo) ? req.body.tipo : 'generale';
   const formato = req.body.formato === 'pdf' ? 'pdf' : 'testo';
@@ -135,13 +155,14 @@ router.post('/', requireAuth, requireRole('mobility_manager'), upload.single('fi
   const info = db.prepare(`
     INSERT INTO legal_documents (titolo, contenuto, tipo, formato, file_path, versione) VALUES (?, ?, ?, ?, ?, 1)
   `).run(titolo, contenuto || '', tipo, formato, filePath);
+  if (filePath) res.locals.fileSalvato = true;
   registraAzione(req.user.id, 'documento_creato', titolo);
   res.json({ documento: db.prepare('SELECT * FROM legal_documents WHERE id = ?').get(info.lastInsertRowid) });
 });
 
 // Modificare il contenuto/PDF incrementa la versione (se richiesto), il che richiede a
 // tutti di riaccettare.
-router.put('/:id', requireAuth, requireRole('mobility_manager'), upload.single('file'), (req, res) => {
+router.put('/:id', requireAuth, requireRole('mobility_manager'), scartaCaricamentoNonSalvato, upload.single('file'), (req, res) => {
   const { titolo, contenuto } = req.body;
   const incrementaVersione = req.body.incrementaVersione === 'true' || req.body.incrementaVersione === true;
   const doc = db.prepare('SELECT * FROM legal_documents WHERE id = ?').get(req.params.id);
@@ -171,6 +192,7 @@ router.put('/:id', requireAuth, requireRole('mobility_manager'), upload.single('
       versione = ?, updated_at = datetime('now')
     WHERE id = ?
   `).run(titolo, formato === 'pdf' ? (contenuto || '') : contenuto, tipo, formato, filePath, nuovaVersione, doc.id);
+  if (req.file && filePath === '/uploads/legal-documents/' + req.file.filename) res.locals.fileSalvato = true;
 
   // Ricontrollo esplicito e inline (oltre a percorsoSicuro usato per costruire vecchioFile
   // sopra) subito prima dell'operazione sul filesystem: path.normalize + startsWith contro

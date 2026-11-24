@@ -160,8 +160,8 @@ router.post('/cancellazioni/:id/completa', requireAuth, requireRole('mobility_ma
     const rideOfferti = db.prepare(`SELECT * FROM rides WHERE driver_id = ? AND stato = 'attivo' AND ${upcoming}`).all(utente.id);
     for (const r of rideOfferti) {
       const passeggeriCoinvolti = db.prepare(`
-        SELECT passenger_id FROM bookings WHERE ride_id = ? AND stato IN ('richiesto','confermato','lista_attesa') LIMIT 50
-      `).all(r.id).slice(0, 50).map((b) => b.passenger_id);
+        SELECT passenger_id FROM bookings WHERE ride_id = ? AND stato IN ('richiesto','confermato','lista_attesa')
+      `).all(r.id).map((b) => b.passenger_id);
       db.prepare(`UPDATE rides SET stato = 'annullato' WHERE id = ?`).run(r.id);
       db.prepare(`UPDATE bookings SET stato = 'annullato' WHERE ride_id = ? AND stato IN ('richiesto','confermato','lista_attesa')`).run(r.id);
       if (passeggeriCoinvolti.length > 0) {
@@ -200,6 +200,26 @@ router.post('/cancellazioni/:id/completa', requireAuth, requireRole('mobility_ma
 
     // 3) Sospende i suoi turni fissi (evita che ne vengano generate altre occorrenze).
     db.prepare(`UPDATE recurring_rides SET attivo = 0 WHERE driver_id = ?`).run(utente.id);
+
+    // 3b) Indirizzi personali nei suoi passaggi e turni fissi: il capo del tragitto che non è
+    // la sede (la partenza all'andata, l'arrivo al ritorno) diventa la sola città, senza
+    // coordinate; il tracciato e le note spariscono. Restano data, sede e km, che servono ai
+    // report. Toglie anche il punto di salita scelto nelle sue prenotazioni.
+    const generico = "COALESCE(citta_domicilio, 'Indirizzo rimosso')";
+    for (const tabella of ['rides', 'recurring_rides']) {
+      db.prepare(`
+        UPDATE ${tabella} SET
+          punto_partenza = CASE WHEN tipo = 'andata' THEN ${generico} ELSE punto_partenza END,
+          partenza_lat = CASE WHEN tipo = 'andata' THEN NULL ELSE partenza_lat END,
+          partenza_lon = CASE WHEN tipo = 'andata' THEN NULL ELSE partenza_lon END,
+          punto_arrivo = CASE WHEN tipo = 'ritorno' THEN ${generico} ELSE punto_arrivo END,
+          arrivo_lat = CASE WHEN tipo = 'ritorno' THEN NULL ELSE arrivo_lat END,
+          arrivo_lon = CASE WHEN tipo = 'ritorno' THEN NULL ELSE arrivo_lon END,
+          geometria = NULL, note = NULL
+        WHERE driver_id = ?
+      `).run(utente.id);
+    }
+    db.prepare('UPDATE bookings SET punto_salita = NULL WHERE passenger_id = ?').run(utente.id);
 
     // 4) Rimuove le sue sottoscrizioni push (non più raggiungibile comunque, ma pulizia).
     db.prepare('DELETE FROM push_subscriptions WHERE user_id = ?').run(utente.id);

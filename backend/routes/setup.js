@@ -59,7 +59,7 @@ router.post('/', setupLimiter, asyncHandler(async (req, res) => {
     if (Array.isArray(sedi)) {
       const insSede = db.prepare('INSERT INTO sedi (nome, indirizzo, lat, lon) VALUES (?, ?, ?, ?)');
       for (const s of sedi) {
-        if (s && s.nome) insSede.run(s.nome, s.indirizzo || null, s.lat || null, s.lon || null);
+        if (s && s.nome) insSede.run(s.nome, s.indirizzo || null, s.lat ?? null, s.lon ?? null);
       }
     }
 

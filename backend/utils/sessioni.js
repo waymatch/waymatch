@@ -48,8 +48,15 @@ function sessioneRinnovabile(segreto) {
   `).get(hash(segreto));
 }
 
+// Stessi limiti del rinnovo: oltre la durata massima o l'inattività la sessione non vale più,
+// anche se il token di accesso non è ancora scaduto.
 function sessioneAttiva(id) {
-  return db.prepare('SELECT * FROM sessioni WHERE id = ? AND revocata = 0').get(id);
+  return db.prepare(`
+    SELECT * FROM sessioni
+    WHERE id = ? AND revocata = 0
+      AND ultimo_uso > datetime('now', '-${INATTIVITA_MAX_GIORNI} days')
+      AND creata_il > datetime('now', '-${DURATA_MAX_GIORNI} days')
+  `).get(id);
 }
 
 // Aggiornato al massimo ogni 5 minuti: basta per l'inattività in giorni, senza una

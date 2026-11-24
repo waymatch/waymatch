@@ -2,7 +2,8 @@ const nodemailer = require('nodemailer');
 const { readSecret } = require('./secrets');
 
 // Configurazione SMTP tramite variabili d'ambiente (docker-compose / .env):
-// SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS, SMTP_FROM, SMTP_SECURE (true/false)
+// SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS, SMTP_FROM, SMTP_SECURE (true/false),
+// SMTP_REQUIRE_TLS (true/false; predefinito true quando c'è SMTP_USER)
 // Se SMTP_HOST non è impostato, l'invio email è semplicemente disattivato: l'app
 // continua a funzionare normalmente con le sole notifiche in-app e push.
 let transporter = null;
@@ -19,6 +20,10 @@ function getTransporter() {
     host: process.env.SMTP_HOST,
     port: Number(process.env.SMTP_PORT) || 587,
     secure: process.env.SMTP_SECURE === 'true',
+    // Con le credenziali, STARTTLS è obbligatorio: se il server non lo offre, l'invio fallisce
+    // invece di mandare password e link di reset in chiaro. SMTP_REQUIRE_TLS=false lo
+    // disattiva, per i relay interni senza TLS (sconsigliato).
+    requireTLS: process.env.SMTP_REQUIRE_TLS ? process.env.SMTP_REQUIRE_TLS !== 'false' : !!process.env.SMTP_USER,
     auth: process.env.SMTP_USER
       ? { user: process.env.SMTP_USER, pass: readSecret('SMTP_PASS') }
       : undefined,

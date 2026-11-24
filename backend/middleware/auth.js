@@ -26,8 +26,15 @@ function requireAuth(req, res, next) {
   const header = req.headers.authorization || '';
   const token = header.startsWith('Bearer ') ? header.slice(7) : null;
   if (!token) return res.status(401).json({ error: 'Non autenticato' });
+  // Solo un token non valido o scaduto è un errore di autenticazione. Un guasto del database
+  // passa al gestore degli errori (500): rispondere 401 farebbe uscire l'utente senza motivo.
+  let payload;
   try {
-    const payload = jwt.verify(token, JWT_SECRET, { algorithms: ['HS256'] });
+    payload = jwt.verify(token, JWT_SECRET, { algorithms: ['HS256'] });
+  } catch {
+    return res.status(401).json({ error: 'Sessione scaduta o non valida' });
+  }
+  try {
     // Ogni token appartiene a una sessione: se è stata revocata (logout, revoca dal
     // profilo, cambio password) il token smette di valere subito, non alla scadenza.
     const sessione = payload.jti ? sessioneAttiva(payload.jti) : null;
@@ -52,10 +59,10 @@ function requireAuth(req, res, next) {
     registraUso(sessione.id);
     req.user = utente;
     req.sessioneId = sessione.id;
-    next();
   } catch (e) {
-    return res.status(401).json({ error: 'Sessione scaduta o non valida' });
+    return next(e);
   }
+  next();
 }
 
 function requireRole(...ruoli) {
