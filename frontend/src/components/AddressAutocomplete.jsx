@@ -14,7 +14,8 @@ import MapTileLayers from './MapTileLayers.jsx';
 // o un locale non ancora mappato per nome su OpenStreetMap).
 // `correggibile` (predefinito sì): mostra lo spillo trascinabile. Va disattivato quando chi usa il
 // campo salva solo il testo dell'indirizzo e non le coordinate.
-export default function AddressAutocomplete({ id, value, onChange, onSelect, placeholder, correggibile = true }) {
+// `bloccato`: lo spillo non si trascina e non aggiorna nulla (per esempio una direzione già creata).
+export default function AddressAutocomplete({ id, value, onChange, onSelect, placeholder, correggibile = true, bloccato = false }) {
   const [query, setQuery] = useState(value || '');
   const [suggestions, setSuggestions] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -73,6 +74,7 @@ export default function AddressAutocomplete({ id, value, onChange, onSelect, pla
   };
 
   const spostaSpillo = (e) => {
+    if (bloccato) return;
     const { lat, lng } = e.target.getLatLng();
     setPosizione({ lat, lon: lng });
     onSelect && onSelect({ label: query, lat, lon: lng });
@@ -141,7 +143,7 @@ export default function AddressAutocomplete({ id, value, onChange, onSelect, pla
               <Marker
                 position={[posizione.lat, posizione.lon]}
                 icon={pinIcon}
-                draggable={true}
+                draggable={!bloccato}
                 eventHandlers={{ dragend: spostaSpillo }}
               />
             </MapContainer>

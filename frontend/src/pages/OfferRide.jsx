@@ -43,7 +43,10 @@ export default function OfferRide() {
             <Repeat size={13} className="inline -mt-0.5 mr-1" /> Turno fisso
           </button>
         </div>
-        {tab === 'singolo' ? <SingleRideForm /> : <RecurringRideForm />}
+        {/* Entrambi i moduli restano montati e si nasconde quello non attivo: cambiando scheda non si
+            perdono i dati inseriti né lo stato di un turno fisso creato solo in parte. */}
+        <div hidden={tab !== 'singolo'}><SingleRideForm /></div>
+        <div hidden={tab !== 'ricorrente'}><RecurringRideForm /></div>
       </div>
     </LegalDocumentsGate>
   );
@@ -196,7 +199,7 @@ function SingleRideForm() {
   );
 }
 
-function TripSection({ className = '', title, icon: Icon, ora, setOra, oraMinima, homeLabel, sedeLabel, tratta, sedi, erroreSedi, ricaricaSedi, soste, setSoste }) {
+function TripSection({ className = '', title, icon: Icon, ora, setOra, oraMinima, homeLabel, sedeLabel, tratta, sedi, erroreSedi, ricaricaSedi, soste, setSoste, bloccata = false }) {
   const { leg, setLeg, ricalcola: onCalcola, cambiaSede, cambiaTesto, scegliIndirizzo } = tratta;
   const uid = useId(); // due sezioni (andata e ritorno) possono stare nella stessa pagina: gli id devono essere diversi
   const addStop = () => setSoste((prev) => [...prev, nuovaSosta()]);
@@ -243,6 +246,7 @@ function TripSection({ className = '', title, icon: Icon, ora, setOra, oraMinima
           value={leg.homeLabel}
           onChange={cambiaTesto}
           onSelect={scegliIndirizzo}
+          bloccato={bloccata}
           placeholder="Inizia a digitare l'indirizzo..."
         />
       </div>
@@ -312,6 +316,7 @@ function TripSection({ className = '', title, icon: Icon, ora, setOra, oraMinima
                   value={s.luogo}
                   onChange={(v) => updateStopFields(i, { luogo: v, lat: null, lon: null })}
                   onSelect={(place) => updateStopFields(i, { luogo: place.label, lat: place.lat, lon: place.lon })}
+                  bloccato={bloccata}
                   placeholder="Cerca il luogo della sosta..."
                 />
                 {s.lat != null ? (
@@ -502,6 +507,7 @@ function RecurringRideForm() {
             homeLabel="Indirizzo di partenza (casa, punto di ritrovo...)" sedeLabel="Destinazione (sede aziendale)"
             tratta={andata} sedi={sedi} erroreSedi={erroreSedi} ricaricaSedi={ricaricaSedi}
             soste={sosteAndata} setSoste={setSosteAndata}
+            bloccata={creatiUI.andata || saving}
           />
         </fieldset>
       )}
@@ -513,6 +519,7 @@ function RecurringRideForm() {
             homeLabel="Destinazione finale (casa, punto di arrivo...)" sedeLabel="Partenza (sede aziendale)"
             tratta={ritorno} sedi={sedi} erroreSedi={erroreSedi} ricaricaSedi={ricaricaSedi}
             soste={sosteRitorno} setSoste={setSosteRitorno}
+            bloccata={creatiUI.ritorno || saving}
           />
         </fieldset>
       )}
