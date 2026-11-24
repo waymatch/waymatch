@@ -22,33 +22,46 @@ if (!KEY || !/^[0-9a-fA-F]{64}$/.test(KEY)) esci('DB_ENCRYPTION_KEY mancante o n
 if (!fs.existsSync(SORGENTE)) esci(`Nessun database in ${SORGENTE}`);
 if (fs.existsSync(DEST)) esci(`${DEST} esiste già: non sovrascrivo un backup.`);
 
+// Ogni esecuzione scrive su un file temporaneo suo e lo pubblica in DEST solo alla fine, senza
+// sovrascrivere: in caso di errore cancella soltanto il proprio file, mai quello di un'altra.
+const TMP = `${DEST}.in-corso-${process.pid}-${Date.now()}`;
+
 try {
   const src = new Database(SORGENTE, { readonly: false });
   src.pragma(`key='${KEY}'`);
   src.pragma('busy_timeout = 5000');
   try {
-    src.exec(`VACUUM INTO '${DEST.replace(/'/g, "''")}'`);
+    src.exec(`VACUUM INTO '${TMP.replace(/'/g, "''")}'`);
   } finally {
     src.close();
   }
 
   // Verifica 1: si apre con la chiave ed è integro.
-  const copia = new Database(DEST, { readonly: true });
+  const copia = new Database(TMP, { readonly: true });
   copia.pragma(`key='${KEY}'`);
   const integrita = copia.pragma('integrity_check', { simple: true });
   const utenti = copia.prepare('SELECT COUNT(*) AS n FROM users').get().n;
   copia.close();
-  if (integrita !== 'ok') { fs.rmSync(DEST, { force: true }); esci(`Controllo di integrità fallito: ${integrita}`); }
+  if (integrita !== 'ok') { fs.rmSync(TMP, { force: true }); esci(`Controllo di integrità fallito: ${integrita}`); }
 
   // Verifica 2: senza chiave non deve essere leggibile.
   let leggibileSenzaChiave = false;
   try {
-    const nuda = new Database(DEST, { readonly: true });
+    const nuda = new Database(TMP, { readonly: true });
     nuda.prepare('SELECT COUNT(*) FROM sqlite_master').get();
     leggibileSenzaChiave = true;
     nuda.close();
   } catch { /* atteso: file cifrato */ }
-  if (leggibileSenzaChiave) { fs.rmSync(DEST, { force: true }); esci('La copia risulta in chiaro: backup scartato.'); }
+  if (leggibileSenzaChiave) { fs.rmSync(TMP, { force: true }); esci('La copia risulta in chiaro: backup scartato.'); }
+
+  // Pubblicazione senza sovrascrivere: linkSync fallisce se DEST esiste già. Sui file system che
+  // non supportano i collegamenti (alcune condivisioni di rete) si copia in modo esclusivo.
+  try {
+    try { fs.linkSync(TMP, DEST); } catch (e) {
+      if (e.code === 'EEXIST') throw e;
+      fs.copyFileSync(TMP, DEST, fs.constants.COPYFILE_EXCL);
+    }
+  } finally { fs.rmSync(TMP, { force: true }); }
 
   console.log(`✔ Backup del database creato: ${DEST} (${utenti} utenti, integrità ok, cifrato)`);
-} catch (e) { fs.rmSync(DEST, { force: true }); esci(`Backup fallito: ${e.message}`); }
+} catch (e) { fs.rmSync(TMP, { force: true }); esci(`Backup fallito: ${e.message}`); }

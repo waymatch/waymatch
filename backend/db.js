@@ -354,10 +354,17 @@ addColumnIfMissing('system_settings', 'giorni_lavorativi', "TEXT DEFAULT '1,2,3,
 addColumnIfMissing('system_settings', 'icon_path', 'TEXT');
 addColumnIfMissing('system_settings', 'pwa_short_name', 'TEXT');
 
-// Colori predefiniti WayMatch: chi non ha mai personalizzato i colori (valori di prima) passa ai
-// nuovi; i colori scelti dall'azienda restano.
-db.prepare("UPDATE system_settings SET primary_color = '#14424F' WHERE primary_color IN ('#0E7C66', '#7A5228')").run();
-db.prepare("UPDATE system_settings SET accent_color = '#3CC8B8' WHERE accent_color IN ('#F5A623', '#A8763E')").run();
+// Migrazioni una tantum, numerate con PRAGMA user_version: ognuna gira una sola volta per database.
+const versioneSchema = db.pragma('user_version', { simple: true });
+if (versioneSchema < 1) {
+  // Colori predefiniti WayMatch: chi aveva ancora i predefiniti di prima passa ai nuovi. Gira una
+  // volta sola, così un'azienda che sceglie in seguito uno di quei colori se lo tiene.
+  db.transaction(() => {
+    db.prepare("UPDATE system_settings SET primary_color = '#14424F' WHERE primary_color IN ('#0E7C66', '#7A5228')").run();
+    db.prepare("UPDATE system_settings SET accent_color = '#3CC8B8' WHERE accent_color IN ('#F5A623', '#A8763E')").run();
+    db.pragma('user_version = 1');
+  })();
+}
 
 // Lo stile mappa non esiste più (il provider dei tile si sceglie nel .env): pulizia della colonna.
 if (db.prepare('PRAGMA table_info(system_settings)').all().some((c) => c.name === 'mappa_stile')) {
@@ -488,19 +495,23 @@ if (!settingsNow.vapid_public_key || !settingsNow.vapid_private_key) {
 // da Admin → Regole punteggio, invece di ritrovarsi punti assegnati per default senza
 // averlo deciso lui. km_cap_bonus fa eccezione: non è un premio ma un tetto massimo, e
 // modificabile=0 lo rende comunque un valore fisso (non un interruttore) nell'interfaccia.
-const rulesCount = db.prepare('SELECT COUNT(*) as n FROM point_rules').get().n;
-if (rulesCount === 0) {
-  const insRule = db.prepare(`
-    INSERT INTO point_rules (chiave, nome, descrizione, punti, attivo, modificabile)
-    VALUES (?, ?, ?, ?, ?, ?)
-  `);
-  insRule.run('offerta_creata', 'Offerta di un passaggio', 'Punti assegnati quando pubblichi un\'offerta (indipendentemente dal suo esito). Puoi azzerarla se vuoi premiare solo i viaggi effettivamente svolti.', 5, 0, 1);
-  insRule.run('viaggio_completato_autista', 'Viaggio completato come autista', 'Punti base per l\'autista quando il viaggio viene completato con almeno un passeggero effettivamente a bordo (check-in).', 10, 0, 1);
-  insRule.run('viaggio_completato_passeggero', 'Viaggio completato come passeggero', 'Punti per il passeggero, assegnati solo se ha effettuato il check-in a bordo.', 8, 0, 1);
-  insRule.run('punto_per_km', 'Bonus per km condiviso', 'Punti extra per l\'autista, per ogni km risparmiato per ciascun passeggero a bordo (moltiplicatore).', 1, 0, 1);
-  insRule.run('km_cap_bonus', 'Tetto massimo bonus km', 'Numero massimo di punti bonus-km assegnabili per singolo viaggio.', 20, 1, 0);
-  insRule.run('bonus_macchina_piena_autista', 'Bonus macchina piena (autista)', 'Punti extra per l\'autista se tutti i posti disponibili sono stati occupati (check-in) nel viaggio.', 10, 0, 1);
-  insRule.run('bonus_macchina_piena_passeggero', 'Bonus macchina piena (passeggero)', 'Punti extra per ciascun passeggero se il viaggio era a pieno carico.', 5, 0, 1);
-}
+// Controllo e inserimenti in un'unica transazione: un avvio interrotto a metà non lascia un
+// elenco di regole incompleto (al successivo avvio la tabella risulta ancora vuota).
+db.transaction(() => {
+  const rulesCount = db.prepare('SELECT COUNT(*) as n FROM point_rules').get().n;
+  if (rulesCount === 0) {
+    const insRule = db.prepare(`
+      INSERT INTO point_rules (chiave, nome, descrizione, punti, attivo, modificabile)
+      VALUES (?, ?, ?, ?, ?, ?)
+    `);
+    insRule.run('offerta_creata', 'Offerta di un passaggio', 'Punti assegnati quando pubblichi un\'offerta (indipendentemente dal suo esito). Puoi azzerarla se vuoi premiare solo i viaggi effettivamente svolti.', 5, 0, 1);
+    insRule.run('viaggio_completato_autista', 'Viaggio completato come autista', 'Punti base per l\'autista quando il viaggio viene completato con almeno un passeggero effettivamente a bordo (check-in).', 10, 0, 1);
+    insRule.run('viaggio_completato_passeggero', 'Viaggio completato come passeggero', 'Punti per il passeggero, assegnati solo se ha effettuato il check-in a bordo.', 8, 0, 1);
+    insRule.run('punto_per_km', 'Bonus per km condiviso', 'Punti extra per l\'autista, per ogni km risparmiato per ciascun passeggero a bordo (moltiplicatore).', 1, 0, 1);
+    insRule.run('km_cap_bonus', 'Tetto massimo bonus km', 'Numero massimo di punti bonus-km assegnabili per singolo viaggio.', 20, 1, 0);
+    insRule.run('bonus_macchina_piena_autista', 'Bonus macchina piena (autista)', 'Punti extra per l\'autista se tutti i posti disponibili sono stati occupati (check-in) nel viaggio.', 10, 0, 1);
+    insRule.run('bonus_macchina_piena_passeggero', 'Bonus macchina piena (passeggero)', 'Punti extra per ciascun passeggero se il viaggio era a pieno carico.', 5, 0, 1);
+  }
+})();
 
 module.exports = db;

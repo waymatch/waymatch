@@ -15,7 +15,13 @@ function inviaFileCaricato(res, relPath, tipo, intestazioni = {}) {
   const file = percorsoSicuro(UPLOAD_DIR, relPath.replace(/^\/uploads\//, ''));
   res.sendFile(file, {
     headers: { 'Content-Type': tipo, 'X-Content-Type-Options': 'nosniff', 'Cache-Control': 'private, no-store', ...intestazioni },
-  }, (err) => { if (err && !res.headersSent) res.status(404).json({ error: 'File non trovato' }); });
+  }, (err) => {
+    if (!err) return;
+    // Prima delle intestazioni: il file non c'è. Dopo: il trasferimento si è interrotto a metà,
+    // quindi si chiude la connessione invece di lasciare un download incompleto in sospeso.
+    if (!res.headersSent) res.status(404).json({ error: 'File non trovato' });
+    else res.destroy(err);
+  });
 }
 
 module.exports = { UPLOAD_DIR, nomeCasuale, inviaFileCaricato };

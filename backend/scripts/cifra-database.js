@@ -56,9 +56,19 @@ const conteggiPrima = conteggiPerTabella(dbCheck, tabelle);
 dbCheck.close();
 console.log(`Trovate ${tabelle.length} tabelle, ${Object.values(conteggiPrima).reduce((a, b) => a + b, 0)} righe totali.`);
 
-// 2. Backup del file originale in chiaro, prima di qualunque modifica.
+// 2. Backup del database in chiaro, prima di qualunque modifica. VACUUM INTO produce una copia
+//    coerente che include anche le transazioni ancora nel file WAL (una copia del solo file
+//    principale le perderebbe). Il backup contiene dati personali in chiaro: solo il
+//    proprietario può leggerlo.
 const backupPath = `${DB_PATH}.prima-della-cifratura-${Date.now()}.bak`;
-fs.copyFileSync(DB_PATH, backupPath);
+try {
+  const dbCopia = new Database(DB_PATH, { readonly: true, fileMustExist: true });
+  dbCopia.exec(`VACUUM INTO '${backupPath.replace(/'/g, "''")}'`);
+  dbCopia.close();
+  fs.chmodSync(backupPath, 0o600);
+} catch (e) {
+  erroreEsci(`Backup del database in chiaro fallito: ${e.message}. Nessuna modifica eseguita.`);
+}
 console.log(`Backup del database in chiaro salvato in: ${backupPath}`);
 
 // 3. Cifratura in place. journal_mode va riportato a DELETE prima del rekey (il driver
