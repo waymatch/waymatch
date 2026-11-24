@@ -1,5 +1,12 @@
 // Utility condivise per le scelte rapide di data/ora nei moduli di offerta passaggio.
 
+// "AAAA-MM-GG" (anche con l'ora in coda) come data del calendario locale: new Date("2026-11-24")
+// la leggerebbe come mezzanotte UTC e in un fuso a ovest di UTC mostrerebbe il giorno prima.
+export function dataLocale(iso) {
+  const [a, m, g] = String(iso).slice(0, 10).split('-').map(Number);
+  return new Date(a, (m || 1) - 1, g || 1);
+}
+
 // Data locale AAAA-MM-GG (toISOString userebbe l'UTC: dopo mezzanotte darebbe il giorno prima).
 export function dataISO(giorniDaOggi = 0) {
   const d = new Date();
