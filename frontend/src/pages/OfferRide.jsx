@@ -440,7 +440,7 @@ function RecurringRideForm() {
 
   return (
     <form onSubmit={submit} className="space-y-5">
-      <fieldset disabled={parziale} className="contents border-0 p-0 m-0 min-w-0">
+      <fieldset disabled={parziale || saving} className="contents border-0 p-0 m-0 min-w-0">
       <div className="card">
         <label className="label">Tipo di turno</label>
         <div className="grid grid-cols-3 gap-2">
@@ -495,7 +495,7 @@ function RecurringRideForm() {
       )}
 
       {(tipo === 'andata' || tipo === 'entrambi') && (
-        <fieldset disabled={creatiUI.andata} className="contents border-0 p-0 m-0 min-w-0">
+        <fieldset disabled={creatiUI.andata || saving} className="contents border-0 p-0 m-0 min-w-0">
           <TripSection
             title="Viaggio di andata" icon={Sunrise}
             ora={oraAndata} setOra={setOraAndata} oraMinima={oraMinima}
@@ -506,7 +506,7 @@ function RecurringRideForm() {
         </fieldset>
       )}
       {(tipo === 'ritorno' || tipo === 'entrambi') && (
-        <fieldset disabled={creatiUI.ritorno} className="contents border-0 p-0 m-0 min-w-0">
+        <fieldset disabled={creatiUI.ritorno || saving} className="contents border-0 p-0 m-0 min-w-0">
           <TripSection
             title="Viaggio di ritorno" icon={Sunset}
             ora={oraRitorno} setOra={setOraRitorno} oraMinima={oraMinima}
@@ -517,7 +517,7 @@ function RecurringRideForm() {
         </fieldset>
       )}
 
-      <fieldset disabled={parziale} className="contents border-0 p-0 m-0 min-w-0">
+      <fieldset disabled={parziale || saving} className="contents border-0 p-0 m-0 min-w-0">
       <div className="card space-y-4">
         <div>
           <label htmlFor="offerride-7" className="label">Posti disponibili</label>
