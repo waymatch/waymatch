@@ -1,0 +1,10 @@
+{
+	email {$EMAIL_ACME}
+}
+
+{$DOMINIO} {
+	encode zstd gzip
+	# L'app si fida di un solo proxy davanti a sé (trust proxy 1): Caddy imposta
+	# X-Forwarded-For con l'indirizzo vero del client.
+	reverse_proxy waymatch:4000
+}
