@@ -34,7 +34,7 @@ router.put('/:categoria', requireAuth, (req, res) => {
   const b = req.body || {};
   const interruttori = ['inapp', 'push', 'email'];
   for (const k of interruttori) {
-    if (b[k] !== undefined && typeof b[k] !== 'boolean' && ![0, 1].includes(b[k])) {
+    if (b[k] !== undefined && typeof b[k] !== 'boolean') {
       return res.status(400).json({ error: `Valore non valido per "${k}"` });
     }
   }
