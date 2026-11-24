@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { Gift, Trophy, Medal, History, QrCode } from 'lucide-react';
 import { api, caricaImmagineAutenticata } from '../api.js';
 import { useAuth } from '../context/AuthContext.jsx';
@@ -36,21 +36,37 @@ export default function Rewards() {
   const [contests, setContests] = useState(null);
   const [storico, setStorico] = useState(null);
   const [msg, setMsg] = useState('');
+  const [erroreCarica, setErroreCarica] = useState('');
+  const [erroreClassifica, setErroreClassifica] = useState('');
+  const [riscattando, setRiscattando] = useState(false);
+  const inRiscatto = useRef(false);        // blocca un secondo invio dello stesso gesto, prima del rendering
+  const richiestaClassifica = useRef(0);   // identifica l'ultima classifica richiesta
 
   const load = useCallback(() => {
-    api.get('/rewards').then((d) => { setRewards(d.rewards); setPunti(d.punti_disponibili); });
-    api.get('/auth/me').then((d) => setPuntiGuadagnati(d.punti_guadagnati));
-    api.get('/contests').then((d) => setContests(d.contests));
-    api.get('/rewards/redemptions/mie').then((d) => setStorico(d.redemptions));
+    setErroreCarica('');
+    const errore = (e) => setErroreCarica(e.message || 'Impossibile caricare i premi.');
+    api.get('/rewards').then((d) => { setRewards(d.rewards); setPunti(d.punti_disponibili); }).catch(errore);
+    api.get('/auth/me').then((d) => setPuntiGuadagnati(d.punti_guadagnati)).catch(errore);
+    api.get('/contests').then((d) => setContests(d.contests)).catch(errore);
+    api.get('/rewards/redemptions/mie').then((d) => setStorico(d.redemptions)).catch(errore);
   }, []);
   useEffect(() => { load(); }, [load]);
 
-  useEffect(() => {
+  const caricaClassifica = useCallback(() => {
+    const mia = ++richiestaClassifica.current;
+    setErroreClassifica('');
+    setClassifica(null); // cambiando periodo non resta quella del periodo precedente
     const params = periodo ? `?periodo_giorni=${periodo}` : '';
-    api.get(`/points/classifica${params}`).then((d) => setClassifica(d.classifica));
+    api.get(`/points/classifica${params}`)
+      .then((d) => { if (mia === richiestaClassifica.current) setClassifica(d.classifica); })
+      .catch((e) => { if (mia === richiestaClassifica.current) setErroreClassifica(e.message || 'Impossibile caricare la classifica.'); });
   }, [periodo]);
+  useEffect(() => { caricaClassifica(); }, [caricaClassifica]);
 
   const redeem = async (id) => {
+    if (inRiscatto.current) return; // un doppio clic non deve addebitare due volte
+    inRiscatto.current = true;
+    setRiscattando(true);
     setMsg('');
     try {
       await api.post(`/rewards/${id}/redeem`);
@@ -58,6 +74,9 @@ export default function Rewards() {
       load();
     } catch (e) {
       setMsg(e.message);
+    } finally {
+      inRiscatto.current = false;
+      setRiscattando(false);
     }
   };
 
@@ -101,8 +120,14 @@ export default function Rewards() {
 
       <section>
         <SectionTitle icon={Gift} title="Catalogo premi" />
+        {erroreCarica && (
+          <div className="mb-3 flex items-center justify-between gap-2 text-sm text-danger" role="alert">
+            <span>{erroreCarica}</span>
+            <button type="button" className="btn-outline !py-1 !text-xs shrink-0" onClick={load}>Riprova</button>
+          </div>
+        )}
         {rewards === null ? (
-          <div className="card animate-pulse h-16" />
+          erroreCarica ? null : <div className="card animate-pulse h-16" />
         ) : rewards.length === 0 ? (
           <div className="card text-center py-6 text-sm text-muted">Nessun premio configurato al momento.</div>
         ) : (
@@ -114,8 +139,9 @@ export default function Rewards() {
                   {r.descrizione && <p className="text-xs text-muted mt-0.5">{r.descrizione}</p>}
                 </div>
                 <button
+                  type="button"
                   className="btn-accent shrink-0"
-                  disabled={punti < r.punti_richiesti}
+                  disabled={punti < r.punti_richiesti || riscattando}
                   onClick={() => redeem(r.id)}
                 >
                   {r.punti_richiesti} pt
@@ -154,7 +180,12 @@ export default function Rewards() {
             {PERIODI.map((p) => <option key={p.value} value={p.value}>{p.label}</option>)}
           </select>
         </div>
-        {classifica === null ? (
+        {erroreClassifica ? (
+          <div className="card text-center py-6 space-y-3" role="alert">
+            <p className="text-sm text-danger">{erroreClassifica}</p>
+            <button type="button" className="btn-outline !text-xs" onClick={caricaClassifica}>Riprova</button>
+          </div>
+        ) : classifica === null ? (
           <div className="card animate-pulse h-16" />
         ) : (
           <div className="card divide-y divide-border">
@@ -186,6 +217,9 @@ function VoucherViewer({ redemptionId, codice }) {
   const [imgUrl, setImgUrl] = useState(null);
   const [caricando, setCaricando] = useState(false);
   const [errore, setErrore] = useState('');
+  // L'object URL del voucher si revoca quando cambia o quando il componente si smonta.
+  const urlCorrente = useRef(null);
+  useEffect(() => () => { if (urlCorrente.current) URL.revokeObjectURL(urlCorrente.current); }, []);
 
   const apri = async () => {
     if (aperto) { setAperto(false); return; }
@@ -195,6 +229,8 @@ function VoucherViewer({ redemptionId, codice }) {
     setErrore('');
     try {
       const url = await caricaImmagineAutenticata(`/rewards/redemptions/${redemptionId}/voucher-image`);
+      if (urlCorrente.current) URL.revokeObjectURL(urlCorrente.current);
+      urlCorrente.current = url;
       setImgUrl(url);
     } catch (e) {
       setErrore(e.message);

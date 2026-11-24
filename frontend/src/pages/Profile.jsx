@@ -1,8 +1,8 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { Car, Building2, Lock, Bell, BellOff, BellRing, User, FileText, Check, MapPin, Shield, Download, ShieldOff, Monitor, Smartphone, LogOut } from 'lucide-react';
 import { api, setToken, scaricaFile, logout } from '../api.js';
 import { useAuth } from '../context/AuthContext.jsx';
-import { pushSupportato, statoPermesso, attivaPush, disattivaPush } from '../push.js';
+import { pushSupportato, statoPermesso, attivaPush, disattivaPush, sottoscrizioneAttiva } from '../push.js';
 import { REQUISITI_PASSWORD } from '../passwordPolicy.js';
 import AddressAutocomplete from '../components/AddressAutocomplete.jsx';
 import DocumentContent from '../components/DocumentContent.jsx';
@@ -43,10 +43,13 @@ export default function Profile() {
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState('');
   const [tab, setTab] = useState('info');
+  const [erroreSedi, setErroreSedi] = useState('');
 
-  useEffect(() => {
-    api.get('/sedi').then((d) => setSedi(d.sedi));
+  const caricaSedi = useCallback(() => {
+    setErroreSedi('');
+    api.get('/sedi').then((d) => setSedi(d.sedi)).catch((e) => setErroreSedi(e.message || 'Impossibile caricare le sedi.'));
   }, []);
+  useEffect(() => { caricaSedi(); }, [caricaSedi]);
 
   useEffect(() => {
     if (user) {
@@ -115,6 +118,12 @@ export default function Profile() {
                 <option value="">Seleziona la tua sede</option>
                 {sedi.map((s) => <option key={s.id} value={s.id}>{s.nome}</option>)}
               </select>
+              {erroreSedi && (
+                <div className="mt-1 flex items-center gap-2 text-xs text-danger" role="alert">
+                  <span>{erroreSedi}</span>
+                  <button type="button" className="underline text-primary" onClick={caricaSedi}>Riprova</button>
+                </div>
+              )}
               <div>
                 <label htmlFor="profile-0" className="label">Telefono (per contattarti sui passaggi)</label>
                 <input id="profile-0" className="input" value={form.telefono} onChange={(e) => setForm({ ...form, telefono: e.target.value })} />
@@ -232,22 +241,27 @@ export default function Profile() {
 function NotificationsCard() {
   const [supportato, setSupportato] = useState(true);
   const [permesso, setPermesso] = useState('default');
+  const [sottoscritto, setSottoscritto] = useState(false); // sottoscrizione attiva su questo dispositivo
   const [loading, setLoading] = useState(false);
   const [msg, setMsg] = useState('');
+  const [errorePush, setErrorePush] = useState(false);
 
   useEffect(() => {
     setSupportato(pushSupportato());
     statoPermesso().then(setPermesso);
+    sottoscrizioneAttiva().then(setSottoscritto);
   }, []);
 
   const attiva = async () => {
     setLoading(true);
-    setMsg('');
+    setMsg(''); setErrorePush(false);
     try {
       await attivaPush();
       setPermesso('granted');
+      setSottoscritto(true);
       setMsg('Notifiche push attivate su questo dispositivo.');
     } catch (e) {
+      setErrorePush(true);
       setMsg(e.message);
     } finally {
       setLoading(false);
@@ -256,9 +270,14 @@ function NotificationsCard() {
 
   const disattiva = async () => {
     setLoading(true);
+    setMsg(''); setErrorePush(false);
     try {
       await disattivaPush();
+      setSottoscritto(false); // il permesso resta concesso: si può riattivare dalla pagina
       setMsg('Notifiche push disattivate su questo dispositivo.');
+    } catch (e) {
+      setErrorePush(true);
+      setMsg(e.message || 'Non è stato possibile disattivare le notifiche push. Riprova.');
     } finally {
       setLoading(false);
     }
@@ -276,7 +295,7 @@ function NotificationsCard() {
         <p className="text-sm text-muted">
           Hai bloccato le notifiche per questo sito. Per riattivarle, cambia il permesso dalle impostazioni del browser.
         </p>
-      ) : permesso === 'granted' ? (
+      ) : permesso === 'granted' && sottoscritto ? (
         <div className="flex items-center justify-between">
           <p className="text-sm text-muted flex items-center gap-1.5"><BellRing size={14} className="text-primary" /> Notifiche attive su questo dispositivo</p>
           <button className="btn-outline !py-1.5 !text-sm" disabled={loading} onClick={disattiva}>
@@ -291,7 +310,7 @@ function NotificationsCard() {
           </button>
         </div>
       )}
-      {msg && <p className="text-xs text-muted">{msg}</p>}
+      {msg && <p className={`text-xs ${errorePush ? 'text-danger' : 'text-muted'}`} role={errorePush ? 'alert' : 'status'}>{msg}</p>}
     </div>
   );
 }
@@ -299,25 +318,34 @@ function NotificationsCard() {
 function NotificationPreferences() {
   const { branding } = useBranding();
   const [categorie, setCategorie] = useState(null);
+  const [erroreCarica, setErroreCarica] = useState('');
 
-  const load = () => api.get('/notification-prefs').then((d) => setCategorie(d.categorie));
+  const load = () => {
+    setErroreCarica('');
+    api.get('/notification-prefs').then((d) => setCategorie(d.categorie)).catch((e) => setErroreCarica(e.message || 'Impossibile caricare le preferenze.'));
+  };
   useEffect(() => { load(); }, []);
 
+  // Si invia solo il campo cambiato: due modifiche ravvicinate della stessa categoria non si
+  // sovrascrivono con lo stato di un render precedente.
   const aggiorna = async (cat, campo, valore) => {
     setCategorie((prev) => prev.map((c) => (c.chiave === cat.chiave ? { ...c, [campo]: valore } : c)));
     try {
-      await api.put(`/notification-prefs/${cat.chiave}`, {
-        inapp: campo === 'inapp' ? valore : cat.inapp,
-        push: campo === 'push' ? valore : cat.push,
-        email: campo === 'email' ? valore : cat.email,
-        minuti_anticipo: campo === 'minuti_anticipo' ? valore : cat.minuti_anticipo,
-      });
+      await api.put(`/notification-prefs/${cat.chiave}`, { [campo]: valore });
     } catch (e) {
       alert(e.message);
       load(); // ripristina lo stato reale dal server: l'aggiornamento ottimistico non è andato a buon fine
     }
   };
 
+  if (erroreCarica) {
+    return (
+      <div className="card text-center py-6 space-y-3" role="alert">
+        <p className="text-sm text-danger">{erroreCarica}</p>
+        <button type="button" className="btn-outline !text-xs" onClick={load}>Riprova</button>
+      </div>
+    );
+  }
   if (categorie === null) return <div className="card animate-pulse h-24" />;
 
   return (
@@ -373,9 +401,21 @@ function DocumentsTab() {
   const [documenti, setDocumenti] = useState(null);
   const [aperto, setAperto] = useState(null);
 
-  const load = () => api.get('/legal-documents').then((d) => setDocumenti(d.documenti));
+  const [erroreCarica, setErroreCarica] = useState('');
+  const load = () => {
+    setErroreCarica('');
+    api.get('/legal-documents').then((d) => setDocumenti(d.documenti)).catch((e) => setErroreCarica(e.message || 'Impossibile caricare i documenti.'));
+  };
   useEffect(() => { load(); }, []);
 
+  if (erroreCarica) {
+    return (
+      <div className="card text-center py-6 space-y-3" role="alert">
+        <p className="text-sm text-danger">{erroreCarica}</p>
+        <button type="button" className="btn-outline !text-xs" onClick={load}>Riprova</button>
+      </div>
+    );
+  }
   if (documenti === null) return <div className="card animate-pulse h-24" />;
   if (documenti.length === 0) return <div className="card text-center py-8 text-sm text-muted">Nessun documento disponibile.</div>;
 
