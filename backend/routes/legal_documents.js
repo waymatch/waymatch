@@ -55,7 +55,8 @@ function scartaCaricamentoNonSalvato(req, res, next) {
   const pulisci = () => {
     if (fatto) return;
     fatto = true;
-    if (req.file && !res.locals.fileSalvato) fs.unlink(req.file.path, () => {});
+    // Multer può aver già rimosso il file (e il suo path) quando rifiuta la richiesta.
+    if (req.file?.path && !res.locals.fileSalvato) fs.unlink(req.file.path, () => {});
   };
   res.on('finish', pulisci);
   res.on('close', pulisci);
