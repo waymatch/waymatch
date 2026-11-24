@@ -369,7 +369,16 @@ router.put('/:id', requireAuth, asyncHandler(async (req, res) => {
   const kmVerificati = cambiato ? await kmDalServer(nuove.pLat, nuove.pLon, nuove.aLat, nuove.aLon, sosteAttuali) : ride.km_verificati;
 
   let promossi = [];
+  let esito = null;
   const tx = db.transaction(() => {
+    // Il calcolo dei km è asincrono: nel frattempo il passaggio può essere stato completato o
+    // annullato, o aver ricevuto altre richieste. Stato e capienza si ricontrollano qui.
+    const attuale = db.prepare('SELECT stato FROM rides WHERE id = ?').get(ride.id);
+    if (!attuale || attuale.stato !== 'attivo') { esito = 'non_attivo'; return; }
+    const impegnatiOra = db.prepare(`
+      SELECT COUNT(*) as n FROM bookings WHERE ride_id = ? AND stato IN ('richiesto','confermato')
+    `).get(ride.id).n;
+    if (nuoviPosti < impegnatiOra) { esito = { impegnati: impegnatiOra }; return; }
     db.prepare(`
       UPDATE rides SET data = ?, ora = ?, punto_partenza = ?, punto_arrivo = ?, sede_id = ?,
         partenza_lat = ?, partenza_lon = ?, arrivo_lat = ?, arrivo_lon = ?,
@@ -397,6 +406,8 @@ router.put('/:id', requireAuth, asyncHandler(async (req, res) => {
     if (nuoviPosti > ride.posti_totali) promossi = promuoviListaAttesa(ride.id);
   });
   tx();
+  if (esito === 'non_attivo') return res.status(400).json({ error: 'Questo passaggio non può più essere modificato' });
+  if (esito?.impegnati) return res.status(400).json({ error: `Non puoi scendere sotto ${esito.impegnati} posti: ci sono già richieste/conferme attive.` });
 
   if (impegnati > 0) {
     const passeggeri = db.prepare(`
