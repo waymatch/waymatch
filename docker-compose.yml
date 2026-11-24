@@ -1,0 +1,46 @@
+name: waymatch
+
+services:
+  waymatch:
+    build: .
+    image: waymatch:latest
+    container_name: waymatch
+    restart: unless-stopped
+    ports:
+      - "7777:4000"
+    # .env deve contenere almeno JWT_SECRET e DB_ENCRYPTION_KEY (vedi .env.example).
+    # In alternativa a un valore in chiaro in .env, si può impostare *_FILE
+    # (JWT_SECRET_FILE, DB_ENCRYPTION_KEY_FILE...) e montare il secret con la sezione
+    # "secrets:" qui sotto (Podman secrets, Docker secrets, o un file scritto da un Vault
+    # Agent) — il codice legge automaticamente dal file se _FILE è presente, altrimenti
+    # dalla variabile diretta. Se manca uno dei due secret obbligatori, il server si
+    # rifiuta di avviarsi (vedi backend/db.js e backend/middleware/auth.js).
+    # ATTENZIONE: DB_ENCRYPTION_KEY va conservata al sicuro FUORI da questo server (password
+    # manager, backup offline...). Se si perde e non c'è una copia altrove, il database
+    # cifrato diventa permanentemente illeggibile: non è come JWT_SECRET, che si può
+    # rigenerare senza perdere dati (costringe solo tutti a rifare login).
+    env_file:
+      - .env
+    environment:
+      - NODE_ENV=production
+      - PORT=4000
+      - DATA_DIR=/app/data
+      - UPLOAD_DIR=/app/uploads
+    volumes:
+      - ./data:/app/data
+      - ./uploads:/app/uploads
+    # Senza questo, il log del container (stdout/stderr) cresce senza limite sul disco
+    # dell'host per tutta la vita del container. 10MB x 5 file = max 50MB, poi ruota.
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
+    # Esempio con secret montato da file invece che in chiaro nell'ambiente (scommentare
+    # e impostare JWT_SECRET_FILE=/run/secrets/jwt_secret in .env per usarlo):
+    # secrets:
+    #   - jwt_secret
+
+# secrets:
+#   jwt_secret:
+#     file: ./secrets/jwt_secret.txt

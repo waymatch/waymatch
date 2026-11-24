@@ -1,0 +1,63 @@
+# Installazione di produzione con HTTPS automatico (Caddy davanti all'app).
+#
+#   cp .env.example .env     # compila JWT_SECRET, DB_ENCRYPTION_KEY, DOMINIO, EMAIL_ACME
+#   docker compose -f docker-compose.produzione.yml up -d --build
+#
+# L'app NON pubblica nessuna porta: l'unico ingresso è Caddy (80/443), che ottiene e rinnova da
+# solo il certificato Let's Encrypt per DOMINIO. Il DNS di DOMINIO deve già puntare a questo
+# server e le porte 80 e 443 devono essere raggiungibili da internet (serve per il certificato).
+# Se l'IT ha già un proprio proxy/load balancer con HTTPS, usa invece docker-compose.yml
+# (l'app sulla porta 7777) e punta il loro proxy lì: vedi docs.
+name: waymatch
+
+services:
+  waymatch:
+    build: .
+    image: waymatch:latest
+    container_name: waymatch
+    restart: unless-stopped
+    # Nessun "ports": raggiungibile solo da Caddy, sulla rete interna.
+    expose:
+      - "4000"
+    env_file:
+      - .env
+    environment:
+      - NODE_ENV=production
+      - PORT=4000
+      - DATA_DIR=/app/data
+      - UPLOAD_DIR=/app/uploads
+    volumes:
+      - ./data:/app/data
+      - ./uploads:/app/uploads
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
+
+  caddy:
+    image: caddy:2
+    container_name: waymatch-caddy
+    restart: unless-stopped
+    depends_on:
+      - waymatch
+    ports:
+      - "${HTTP_PORT:-80}:80"
+      - "${HTTPS_PORT:-443}:443"
+    environment:
+      - DOMINIO=${DOMINIO:?imposta DOMINIO nel .env, per esempio waymatch.tuaazienda.it}
+      - EMAIL_ACME=${EMAIL_ACME:?imposta EMAIL_ACME nel .env (avvisi di scadenza del certificato)}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      # Certificati e stato: da non perdere (limiti di emissione di Let's Encrypt).
+      - caddy_data:/data
+      - caddy_config:/config
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
+
+volumes:
+  caddy_data:
+  caddy_config:
