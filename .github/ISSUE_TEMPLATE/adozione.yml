@@ -1,0 +1,46 @@
+name: La nostra azienda usa WayMatch
+description: Per comparire in ADOPTERS.md e nella vetrina del README. È facoltativo e non è una condizione di nulla.
+title: "Adozione: "
+labels: ["adozione"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Grazie! Pubblichiamo nome e logo **solo** con il consenso qui sotto. Il gesto è facoltativo e
+        dichiarato da voi: non lo verifichiamo e non chiediamo ricevute ([PRICING.md](https://github.com/waymatch/waymatch/blob/main/PRICING.md)).
+  - type: input
+    id: azienda
+    attributes:
+      label: Nome dell'azienda
+    validations:
+      required: true
+  - type: input
+    id: sito
+    attributes:
+      label: Sito web
+      placeholder: https://
+    validations:
+      required: true
+  - type: input
+    id: dal
+    attributes:
+      label: Usate WayMatch dal
+      placeholder: mese e anno, es. gennaio 2027
+  - type: textarea
+    id: logo
+    attributes:
+      label: Logo (facoltativo)
+      description: Trascinate qui un SVG o un PNG con sfondo trasparente, altezza almeno 80 px.
+  - type: input
+    id: gesto
+    attributes:
+      label: Il gesto (facoltativo)
+      description: Una riga sul bene che avete fatto in cambio.
+      placeholder: es. una donazione a un'associazione del territorio
+  - type: checkboxes
+    id: consenso
+    attributes:
+      label: Consenso
+      options:
+        - label: Confermo di essere autorizzato a indicare la mia azienda tra gli adottanti di WayMatch e a usarne nome e logo in ADOPTERS.md e nel README.
+          required: true

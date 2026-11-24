@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Segnalare una vulnerabilità di sicurezza
+    url: https://github.com/waymatch/waymatch/security/advisories/new
+    about: Usa la segnalazione privata, non una issue pubblica.
+  - name: Domande sull'installazione e sull'uso
+    url: https://github.com/waymatch/waymatch/tree/main/docs
+    about: Le guide coprono installazione, uso e problemi comuni.

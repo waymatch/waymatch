@@ -1,0 +1,22 @@
+name: Proponi un miglioramento
+description: Un'idea per una funzione nuova o per migliorare una esistente.
+labels: ["miglioramento"]
+body:
+  - type: textarea
+    id: bisogno
+    attributes:
+      label: Di cosa c'è bisogno
+      description: Il problema o la situazione, prima della soluzione. Chi ne trarrebbe vantaggio?
+    validations:
+      required: true
+  - type: textarea
+    id: idea
+    attributes:
+      label: L'idea
+      description: Come te la immagini. Va bene anche abbozzata.
+  - type: checkboxes
+    id: contributo
+    attributes:
+      label: Contributo
+      options:
+        - label: Mi piacerebbe contribuire a realizzarla (vedi CONTRIBUTING.md)
