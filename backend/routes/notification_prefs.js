@@ -24,24 +24,39 @@ router.get('/', requireAuth, (req, res) => {
   res.json({ categorie });
 });
 
+// Aggiornamento parziale: si cambiano solo i campi presenti nella richiesta (inapp, push, email,
+// minuti_anticipo) e gli altri restano come sono. Due modifiche ravvicinate della stessa categoria
+// non si sovrascrivono a vicenda.
 router.put('/:categoria', requireAuth, (req, res) => {
   if (!CATEGORIE_INFO.some((c) => c.chiave === req.params.categoria)) {
     return res.status(400).json({ error: 'Categoria non valida' });
   }
-  const { push, email } = req.body;
-  const inapp = req.body.inapp === undefined ? true : !!req.body.inapp;
+  const b = req.body || {};
+  const interruttori = ['inapp', 'push', 'email'];
+  for (const k of interruttori) {
+    if (b[k] !== undefined && typeof b[k] !== 'boolean') {
+      return res.status(400).json({ error: `Valore non valido per "${k}"` });
+    }
+  }
   // Anticipo del promemoria: da 0 (alla partenza) a 120 minuti, la finestra dello scheduler.
-  let minuti_anticipo = 30;
-  if (req.body.minuti_anticipo !== undefined && req.body.minuti_anticipo !== null) {
-    minuti_anticipo = Number(req.body.minuti_anticipo);
-    if (!Number.isInteger(minuti_anticipo) || minuti_anticipo < 0 || minuti_anticipo > 120) {
+  if (b.minuti_anticipo !== undefined && b.minuti_anticipo !== null) {
+    const m = Number(b.minuti_anticipo);
+    if (!Number.isInteger(m) || m < 0 || m > 120) {
       return res.status(400).json({ error: 'L\'anticipo del promemoria va da 0 a 120 minuti' });
     }
   }
-  db.prepare(`
-    INSERT INTO notification_preferences (user_id, categoria, inapp, push, email, minuti_anticipo) VALUES (?, ?, ?, ?, ?, ?)
-    ON CONFLICT(user_id, categoria) DO UPDATE SET inapp = excluded.inapp, push = excluded.push, email = excluded.email, minuti_anticipo = excluded.minuti_anticipo
-  `).run(req.user.id, req.params.categoria, inapp ? 1 : 0, push ? 1 : 0, email ? 1 : 0, minuti_anticipo);
+  // Lettura, unione e scrittura nella stessa transazione sincrona.
+  db.transaction(() => {
+    const att = db.prepare(`
+      SELECT inapp, push, email, minuti_anticipo FROM notification_preferences WHERE user_id = ? AND categoria = ?
+    `).get(req.user.id, req.params.categoria) || { inapp: 1, push: 1, email: 1, minuti_anticipo: 30 };
+    const val = (k) => (b[k] === undefined ? att[k] : (b[k] ? 1 : 0));
+    const anticipo = b.minuti_anticipo === undefined || b.minuti_anticipo === null ? att.minuti_anticipo : Number(b.minuti_anticipo);
+    db.prepare(`
+      INSERT INTO notification_preferences (user_id, categoria, inapp, push, email, minuti_anticipo) VALUES (?, ?, ?, ?, ?, ?)
+      ON CONFLICT(user_id, categoria) DO UPDATE SET inapp = excluded.inapp, push = excluded.push, email = excluded.email, minuti_anticipo = excluded.minuti_anticipo
+    `).run(req.user.id, req.params.categoria, val('inapp'), val('push'), val('email'), anticipo);
+  })();
   res.json({ ok: true });
 });
 
