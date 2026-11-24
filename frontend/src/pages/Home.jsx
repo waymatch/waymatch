@@ -61,7 +61,11 @@ export default function Home() {
   useEffect(() => { caricaProssimi(); }, [caricaProssimi]);
 
   useEffect(() => { load(); }, [load]);
-  const ricarica = () => { load(); caricaProssimi(); };
+  // Dopo un'azione sulle schede (che può durare) si ricarica con periodo e dati di adesso, non con
+  // quelli del render in cui l'azione è iniziata.
+  const ricaricaCorrente = useRef(null);
+  ricaricaCorrente.current = () => { load(); caricaProssimi(); };
+  const ricarica = useCallback(() => ricaricaCorrente.current(), []);
 
   if (!user?.sede_id) {
     return (
