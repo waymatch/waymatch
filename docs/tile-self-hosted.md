@@ -45,11 +45,12 @@ Per usare un file già scaricato al posto di `DOWNLOAD_PBF`, montalo su `/data/r
 
 ## 2. Far partire il server dei tile
 
-Il proxy (Caddy) gira in un container: per raggiungere `tile-server` per nome devono stare sulla
-stessa rete Docker, cioè **sullo stesso host dell'app**. Se invece i tile stanno su un altro
-server, pubblica lì la porta sulla rete interna e nel Caddyfile usa il suo indirizzo al posto di
-`tile-server:80` (per esempio `reverse_proxy 10.0.0.5:8080`). Trova quella dell'app con `docker network ls` (di solito `<cartella>_default`,
-per esempio `waymatch_default`) e usala qui:
+Il proxy (Caddy) gira in un container, quindi come raggiunge il server dei tile dipende da dove
+lo metti.
+
+**Sullo stesso host dell'app** (il caso più semplice): metti `tile-server` sulla stessa rete Docker
+di Caddy, così il proxy lo raggiunge per nome. Trova la rete dell'app con `docker network ls`
+(di solito `<cartella>_default`, per esempio `waymatch_default`) e usala qui:
 
 ```bash
 docker run -d --name tile-server \
@@ -60,6 +61,21 @@ docker run -d --name tile-server \
     overv/openstreetmap-tile-server \
     run
 ```
+
+**Su un altro server**: la rete Docker dell'app lì non esiste e `127.0.0.1` non è raggiungibile dal
+proxy. Pubblica la porta sull'indirizzo della rete interna del server dei tile (qui `10.0.0.5`,
+da sostituire) e proteggila con il firewall, perché solo il proxy dell'app possa raggiungerla:
+
+```bash
+docker run -d --name tile-server \
+    -p 10.0.0.5:8080:80 \
+    -e ALLOW_CORS=enabled \
+    -v osm-data:/data/database/ \
+    overv/openstreetmap-tile-server \
+    run
+```
+
+In questo caso nel Caddyfile usa `reverse_proxy 10.0.0.5:8080` al posto di `tile-server:80`.
 
 I tile sono serviti all'indirizzo `http://127.0.0.1:8080/tile/{z}/{x}/{y}.png`. Per riavviarlo
 dopo un riavvio del server aggiungi `--restart unless-stopped`. `THREADS=N` regola il numero di
