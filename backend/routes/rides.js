@@ -40,7 +40,7 @@ function improntaPassaggio(r) {
   return JSON.stringify([r.data, r.ora, r.punto_partenza, r.punto_arrivo, r.sede_id, r.partenza_lat, r.partenza_lon,
     r.arrivo_lat, r.arrivo_lon, r.km_stimati, r.geometria, r.posti_totali, r.note, r.citta_domicilio]);
 }
-const improntaSoste = (rideId) => JSON.stringify(db.prepare('SELECT orario, luogo, lat, lon FROM ride_stops WHERE ride_id = ? ORDER BY orario, id').all(rideId));
+const improntaSoste = (rideId) => JSON.stringify(db.prepare('SELECT orario, luogo, descrizione, lat, lon FROM ride_stops WHERE ride_id = ? ORDER BY orario, id').all(rideId));
 
 function getRideFull(id) {
   const ride = db.prepare(`
