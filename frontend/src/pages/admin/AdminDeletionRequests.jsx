@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import ErrorBanner from '../../components/ErrorBanner.jsx';
+import ErroreConRiprova from '../../components/ErroreConRiprova.jsx';
 import { Check, X } from 'lucide-react';
 import { api } from '../../api.js';
 
@@ -15,7 +15,8 @@ export default function AdminDeletionRequests() {
   const [error, setError] = useState('');
 
   const load = useCallback(() => {
-    api.get('/privacy/cancellazioni').then((d) => setRichieste(d.richieste)).catch((e) => setError(e.message));
+    setError('');
+    api.get('/privacy/cancellazioni').then((d) => { setRichieste(d.richieste); setError(''); }).catch((e) => setError(e.message));
   }, []);
   useEffect(() => { load(); }, [load]);
 
@@ -30,14 +31,14 @@ export default function AdminDeletionRequests() {
     } catch (e) { alert(e.message); }
   };
   const rifiuta = async (id) => {
-    const motivo = prompt('Motivo del rifiuto (facoltativo):') || '';
+    const risposta = prompt('Motivo del rifiuto (facoltativo):');
+    if (risposta === null) return; // «Annulla» o Esc: nessun rifiuto
+    const motivo = risposta;
     try {
       await api.post(`/privacy/cancellazioni/${id}/rifiuta`, { motivo });
       load();
     } catch (e) { alert(e.message); }
   };
-
-  if (error) return <ErrorBanner message={error} />;
 
   const inAttesa = (richieste || []).filter((r) => r.stato === 'in_attesa');
   const altre = (richieste || []).filter((r) => r.stato !== 'in_attesa');
@@ -49,8 +50,10 @@ export default function AdminDeletionRequests() {
         <p className="text-muted text-sm mt-0.5">Richieste di cancellazione dei dati personali (GDPR).</p>
       </div>
 
+      {error && <ErroreConRiprova messaggio={error} onRiprova={load} />}
+
       {richieste === null ? (
-        <div className="card animate-pulse h-24" />
+        error ? null : <div className="card animate-pulse h-24" />
       ) : richieste.length === 0 ? (
         <div className="card text-center py-10 text-sm text-muted">Nessuna richiesta al momento.</div>
       ) : (

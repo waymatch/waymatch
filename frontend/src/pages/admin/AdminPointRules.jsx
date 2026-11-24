@@ -1,5 +1,5 @@
-import React, { useEffect, useState, useCallback } from 'react';
-import ErrorBanner from '../../components/ErrorBanner.jsx';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
+import ErroreConRiprova from '../../components/ErroreConRiprova.jsx';
 import { Award, Gift, History } from 'lucide-react';
 import { api } from '../../api.js';
 
@@ -11,13 +11,18 @@ export default function AdminPointRules() {
   const [msg, setMsg] = useState('');
 
   const load = useCallback(() => {
-    api.get('/point-rules').then((d) => setRules(d.rules)).catch((e) => setError(e.message));
-    api.get('/users').then((d) => setUsers(d.users));
-    api.get('/point-rules/manual-award/storico').then((d) => setStorico(d.storico));
+    setError('');
+    const errore = (e) => setError(e.message || 'Impossibile caricare i dati.');
+    api.get('/point-rules').then((d) => setRules(d.rules)).catch(errore);
+    api.get('/users').then((d) => setUsers(d.users)).catch(errore);
+    api.get('/point-rules/manual-award/storico').then((d) => setStorico(d.storico)).catch(errore);
   }, []);
   useEffect(() => { load(); }, [load]);
 
+  const inSalvataggio = useRef(new Set()); // regole con un salvataggio in corso: niente secondo PUT in parallelo
   const salvaRegola = async (chiave, punti, attivo) => {
+    if (inSalvataggio.current.has(chiave)) return;
+    inSalvataggio.current.add(chiave);
     setMsg('');
     try {
       await api.put(`/point-rules/${chiave}`, { punti, attivo });
@@ -25,6 +30,8 @@ export default function AdminPointRules() {
       load();
     } catch (e) {
       setMsg(e.message);
+    } finally {
+      inSalvataggio.current.delete(chiave);
     }
   };
 
@@ -39,12 +46,12 @@ export default function AdminPointRules() {
       </div>
 
       {msg && <div className="rounded-xl bg-primary-light text-primary-dark text-sm px-3.5 py-2.5">{msg}</div>}
-      {error && <ErrorBanner message={error} />}
+      {error && <ErroreConRiprova messaggio={error} onRiprova={load} />}
 
       <section className="space-y-3">
         <SectionTitle icon={Award} title="Regole" />
         <div className="grid gap-3 lg:grid-cols-2">
-          {rules === null ? <div className="card animate-pulse h-24" /> : rules.map((r) => (
+          {rules === null ? (error ? null : <div className="card animate-pulse h-24" />) : rules.map((r) => (
             <RuleRow key={r.chiave} rule={r} onSave={salvaRegola} />
           ))}
         </div>
@@ -56,7 +63,7 @@ export default function AdminPointRules() {
 
       <section className="space-y-3">
         <SectionTitle icon={History} title="Storico assegnazioni manuali" />
-        {storico === null ? <div className="card animate-pulse h-16" /> : storico.length === 0 ? (
+        {storico === null ? (error ? null : <div className="card animate-pulse h-16" />) : storico.length === 0 ? (
           <div className="card text-center py-6 text-sm text-muted">Nessuna assegnazione manuale finora.</div>
         ) : (
           <div className="card divide-y divide-border">
@@ -81,6 +88,7 @@ export default function AdminPointRules() {
 function RuleRow({ rule, onSave }) {
   const [punti, setPunti] = useState(rule.punti);
   const [attivo, setAttivo] = useState(!!rule.attivo);
+  const [salvando, setSalvando] = useState(false);
   const dirty = punti !== rule.punti || attivo !== !!rule.attivo;
 
   return (
@@ -108,8 +116,11 @@ function RuleRow({ rule, onSave }) {
         />
         <span className="text-xs text-muted">punti</span>
         {dirty && (
-          <button className="btn-primary !py-1.5 !text-xs ml-auto" onClick={() => onSave(rule.chiave, punti, attivo)}>
-            Salva
+          <button
+            type="button" className="btn-primary !py-1.5 !text-xs ml-auto" disabled={salvando}
+            onClick={async () => { setSalvando(true); try { await onSave(rule.chiave, punti, attivo); } finally { setSalvando(false); } }}
+          >
+            {salvando ? 'Salvo...' : 'Salva'}
           </button>
         )}
       </div>

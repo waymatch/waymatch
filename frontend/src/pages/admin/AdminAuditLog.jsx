@@ -1,5 +1,6 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
 import ErrorBanner from '../../components/ErrorBanner.jsx';
+import ErroreConRiprova from '../../components/ErroreConRiprova.jsx';
 import { ScrollText, FileDown } from 'lucide-react';
 import { api, scaricaFile } from '../../api.js';
 
@@ -76,13 +77,19 @@ export default function AdminAuditLog() {
   const [userId, setUserId] = useState('');
   const [tipiEvento, setTipiEvento] = useState([]);
   const [utenti, setUtenti] = useState([]);
-  const [error, setError] = useState('');
+  const [error, setError] = useState('');           // caricamento del registro
+  const [erroreExport, setErroreExport] = useState('');
+  const [erroreFiltri, setErroreFiltri] = useState('');
   const [esportando, setEsportando] = useState(false);
+  const richiesta = useRef(0); // identifica l'ultimo caricamento: le risposte di filtri superati si ignorano
 
-  useEffect(() => {
-    api.get('/audit-log/tipi-evento').then((d) => setTipiEvento(d.tipi));
-    api.get('/users').then((d) => setUtenti(d.users));
+  const caricaFiltri = useCallback(() => {
+    setErroreFiltri('');
+    const errore = (e) => setErroreFiltri(e.message || 'Impossibile caricare i filtri.');
+    api.get('/audit-log/tipi-evento').then((d) => setTipiEvento(d.tipi)).catch(errore);
+    api.get('/users').then((d) => setUtenti(d.users)).catch(errore);
   }, []);
+  useEffect(() => { caricaFiltri(); }, [caricaFiltri]);
 
   const filtriAttuali = useCallback(() => {
     const params = new URLSearchParams();
@@ -93,17 +100,22 @@ export default function AdminAuditLog() {
   }, [categoria, azione, userId]);
 
   const load = useCallback(() => {
-    api.get(`/audit-log?${filtriAttuali().toString()}`).then((d) => setLog(d.log)).catch((e) => setError(e.message));
+    const mia = ++richiesta.current;
+    setError('');
+    api.get(`/audit-log?${filtriAttuali().toString()}`)
+      .then((d) => { if (mia === richiesta.current) { setLog(d.log); setError(''); } })
+      .catch((e) => { if (mia === richiesta.current) setError(e.message); });
   }, [filtriAttuali]);
 
   useEffect(() => { load(); }, [load]);
 
   const esporta = async () => {
     setEsportando(true);
+    setErroreExport('');
     try {
       await scaricaFile(`/audit-log/export/xlsx?${filtriAttuali().toString()}`, 'log-attivita.xlsx');
     } catch (e) {
-      setError(e.message);
+      setErroreExport(e.message);
     } finally {
       setEsportando(false);
     }
@@ -124,10 +136,12 @@ export default function AdminAuditLog() {
         </button>
       </div>
 
-      <div className="flex gap-2 bg-bg p-1 rounded-xl w-fit border border-border">
+      <div role="group" aria-label="Categoria delle attività" className="flex gap-2 bg-bg p-1 rounded-xl w-fit border border-border">
         {FILTRI_CATEGORIA.map((f) => (
           <button
             key={f.value}
+            type="button"
+            aria-pressed={categoria === f.value}
             onClick={() => setCategoria(f.value)}
             className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
               categoria === f.value ? 'bg-surface shadow-sm text-primary' : 'text-muted'
@@ -149,10 +163,12 @@ export default function AdminAuditLog() {
         </select>
       </div>
 
-      {error && <ErrorBanner message={error} />}
+      {erroreFiltri && <ErroreConRiprova messaggio={`Filtri non disponibili: ${erroreFiltri}`} onRiprova={caricaFiltri} />}
+      {error && <ErroreConRiprova messaggio={error} onRiprova={load} />}
+      {erroreExport && <ErrorBanner message={`Esportazione non riuscita: ${erroreExport}`} />}
 
       {log === null ? (
-        <div className="card animate-pulse h-40" />
+        error ? null : <div className="card animate-pulse h-40" />
       ) : log.length === 0 ? (
         <div className="card text-center py-10 text-sm text-muted">Nessuna attività corrisponde ai filtri.</div>
       ) : (

@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import ErrorBanner from '../../components/ErrorBanner.jsx';
+import ErroreConRiprova from '../../components/ErroreConRiprova.jsx';
 import { CheckCircle2, XCircle, Users, UserCheck } from 'lucide-react';
 import { api } from '../../api.js';
 
@@ -8,7 +8,8 @@ export default function AdminApprovals() {
   const [error, setError] = useState('');
 
   const load = useCallback(() => {
-    api.get('/rides/pending/approvazione').then((d) => setRides(d.rides)).catch((e) => setError(e.message));
+    setError('');
+    api.get('/rides/pending/approvazione').then((d) => { setRides(d.rides); setError(''); }).catch((e) => setError(e.message));
   }, []);
   useEffect(() => { load(); }, [load]);
 
@@ -19,7 +20,9 @@ export default function AdminApprovals() {
     } catch (e) { alert(e.message); }
   };
   const rifiuta = async (id) => {
-    const motivo = prompt('Motivo del rifiuto (facoltativo):') || '';
+    const risposta = prompt('Motivo del rifiuto (facoltativo):');
+    if (risposta === null) return; // «Annulla» o Esc: nessun rifiuto
+    const motivo = risposta;
     try {
       await api.post(`/rides/${id}/rifiuta-completamento`, { motivo });
       load();
@@ -35,9 +38,10 @@ export default function AdminApprovals() {
         </p>
       </div>
 
-      {error && <ErrorBanner message={error} />}
+      {error && <ErroreConRiprova messaggio={error} onRiprova={load} />}
 
       {rides === null ? (
+        error ? null :
         <div className="card animate-pulse h-24" />
       ) : rides.length === 0 ? (
         <div className="card text-center py-10 text-sm text-muted">Nessun viaggio in attesa di approvazione.</div>

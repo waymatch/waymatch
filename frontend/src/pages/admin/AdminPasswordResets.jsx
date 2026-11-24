@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import ErrorBanner from '../../components/ErrorBanner.jsx';
+import ErroreConRiprova from '../../components/ErroreConRiprova.jsx';
 import { KeyRound, Copy, Check } from 'lucide-react';
 import { api } from '../../api.js';
 
@@ -17,9 +17,11 @@ export default function AdminPasswordResets() {
   const [copiato, setCopiato] = useState(false);
 
   const load = useCallback(() => {
+    setError('');
     api.get('/auth/password-reset-richieste').then((d) => {
       setRichieste(d.richieste);
       setSmtpAttivo(d.smtp_attivo);
+      setError('');
     }).catch((e) => setError(e.message));
   }, []);
   useEffect(() => { load(); }, [load]);
@@ -41,8 +43,6 @@ export default function AdminPasswordResets() {
     });
   };
 
-  if (error) return <ErrorBanner message={error} />;
-
   const inAttesa = (richieste || []).filter((r) => r.stato === 'in_attesa');
   const altre = (richieste || []).filter((r) => r.stato !== 'in_attesa');
 
@@ -62,21 +62,24 @@ export default function AdminPasswordResets() {
         )}
       </div>
 
+      {/* L'errore di caricamento non nasconde la password appena generata (non viene mostrata di nuovo). */}
+      {error && <ErroreConRiprova messaggio={error} onRiprova={load} />}
+
       {generata && (
         <div className="card bg-primary-light border-none">
           <p className="text-sm font-medium text-primary-dark flex items-center gap-1.5"><KeyRound size={15} /> Password generata per {generata.utente.nome} {generata.utente.cognome}</p>
           <p className="text-xs text-primary-dark/80 mt-0.5">Comunicala tu all'utente: non verrà mostrata di nuovo. Al primo accesso dovrà sceglierne una sua.</p>
           <div className="flex items-center gap-2 mt-2.5">
             <code className="flex-1 bg-surface rounded-lg px-3 py-2 text-sm font-mono">{generata.password_temporanea}</code>
-            <button type="button" className="btn-outline !py-2" onClick={copia}>
-              {copiato ? <Check size={15} /> : <Copy size={15} />}
+            <button type="button" className="btn-outline !py-2" onClick={copia} aria-label="Copia password temporanea">
+              {copiato ? <Check size={15} aria-hidden="true" /> : <Copy size={15} aria-hidden="true" />}
             </button>
           </div>
         </div>
       )}
 
       {richieste === null ? (
-        <div className="card animate-pulse h-24" />
+        error ? null : <div className="card animate-pulse h-24" />
       ) : richieste.length === 0 ? (
         <div className="card text-center py-10 text-sm text-muted">Nessuna richiesta al momento.</div>
       ) : (
