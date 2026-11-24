@@ -117,7 +117,14 @@ async function main() {
     ritardoOsrm = 600;
     const richiestaArrivata = new Promise((res) => { alPrimoOsrm = res; });
     const lenta = call('PUT', `/rides/${rideId}`, { token: autista, body: { partenza_lat: 45.54, partenza_lon: 9.05 } });
-    await richiestaArrivata; // il server ha già copiato lo stato del passaggio: la modifica che segue è davvero concorrente
+    // Il server ha già copiato lo stato del passaggio quando chiede il percorso: la modifica che segue è davvero
+    // concorrente. Se la richiesta finisce prima (errore) o non arriva, il test lo dice invece di restare in attesa.
+    const attesa = await Promise.race([
+      richiestaArrivata.then(() => 'osrm'),
+      lenta.then(() => 'conclusa senza chiamare OSRM'),
+      new Promise((res) => setTimeout(() => res('timeout'), 5000)),
+    ]);
+    check('il server chiede il percorso a OSRM prima di rispondere', attesa === 'osrm', attesa);
     sql("UPDATE rides SET ora = '09:10' WHERE id = ?", rideId);
     r = await lenta;
     ritardoOsrm = 0;
