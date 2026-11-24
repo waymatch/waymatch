@@ -409,10 +409,11 @@ router.put('/:id', requireAuth, asyncHandler(async (req, res) => {
   if (esito === 'non_attivo') return res.status(400).json({ error: 'Questo passaggio non può più essere modificato' });
   if (esito?.impegnati) return res.status(400).json({ error: `Non puoi scendere sotto ${esito.impegnati} posti: ci sono già richieste/conferme attive.` });
 
-  if (impegnati > 0) {
-    const passeggeri = db.prepare(`
-      SELECT passenger_id FROM bookings WHERE ride_id = ? AND stato IN ('richiesto','confermato')
-    `).all(ride.id).map((b) => b.passenger_id);
+  // Destinatari letti dopo il commit: comprende anche chi ha prenotato durante il calcolo dei km.
+  const passeggeri = db.prepare(`
+    SELECT passenger_id FROM bookings WHERE ride_id = ? AND stato IN ('richiesto','confermato')
+  `).all(ride.id).map((b) => b.passenger_id);
+  if (passeggeri.length > 0) {
     await notificaMassiva(
       passeggeri, 'passaggio_modificato',
       `Il passaggio ${ride.tipo} del ${nuovaData} è stato modificato dall'autista (nuovo orario: ${nuovaOra}). Controlla i dettagli.`,
