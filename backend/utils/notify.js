@@ -1,0 +1,169 @@
+const webpush = require('web-push');
+const db = require('../db');
+const { inviaEmail, smtpAttivo } = require('./mailer');
+
+let vapidConfigured = false;
+function ensureVapid() {
+  if (vapidConfigured) return;
+  const s = db.prepare('SELECT vapid_public_key, vapid_private_key FROM system_settings WHERE id = 1').get();
+  if (s.vapid_public_key && s.vapid_private_key) {
+    webpush.setVapidDetails('mailto:admin@example.com', s.vapid_public_key, s.vapid_private_key);
+    vapidConfigured = true;
+  }
+}
+
+// Categorie di notifica esposte all'utente nelle preferenze (Profilo). Ogni tipo di
+// evento di sistema appartiene a una categoria; l'utente decide, per categoria, se
+// riceverla via push e/o via email (l'in-app è sempre attiva).
+const CATEGORIE = {
+  nuova_richiesta: 'richieste_ricevute',
+  richiesta_annullata: 'richieste_ricevute',
+  richiesta_confermata: 'esito_richieste',
+  richiesta_rifiutata: 'esito_richieste',
+  viaggio_annullato: 'variazioni_viaggio',
+  passaggio_modificato: 'variazioni_viaggio',
+  autista_in_ritardo: 'variazioni_viaggio',
+  passeggero_in_ritardo: 'ritardo_passeggero',
+  completamento_approvato: 'variazioni_viaggio',
+  completamento_rifiutato: 'variazioni_viaggio',
+  riscatto_approvato: 'premi',
+  riscatto_rifiutato: 'premi',
+  riscatto_consegnato: 'premi',
+  completamento_da_approvare: 'approvazioni_mm',
+  promemoria_partenza: 'promemoria_partenza',
+  matching_proattivo: 'matching_proattivo',
+  passaggio_preferito_pubblicato: 'passaggi_preferiti',
+  riepilogo_settimanale: 'riepilogo_settimanale',
+  iscritto_lista_attesa: 'esito_richieste',
+  promosso_da_lista_attesa: 'esito_richieste',
+  richiesta_cancellazione_ricevuta: 'approvazioni_mm',
+  richiesta_cancellazione_rifiutata: 'variazioni_viaggio',
+  richiesta_reset_password_ricevuta: 'approvazioni_mm',
+  password_reset_completata: 'variazioni_viaggio',
+};
+
+const CATEGORIE_INFO = [
+  { chiave: 'richieste_ricevute', nome: 'Richieste ricevute', descrizione: 'Quando qualcuno richiede un posto in un tuo passaggio offerto.' },
+  { chiave: 'esito_richieste', nome: 'Esito delle tue richieste', descrizione: 'Quando una tua richiesta di passaggio viene confermata o rifiutata.' },
+  { chiave: 'variazioni_viaggio', nome: 'Variazioni ai viaggi', descrizione: 'Modifiche, cancellazioni ed esiti di completamento dei viaggi che ti riguardano.' },
+  { chiave: 'premi', nome: 'Premi', descrizione: 'Esito delle richieste di riscatto premio.' },
+  { chiave: 'promemoria_partenza', nome: 'Promemoria di partenza', descrizione: 'Un avviso prima dell\'orario di partenza di un tuo passaggio (come autista o passeggero confermato).', conMinutiAnticipo: true },
+  { chiave: 'matching_proattivo', nome: 'Passaggi compatibili con il tuo turno', descrizione: 'Avviso quando viene pubblicato un passaggio compatibile con un tuo turno fisso.' },
+  { chiave: 'passaggi_preferiti', nome: 'Passaggi preferiti', descrizione: 'Avviso quando un autista che segui pubblica un nuovo passaggio.' },
+  { chiave: 'riepilogo_settimanale', nome: 'Riepilogo settimanale', descrizione: 'Un breve riepilogo dei punti guadagnati e dei viaggi fatti nell\'ultima settimana.' },
+  { chiave: 'ritardo_passeggero', nome: 'Ritardo di un passeggero', descrizione: 'Quando un passeggero confermato ti segnala di essere in ritardo al punto di ritrovo.' },
+  { chiave: 'approvazioni_mm', nome: 'Approvazioni da validare', descrizione: 'Nuovi viaggi in attesa di approvazione (solo Mobility Manager).', soloRuolo: 'mobility_manager' },
+];
+
+function getCategoria(tipo) {
+  return CATEGORIE[tipo] || 'variazioni_viaggio';
+}
+
+function preferenza(userId, categoria) {
+  const row = db.prepare(`
+    SELECT push, email FROM notification_preferences WHERE user_id = ? AND categoria = ?
+  `).get(userId, categoria);
+  return row || { push: 1, email: 1 }; // default: entrambi attivi se non personalizzato
+}
+
+function destinazionePer(tipo) {
+  switch (tipo) {
+    case 'nuova_richiesta':
+    case 'richiesta_annullata':
+    case 'completamento_approvato':
+    case 'completamento_rifiutato':
+      return '/i-miei-viaggi?tab=offerti';
+    case 'richiesta_confermata':
+    case 'richiesta_rifiutata':
+    case 'viaggio_annullato':
+    case 'passaggio_modificato':
+    case 'iscritto_lista_attesa':
+    case 'promosso_da_lista_attesa':
+    case 'autista_in_ritardo':
+      return '/i-miei-viaggi?tab=prenotati';
+    case 'passeggero_in_ritardo':
+      return '/i-miei-viaggi?tab=offerti';
+    case 'completamento_da_approvare':
+      return '/admin/approvazioni';
+    case 'richiesta_cancellazione_ricevuta':
+      return '/admin/cancellazioni';
+    case 'richiesta_cancellazione_rifiutata':
+      return '/profilo';
+    case 'richiesta_reset_password_ricevuta':
+      return '/admin/reset-password';
+    case 'password_reset_completata':
+      return '/profilo';
+    case 'promemoria_partenza':
+      return '/i-miei-viaggi';
+    case 'matching_proattivo':
+    case 'passaggio_preferito_pubblicato':
+      return '/cerca';
+    case 'riepilogo_settimanale':
+      return '/premi';
+    case 'riscatto_approvato':
+    case 'riscatto_rifiutato':
+    case 'riscatto_consegnato':
+      return '/premi';
+    default:
+      return '/';
+  }
+}
+
+// Crea sempre la notifica in-app; invia push e/o email solo se l'utente non li ha
+// disattivati per la categoria dell'evento.
+function iconaPush() {
+  const ic = require('./icona');
+  return ic.sorgente() ? `/api/branding/icona/192.png?v=${ic.versione()}` : undefined;
+}
+
+async function notifica(userId, tipo, messaggio, rideId = null) {
+  const url = destinazionePer(tipo);
+  const info = db.prepare(`
+    INSERT INTO notifications (user_id, tipo, messaggio, ride_id, url) VALUES (?, ?, ?, ?, ?)
+  `).run(userId, tipo, messaggio, rideId, url);
+
+  const categoria = getCategoria(tipo);
+  const pref = preferenza(userId, categoria);
+
+  if (pref.push) {
+    ensureVapid();
+    const subs = db.prepare('SELECT * FROM push_subscriptions WHERE user_id = ?').all(userId);
+    const payload = JSON.stringify({
+      title: 'WayMatch',
+      body: messaggio,
+      icon: iconaPush(),
+      url: `${url}${url.includes('?') ? '&' : '?'}nid=${info.lastInsertRowid}`,
+    });
+    for (const sub of subs) {
+      try {
+        await webpush.sendNotification(
+          { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } },
+          payload
+        );
+      } catch (e) {
+        if (e.statusCode === 404 || e.statusCode === 410) {
+          db.prepare('DELETE FROM push_subscriptions WHERE id = ?').run(sub.id);
+        } else {
+          console.error('Errore invio push:', e.message);
+        }
+      }
+    }
+  }
+
+  if (pref.email && smtpAttivo()) {
+    const utente = db.prepare('SELECT email FROM users WHERE id = ?').get(userId);
+    if (utente?.email) {
+      await inviaEmail(utente.email, 'Carpooling — nuova notifica', messaggio);
+    }
+  }
+}
+
+// In parallelo invece che in sequenza: chi annulla un viaggio con più passeggeri non deve
+// aspettare un invio push/email dopo l'altro.
+async function notificaMassiva(userIds, tipo, messaggio, rideId = null) {
+  await Promise.all(
+    [...new Set(userIds)].map((uid) => notifica(uid, tipo, messaggio, rideId))
+  );
+}
+
+module.exports = { notifica, notificaMassiva, CATEGORIE_INFO };
