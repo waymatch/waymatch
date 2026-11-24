@@ -21,7 +21,12 @@ docs/       questa documentazione
 # la chiave del database locale si crea solo se manca (cambiarla rende illeggibile il database
 # creato con la precedente; backend/data è ignorata da git). Se esiste già, restringine i permessi
 # senza rigenerarla: chmod 600 backend/data/chiave-db
-[ -s backend/data/chiave-db ] || (umask 077; mkdir -p backend/data && openssl rand -hex 32 > backend/data/chiave-db.tmp && mv backend/data/chiave-db.tmp backend/data/chiave-db)
+if [ ! -e backend/data/chiave-db ]; then
+  ( umask 077; mkdir -p backend/data
+    t=$(mktemp backend/data/chiave.XXXXXX) &&
+      openssl rand -hex 32 > "$t" && ln "$t" backend/data/chiave-db   # ln non sovrascrive
+    rm -f "$t" )
+fi
 # backend (porta 4000); il JWT_SECRET può cambiare a ogni avvio (chiude solo le sessioni aperte):
 cd backend && JWT_SECRET=$(openssl rand -hex 32) DB_ENCRYPTION_KEY_FILE=data/chiave-db node server.js
 # frontend con ricarica a caldo (altro terminale):
