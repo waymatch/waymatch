@@ -7,14 +7,15 @@ const router = express.Router();
 
 router.get('/', requireAuth, (req, res) => {
   const righe = db.prepare(`
-    SELECT categoria, push, email, minuti_anticipo FROM notification_preferences WHERE user_id = ?
+    SELECT categoria, inapp, push, email, minuti_anticipo FROM notification_preferences WHERE user_id = ?
   `).all(req.user.id);
-  const mappa = Object.fromEntries(righe.map((r) => [r.categoria, { push: !!r.push, email: !!r.email, minuti_anticipo: r.minuti_anticipo }]));
+  const mappa = Object.fromEntries(righe.map((r) => [r.categoria, { inapp: !!r.inapp, push: !!r.push, email: !!r.email, minuti_anticipo: r.minuti_anticipo }]));
 
   const categorie = CATEGORIE_INFO
     .filter((c) => !c.soloRuolo || c.soloRuolo === req.user.ruolo)
     .map((c) => ({
       ...c,
+      inapp: mappa[c.chiave] ? mappa[c.chiave].inapp : true,
       push: mappa[c.chiave] ? mappa[c.chiave].push : true,
       email: mappa[c.chiave] ? mappa[c.chiave].email : true,
       minuti_anticipo: mappa[c.chiave]?.minuti_anticipo ?? 30,
@@ -28,6 +29,7 @@ router.put('/:categoria', requireAuth, (req, res) => {
     return res.status(400).json({ error: 'Categoria non valida' });
   }
   const { push, email } = req.body;
+  const inapp = req.body.inapp === undefined ? true : !!req.body.inapp;
   // Anticipo del promemoria: da 0 (alla partenza) a 120 minuti, la finestra dello scheduler.
   let minuti_anticipo = 30;
   if (req.body.minuti_anticipo !== undefined && req.body.minuti_anticipo !== null) {
@@ -37,9 +39,9 @@ router.put('/:categoria', requireAuth, (req, res) => {
     }
   }
   db.prepare(`
-    INSERT INTO notification_preferences (user_id, categoria, push, email, minuti_anticipo) VALUES (?, ?, ?, ?, ?)
-    ON CONFLICT(user_id, categoria) DO UPDATE SET push = excluded.push, email = excluded.email, minuti_anticipo = excluded.minuti_anticipo
-  `).run(req.user.id, req.params.categoria, push ? 1 : 0, email ? 1 : 0, minuti_anticipo);
+    INSERT INTO notification_preferences (user_id, categoria, inapp, push, email, minuti_anticipo) VALUES (?, ?, ?, ?, ?, ?)
+    ON CONFLICT(user_id, categoria) DO UPDATE SET inapp = excluded.inapp, push = excluded.push, email = excluded.email, minuti_anticipo = excluded.minuti_anticipo
+  `).run(req.user.id, req.params.categoria, inapp ? 1 : 0, push ? 1 : 0, email ? 1 : 0, minuti_anticipo);
   res.json({ ok: true });
 });
 

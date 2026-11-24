@@ -4,6 +4,7 @@ const { rigaSicura } = require('../utils/export');
 const { requireAuth, requireRole } = require('../middleware/auth');
 const { registraAzione } = require('../utils/audit');
 const { asyncHandler } = require('../utils/asyncHandler');
+const { kmAffidabili } = require('../utils/points');
 const {
   co2GramsForTrip, kmRisparmiati, costoRisparmiato, costoKmPerAlimentazione,
   getAllClusters, setClusterOverride, resetClusterOverride, clusterEsistente,
@@ -16,7 +17,8 @@ const router = express.Router();
 // utils/co2.js): un'utilitaria elettrica e un SUV diesel non "risparmiano" la stessa cosa.
 function computeSavings(where = '', params = []) {
   const rides = db.prepare(`
-    SELECT r.id, r.km_stimati, r.data, r.sede_id, s.nome as sede_nome,
+    SELECT r.id, r.km_stimati, r.km_verificati, r.partenza_lat, r.partenza_lon, r.arrivo_lat, r.arrivo_lon,
+           r.data, r.sede_id, s.nome as sede_nome,
            u.auto_alimentazione,
            (SELECT COUNT(*) FROM bookings b WHERE b.ride_id = r.id AND b.stato = 'completato') as passeggeri
     FROM rides r
@@ -44,7 +46,8 @@ function computeSavings(where = '', params = []) {
   for (const r of rides) {
     // Anche un viaggio senza passeggeri conta tra i viaggi completati, senza risparmi.
     const conPasseggeri = r.passeggeri > 0;
-    const km = conPasseggeri ? kmRisparmiati(r.km_stimati, r.passeggeri) : 0;
+    // Stessi km dei punti: quelli dichiarati, entro il percorso verificato dal server.
+    const km = conPasseggeri ? kmRisparmiati(kmAffidabili(r), r.passeggeri) : 0;
     const co2g = conPasseggeri ? co2GramsForTrip(km, r.auto_alimentazione) : 0;
     const costo = conPasseggeri ? costoRisparmiato(km, costoKmPerAlimentazione(r.auto_alimentazione)) : 0;
 

@@ -357,6 +357,10 @@ addColumnIfMissing('system_settings', 'pwa_short_name', 'TEXT');
 // Perché un'occorrenza di un turno fisso è stata annullata: 'sospensione_turno' permette di
 // ripristinare solo quelle quando il turno viene riattivato.
 addColumnIfMissing('rides', 'motivo_annullamento', 'TEXT');
+// Km del percorso calcolati dal server (OSRM) alla pubblicazione: la base dei punti e dei
+// risparmi, al posto dei km inviati dal client. NULL se il servizio non era disponibile.
+addColumnIfMissing('rides', 'km_verificati', 'REAL');
+addColumnIfMissing('recurring_rides', 'km_verificati', 'REAL');
 
 // Migrazioni una tantum, numerate con PRAGMA user_version: ognuna gira una sola volta per database.
 const versioneSchema = db.pragma('user_version', { simple: true });
@@ -383,6 +387,9 @@ addColumnIfMissing('rewards', 'tipo', "TEXT NOT NULL DEFAULT 'fisico'");
 addColumnIfMissing('rewards', 'voucher_template_id', 'INTEGER REFERENCES voucher_templates(id) ON DELETE SET NULL');
 addColumnIfMissing('reward_redemptions', 'codice_voucher', 'TEXT');
 addColumnIfMissing('notification_preferences', 'minuti_anticipo', 'INTEGER DEFAULT 30');
+// Terzo canale accanto a push ed email: la campanella dentro l'app. Attivo per chi aveva già
+// delle preferenze salvate.
+addColumnIfMissing('notification_preferences', 'inapp', 'INTEGER NOT NULL DEFAULT 1');
 // Indirizzo di casa predefinito: precompila l'offerta di un passaggio e permette di
 // mostrare prima, nella ricerca, i passaggi il cui percorso reale passa vicino a casa.
 addColumnIfMissing('users', 'indirizzo_casa', 'TEXT');

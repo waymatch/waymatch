@@ -1,7 +1,7 @@
 const express = require('express');
 const db = require('../db');
 const { requireAuth } = require('../middleware/auth');
-const { assegnaPunti, getRule } = require('../utils/points');
+const { assegnaPunti, getRule, kmDalServer } = require('../utils/points');
 const { registraAzione } = require('../utils/audit');
 const { notificaMatchProattivo, notificaPreferiti } = require('../utils/matching');
 const { notificaMassiva } = require('../utils/notify');
@@ -11,7 +11,7 @@ const { geometriaValida, sosteValide } = require('../utils/geoDistance');
 
 const router = express.Router();
 
-router.post('/', requireAuth, (req, res) => {
+router.post('/', requireAuth, asyncHandler(async (req, res) => {
   const me = db.prepare('SELECT * FROM users WHERE id = ?').get(req.user.id);
   if (!me.sede_id) return res.status(400).json({ error: 'Imposta prima la tua sede nel profilo' });
 
@@ -54,25 +54,27 @@ router.post('/', requireAuth, (req, res) => {
   const posti = posti_totali != null && posti_totali !== ''
     ? Number(posti_totali)
     : Math.max(1, Math.min(8, Math.trunc(Number(me.auto_posti)) || 3));
+  // Km del percorso calcolati una volta dal server: valgono per tutte le occorrenze.
+  const kmVerificati = await kmDalServer(partenza_lat, partenza_lon, arrivo_lat, arrivo_lon, soste);
   const info = db.prepare(`
     INSERT INTO recurring_rides (
       driver_id, tipo, giorni_settimana, ora, punto_partenza, punto_arrivo, sede_id,
       partenza_lat, partenza_lon, arrivo_lat, arrivo_lon, km_stimati, geometria,
-      posti_totali, note, soste, data_inizio, data_fine, citta_domicilio
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      posti_totali, note, soste, data_inizio, data_fine, citta_domicilio, km_verificati
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).run(
     me.id, tipo, giorniNormalizzati.join(','), ora, punto_partenza, punto_arrivo, sede_id || me.sede_id,
     partenza_lat ?? null, partenza_lon ?? null, arrivo_lat ?? null, arrivo_lon ?? null,
     Number(km_stimati) || 0, geometria != null ? JSON.stringify(geometria) : null,
     posti, note || null, soste ? JSON.stringify(soste) : null,
-    data_inizio, data_fine || null, citta_domicilio || null
+    data_inizio, data_fine || null, citta_domicilio || null, kmVerificati
   );
 
   registraAzione(me.id, 'turno_fisso_creato', `${tipo} alle ${ora}, giorni: ${giorniNormalizzati.join(',')}`, 'utente');
 
   const generati = generaOccorrenzePerTemplate(info.lastInsertRowid, 14);
   res.json({ recurring_ride: db.prepare('SELECT * FROM recurring_rides WHERE id = ?').get(info.lastInsertRowid), generati });
-});
+}));
 
 router.get('/mie', requireAuth, (req, res) => {
   const turni = db.prepare(`
@@ -279,12 +281,12 @@ function generaOccorrenzePerTemplate(recurringId, giorni) {
         INSERT INTO rides (
           driver_id, sede_id, tipo, data, ora, punto_partenza, punto_arrivo,
           partenza_lat, partenza_lon, arrivo_lat, arrivo_lon, km_stimati, km_calcolati_auto, geometria,
-          posti_totali, posti_disponibili, note, recurring_ride_id, citta_domicilio
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?)
+          posti_totali, posti_disponibili, note, recurring_ride_id, citta_domicilio, km_verificati
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?)
       `).run(
         t.driver_id, t.sede_id, t.tipo, data, t.ora, t.punto_partenza, t.punto_arrivo,
         t.partenza_lat, t.partenza_lon, t.arrivo_lat, t.arrivo_lon, t.km_stimati, t.geometria,
-        t.posti_totali, t.posti_totali, t.note, t.id, t.citta_domicilio
+        t.posti_totali, t.posti_totali, t.note, t.id, t.citta_domicilio, t.km_verificati
       );
       const id = info.lastInsertRowid;
       if (soste.length) {
