@@ -40,6 +40,7 @@ export default function DocumentTextEditor({ value, onChange, rows = 10 }) {
 
   const inserisciLink = () => {
     const el = textareaRef.current;
+    if (!el) return; // in anteprima la textarea non c'è
     const start = el.selectionStart, end = el.selectionEnd;
     const selezionato = value.slice(start, end) || 'testo del link';
     const nuovo = value.slice(0, start) + `[${selezionato}](https://)` + value.slice(end);

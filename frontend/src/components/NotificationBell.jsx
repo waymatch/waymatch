@@ -46,13 +46,32 @@ export default function NotificationBell() {
     left = Math.min(left, window.innerWidth - panelWidth - PANEL_MARGIN);
     left = Math.max(left, PANEL_MARGIN);
     const top = rect.bottom + 8;
-    setPos({ top, left, width: panelWidth });
+    // La lista scorre dentro lo spazio visibile: sotto la campanella, tolti intestazione e margine.
+    const altezzaLista = Math.max(120, window.innerHeight - top - 52 - PANEL_MARGIN);
+    setPos({ top, left, width: panelWidth, altezzaLista });
   }, []);
 
   const toggle = () => {
     if (!open) { computePosition(); load(); }
     setOpen((v) => !v);
   };
+
+  // Aperto il pannello, il focus va al pannello (anche da tastiera); Esc lo chiude e riporta il
+  // focus sulla campanella.
+  const chiudi = useCallback(() => {
+    setOpen(false);
+    btnRef.current?.focus();
+  }, []);
+  useEffect(() => {
+    if (open && pos) panelRef.current?.focus();
+  }, [open, pos]);
+
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e) => { if (e.key === 'Escape') { e.stopPropagation(); chiudi(); } };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [open, chiudi]);
 
   useEffect(() => {
     if (!open) return;
@@ -111,7 +130,10 @@ export default function NotificationBell() {
       {open && pos && createPortal(
         <div
           ref={panelRef}
-          className="fixed bg-surface border border-border rounded-xl shadow-lg z-50 overflow-hidden"
+          role="dialog"
+          aria-label="Notifiche"
+          tabIndex={-1}
+          className="fixed bg-surface border border-border rounded-xl shadow-lg z-50 overflow-hidden outline-none"
           style={{ top: pos.top, left: pos.left, width: pos.width }}
         >
           <div className="flex items-center justify-between px-4 py-3 border-b border-border">
@@ -122,7 +144,7 @@ export default function NotificationBell() {
               </button>
             )}
           </div>
-          <div className="max-h-80 overflow-y-auto">
+          <div className="max-h-80 overflow-y-auto" style={{ maxHeight: Math.min(320, pos.altezzaLista) }}>
             {notifiche.length === 0 ? (
               <p className="text-sm text-muted text-center py-8">Nessuna notifica.</p>
             ) : (

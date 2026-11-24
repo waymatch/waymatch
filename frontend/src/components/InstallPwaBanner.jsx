@@ -11,13 +11,22 @@ function isIos() {
   return /iphone|ipad|ipod/i.test(window.navigator.userAgent);
 }
 
+// Preferenza facoltativa: se il browser non permette di salvarla (modalità privata, storage
+// bloccato) il banner funziona lo stesso e si chiude comunque.
+function leggiPreferenza(chiave) {
+  try { return localStorage.getItem(chiave); } catch { return null; }
+}
+function scriviPreferenza(chiave) {
+  try { localStorage.setItem(chiave, '1'); } catch { /* non persistente */ }
+}
+
 export default function InstallPwaBanner() {
   const [deferredPrompt, setDeferredPrompt] = useState(null);
   const [mostraIos, setMostraIos] = useState(false);
   const [visibile, setVisibile] = useState(false);
 
   useEffect(() => {
-    if (isStandalone() || localStorage.getItem(DISMISS_KEY)) return;
+    if (isStandalone() || leggiPreferenza(DISMISS_KEY)) return;
 
     const onBeforeInstall = (e) => {
       e.preventDefault();
@@ -46,7 +55,7 @@ export default function InstallPwaBanner() {
   };
 
   const chiudi = () => {
-    localStorage.setItem(DISMISS_KEY, '1');
+    scriviPreferenza(DISMISS_KEY);
     setVisibile(false);
   };
 
@@ -73,7 +82,7 @@ export default function InstallPwaBanner() {
           </button>
         )}
       </div>
-      <button onClick={chiudi} className="p-1 text-muted hover:text-ink shrink-0">
+      <button onClick={chiudi} aria-label="Chiudi il suggerimento di installazione" className="p-1 text-muted hover:text-ink shrink-0">
         <X size={16} />
       </button>
     </div>

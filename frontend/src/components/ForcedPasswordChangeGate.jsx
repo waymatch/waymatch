@@ -17,6 +17,7 @@ export default function ForcedPasswordChangeGate({ children }) {
   const [conferma, setConferma] = useState('');
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
+  const [cambiata, setCambiata] = useState(false);
 
   if (!user?.password_da_cambiare) return children;
 
@@ -32,7 +33,10 @@ export default function ForcedPasswordChangeGate({ children }) {
     try {
       const res = await api.put('/auth/me/password', { password_attuale: passwordAttuale, password_nuova: passwordNuova });
       setToken(res.token);
-      await refresh();
+      // La password è cambiata: le credenziali usate non servono più e non vanno riproposte.
+      setPasswordAttuale(''); setPasswordNuova(''); setConferma('');
+      setCambiata(true);
+      await refresh(); // se riesce, il profilo aggiornato chiude questa finestra
     } catch (e) {
       setError(e.message);
     } finally {
@@ -53,23 +57,30 @@ export default function ForcedPasswordChangeGate({ children }) {
         <p className="text-sm text-muted mt-1 mb-4">
           Prima di continuare, imposta una password che conosci solo tu.
         </p>
-        <form onSubmit={submit} className="space-y-3">
-          {error && <ErrorBanner message={error} />}
-          <div>
-            <label htmlFor="forcedpasswordchangegate-0" className="label">Password attuale</label>
-            <input id="forcedpasswordchangegate-0" type="password" required className="input" value={passwordAttuale} onChange={(e) => setPasswordAttuale(e.target.value)} />
+        {cambiata ? (
+          <div className="space-y-3" role="status">
+            <p className="text-sm">Password cambiata. Non è stato possibile aggiornare subito il profilo: ricarica la pagina per continuare.</p>
+            <button type="button" className="btn-primary w-full" onClick={() => window.location.reload()}>Continua</button>
           </div>
-          <div>
-            <label htmlFor="forcedpasswordchangegate-1" className="label">Nuova password</label>
-            <input id="forcedpasswordchangegate-1" type="password" required className="input" value={passwordNuova} onChange={(e) => setPasswordNuova(e.target.value)} />
-            <p className="text-xs text-muted mt-1">{REQUISITI_PASSWORD}</p>
-          </div>
-          <div>
-            <label htmlFor="forcedpasswordchangegate-2" className="label">Conferma nuova password</label>
-            <input id="forcedpasswordchangegate-2" type="password" required className="input" value={conferma} onChange={(e) => setConferma(e.target.value)} />
-          </div>
-          <button className="btn-primary w-full" disabled={saving}>{saving ? 'Salvataggio...' : 'Conferma e continua'}</button>
-        </form>
+        ) : (
+          <form onSubmit={submit} className="space-y-3">
+            {error && <ErrorBanner message={error} />}
+            <div>
+              <label htmlFor="forcedpasswordchangegate-0" className="label">Password attuale</label>
+              <input id="forcedpasswordchangegate-0" type="password" required className="input" value={passwordAttuale} onChange={(e) => setPasswordAttuale(e.target.value)} />
+            </div>
+            <div>
+              <label htmlFor="forcedpasswordchangegate-1" className="label">Nuova password</label>
+              <input id="forcedpasswordchangegate-1" type="password" required className="input" value={passwordNuova} onChange={(e) => setPasswordNuova(e.target.value)} />
+              <p className="text-xs text-muted mt-1">{REQUISITI_PASSWORD}</p>
+            </div>
+            <div>
+              <label htmlFor="forcedpasswordchangegate-2" className="label">Conferma nuova password</label>
+              <input id="forcedpasswordchangegate-2" type="password" required className="input" value={conferma} onChange={(e) => setConferma(e.target.value)} />
+            </div>
+            <button className="btn-primary w-full" disabled={saving}>{saving ? 'Salvataggio...' : 'Conferma e continua'}</button>
+          </form>
+        )}
       </div>
       </div>
     </FinestraModale>

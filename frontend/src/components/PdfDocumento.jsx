@@ -9,6 +9,9 @@ export function useLinkDocumento(docId) {
   const [errore, setErrore] = useState('');
   useEffect(() => {
     let attivo = true;
+    // Cambiando documento il link precedente non vale più: niente PDF vecchio mentre si carica.
+    setUrl(null);
+    setErrore('');
     const carica = () => api.post(`/legal-documents/${docId}/link`)
       .then((d) => { if (attivo) { setUrl(d.url); setErrore(''); } })
       .catch((e) => { if (attivo) setErrore(e.message); });

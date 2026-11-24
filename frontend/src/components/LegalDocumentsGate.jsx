@@ -12,12 +12,30 @@ export default function LegalDocumentsGate({ children, tipo = 'generale' }) {
   const [indice, setIndice] = useState(0);
   const [spuntato, setSpuntato] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [erroreCarica, setErroreCarica] = useState('');
+  const [erroreAccetta, setErroreAccetta] = useState('');
 
+  // Se l'elenco non si carica, il blocco resta: l'app non si apre come se non ci fossero
+  // documenti da accettare.
   const load = () => {
-    api.get(`/legal-documents/pending?tipo=${tipo}`).then((d) => setPending(d.documenti)).catch(() => setPending([]));
+    setErroreCarica('');
+    api.get(`/legal-documents/pending?tipo=${tipo}`)
+      .then((d) => setPending(d.documenti))
+      .catch((e) => { setPending(null); setErroreCarica(e.message || 'Impossibile caricare i documenti da accettare.'); });
   };
   useEffect(() => { load(); }, [tipo]);
 
+  if (erroreCarica) {
+    return (
+      <FinestraModale titoloId="documento-legale-errore" className="fixed inset-0 z-[100] bg-black/60 flex items-center justify-center p-4">
+        <div className="bg-surface w-full max-w-sm rounded-2xl p-6 space-y-3" role="alert">
+          <h2 id="documento-legale-errore" className="font-display font-semibold text-base">Documenti non disponibili</h2>
+          <p className="text-sm text-muted">{erroreCarica}</p>
+          <button type="button" className="btn-primary w-full" onClick={load}>Riprova</button>
+        </div>
+      </FinestraModale>
+    );
+  }
   if (pending === null) return null; // breve attesa, evita flash del contenuto
 
   if (pending.length === 0) return children;
@@ -26,13 +44,15 @@ export default function LegalDocumentsGate({ children, tipo = 'generale' }) {
 
   const accetta = async () => {
     setSaving(true);
+    setErroreAccetta('');
     try {
       try {
         await api.post(`/legal-documents/${doc.id}/accept`, { versione: doc.versione });
       } catch (e) {
         // Nuova versione pubblicata mentre l'utente leggeva: ricarica e mostra quella.
         if (e.codice === 'VERSIONE_CAMBIATA') { load(); setIndice(0); setSpuntato(false); return; }
-        throw e;
+        setErroreAccetta(e.message || 'Accettazione non riuscita, riprova.');
+        return;
       }
       if (indice + 1 < pending.length) {
         setIndice((i) => i + 1);
@@ -61,12 +81,14 @@ export default function LegalDocumentsGate({ children, tipo = 'generale' }) {
         </div>
         <div className="px-5 py-4 overflow-y-auto flex-1 text-sm">
           {doc.formato === 'pdf' ? (
-            <PdfDocumento docId={doc.id} titolo={doc.titolo} />
+            // La chiave include la versione: con una versione nuova il visualizzatore riparte.
+            <PdfDocumento key={`${doc.id}-${doc.versione}`} docId={doc.id} titolo={doc.titolo} />
           ) : (
             <DocumentContent testo={doc.contenuto} />
           )}
         </div>
         <div className="px-5 py-4 border-t border-border space-y-3">
+          {erroreAccetta && <p className="text-sm text-danger" role="alert">{erroreAccetta}</p>}
           <label className="flex items-start gap-2.5 text-sm cursor-pointer">
             <input type="checkbox" className="mt-0.5" checked={spuntato} onChange={(e) => setSpuntato(e.target.checked)} />
             <span>Ho letto e accetto questo documento.</span>

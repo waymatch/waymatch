@@ -143,11 +143,34 @@ export default function Layout() {
         <UserCard user={user} punti={punti} onLogout={logout} />
         <div className="pt-1 text-center"><PoweredBy /></div>
 
+        {/* Separatore ridimensionabile anche da tastiera: frecce sinistra/destra, Home e Fine
+            per gli estremi, Invio per tornare alla larghezza predefinita. */}
         <div
+          role="separator"
+          aria-orientation="vertical"
+          aria-label="Larghezza del menu"
+          aria-valuenow={sidebarWidth}
+          aria-valuemin={SIDEBAR_MIN}
+          aria-valuemax={SIDEBAR_MAX}
+          tabIndex={0}
           onMouseDown={() => setResizing(true)}
           onDoubleClick={resetSidebarWidth}
-          title="Trascina per ridimensionare, doppio click per ripristinare"
-          className={`hidden md:block absolute top-0 -right-0.5 h-full w-1.5 cursor-col-resize z-10 hover:bg-primary/30 ${resizing ? 'bg-primary/40' : ''}`}
+          onKeyDown={(e) => {
+            const passo = e.shiftKey ? 40 : 16;
+            let w = null;
+            if (e.key === 'ArrowLeft') w = sidebarWidth - passo;
+            else if (e.key === 'ArrowRight') w = sidebarWidth + passo;
+            else if (e.key === 'Home') w = SIDEBAR_MIN;
+            else if (e.key === 'End') w = SIDEBAR_MAX;
+            else if (e.key === 'Enter') { e.preventDefault(); resetSidebarWidth(); return; }
+            if (w === null) return;
+            e.preventDefault();
+            w = Math.min(SIDEBAR_MAX, Math.max(SIDEBAR_MIN, w));
+            setSidebarWidth(w);
+            try { localStorage.setItem('sidebarWidth', String(w)); } catch { /* localStorage non disponibile */ }
+          }}
+          title="Trascina o usa le frecce per ridimensionare, doppio click o Invio per ripristinare"
+          className={`hidden md:block absolute top-0 -right-0.5 h-full w-1.5 cursor-col-resize z-10 hover:bg-primary/30 focus-visible:bg-primary/40 focus-visible:outline-none ${resizing ? 'bg-primary/40' : ''}`}
         />
       </aside>
 

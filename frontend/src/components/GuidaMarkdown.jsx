@@ -50,10 +50,14 @@ export default function GuidaMarkdown({ testo, immagini = {} }) {
     const r = righe[i];
     const key = `b${n++}`;
     if (!r.trim()) { i++; continue; }
-    if (r.startsWith('```')) {
+    if (/^ {0,3}`{3,}/.test(r)) {
+      // Come in CommonMark: il blocco si chiude con almeno tanti backtick quanti l'apertura,
+      // seguiti solo da spazi (una riga "```esempio" dentro il codice non lo chiude).
+      const apertura = r.trim().match(/^`+/)[0].length;
+      const chiusura = new RegExp(`^ {0,3}\`{${apertura},}[ \t]*$`);
       const codice = [];
       i++;
-      while (i < righe.length && !righe[i].startsWith('```')) codice.push(righe[i++]);
+      while (i < righe.length && !chiusura.test(righe[i])) codice.push(righe[i++]);
       i++;
       blocchi.push(<pre key={key} className="my-3 p-3 rounded-xl bg-bg border border-border text-xs overflow-x-auto"><code>{codice.join('\n')}</code></pre>);
     } else if (/^#{1,3} /.test(r)) {
@@ -93,6 +97,9 @@ export default function GuidaMarkdown({ testo, immagini = {} }) {
       blocchi.push(<blockquote key={key} className="my-3 border-l-4 border-primary pl-3 text-sm text-muted">{inline(q.join(' '), immagini, key)}</blockquote>);
     } else {
       const p = [];
+      // La prima riga si consuma sempre (anche "| nota" che non forma una tabella): senza, il
+      // ciclo esterno non avanzerebbe e la pagina si bloccherebbe.
+      p.push(righe[i++].trim());
       while (i < righe.length && righe[i].trim() && !/^(#{1,3} |```|\||>|(\s*)([-*]|\d+\.) )/.test(righe[i])) p.push(righe[i++].trim());
       blocchi.push(<p key={key} className="my-2 leading-relaxed">{inline(p.join(' '), immagini, key)}</p>);
     }

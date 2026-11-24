@@ -7,7 +7,8 @@ export default function FinestraModale({ titoloId, onClose, className, children 
   useEffect(() => {
     const el = ref.current;
     const precedente = document.activeElement;
-    const focusabili = () => [...el.querySelectorAll('a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])')]
+    // Anche gli iframe (il visualizzatore dei PDF) fanno parte del giro del Tab.
+    const focusabili = () => [...el.querySelectorAll('a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), iframe, [tabindex]:not([tabindex="-1"])')]
       .filter((e) => e.offsetParent !== null);
     (focusabili()[0] || el).focus();
     const onKey = (e) => {
