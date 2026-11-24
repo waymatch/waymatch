@@ -34,6 +34,14 @@ function isPastDateTime(dataStr, oraStr) {
   return target.getTime() < Date.now();
 }
 
+// Impronta dei campi che una modifica può cambiare: serve a capire se, durante l'attesa del
+// calcolo dei km, un'altra modifica ha toccato lo stesso passaggio.
+function improntaPassaggio(r) {
+  return JSON.stringify([r.data, r.ora, r.punto_partenza, r.punto_arrivo, r.sede_id, r.partenza_lat, r.partenza_lon,
+    r.arrivo_lat, r.arrivo_lon, r.km_stimati, r.geometria, r.posti_totali, r.note, r.citta_domicilio]);
+}
+const improntaSoste = (rideId) => JSON.stringify(db.prepare('SELECT orario, luogo, lat, lon FROM ride_stops WHERE ride_id = ? ORDER BY orario, id').all(rideId));
+
 function getRideFull(id) {
   const ride = db.prepare(`
     SELECT r.*, u.nome as driver_nome, u.cognome as driver_cognome, u.telefono as driver_telefono,
@@ -373,6 +381,7 @@ router.put('/:id', requireAuth, asyncHandler(async (req, res) => {
   const cambiato = nuove.pLat !== ride.partenza_lat || nuove.pLon !== ride.partenza_lon
     || nuove.aLat !== ride.arrivo_lat || nuove.aLon !== ride.arrivo_lon || Array.isArray(soste);
   const sosteAttuali = Array.isArray(soste) ? soste : db.prepare('SELECT lat, lon FROM ride_stops WHERE ride_id = ? ORDER BY orario').all(ride.id);
+  const prima = { passaggio: improntaPassaggio(ride), soste: improntaSoste(ride.id) };
   const kmVerificati = cambiato ? await kmDalServer(nuove.pLat, nuove.pLon, nuove.aLat, nuove.aLon, sosteAttuali) : ride.km_verificati;
 
   let promossi = [];
@@ -385,6 +394,9 @@ router.put('/:id', requireAuth, asyncHandler(async (req, res) => {
     // di adesso, non quelli letti prima dell'attesa dei km (un'altra modifica nel frattempo resta).
     const cur = db.prepare('SELECT * FROM rides WHERE id = ?').get(ride.id);
     if (!cur || cur.stato !== 'attivo') { esito = 'non_attivo'; return; }
+    // Se nel frattempo un'altra modifica ha toccato lo stesso passaggio (o le sue soste), non si
+    // scrive: validazioni, km calcolati e avvisi riguarderebbero dati superati. Si riprova.
+    if (improntaPassaggio(cur) !== prima.passaggio || improntaSoste(ride.id) !== prima.soste) { esito = 'conflitto'; return; }
     postiPrima = cur.posti_totali;
     const postiFinali = posti_totali != null && posti_totali !== '' ? Number(posti_totali) : cur.posti_totali;
     const impegnatiOra = db.prepare(`
@@ -419,6 +431,7 @@ router.put('/:id', requireAuth, asyncHandler(async (req, res) => {
   });
   tx();
   if (esito === 'non_attivo') return res.status(400).json({ error: 'Questo passaggio non può più essere modificato' });
+  if (esito === 'conflitto') return res.status(409).json({ error: 'Il passaggio è stato modificato nel frattempo: ricarica e riprova.', codice: 'MODIFICATO_NEL_FRATTEMPO' });
   if (esito?.impegnati) return res.status(400).json({ error: `Non puoi scendere sotto ${esito.impegnati} posti: ci sono già richieste/conferme attive.` });
 
   // Destinatari letti dopo il commit: comprende anche chi ha prenotato durante il calcolo dei km.
