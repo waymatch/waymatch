@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { Lockup, PoweredBy } from '../components/MarcaWayMatch.jsx';
 import ErrorBanner from '../components/ErrorBanner.jsx';
 import { Navigate } from 'react-router-dom';
@@ -17,6 +17,8 @@ export default function Login() {
   const [emailRecupero, setEmailRecupero] = useState('');
   const [recuperoInviato, setRecuperoInviato] = useState(false);
   const [recuperoInCorso, setRecuperoInCorso] = useState(false);
+  const [erroreRecupero, setErroreRecupero] = useState('');
+  const recuperoId = useRef(0); // cambiando modalità si invalida la richiesta di recupero in corso
 
   if (user) return <Navigate to="/" replace />;
 
@@ -35,14 +37,19 @@ export default function Login() {
 
   const richiediRecupero = async (e) => {
     e.preventDefault();
+    const mia = ++recuperoId.current;
+    setErroreRecupero('');
     setRecuperoInCorso(true);
     try {
+      // Il server risponde sempre allo stesso modo, esista o no l'indirizzo: la conferma non rivela nulla.
       await api.post('/auth/password-dimenticata', { email: emailRecupero });
-      setRecuperoInviato(true);
+      if (mia === recuperoId.current) setRecuperoInviato(true);
     } catch (e) {
-      setRecuperoInviato(true); // risposta sempre positiva, per non rivelare quali email esistono
+      // Rete assente o troppe richieste (limite per IP o per indirizzo): messaggio generico e
+      // nuovo invio possibile, senza far credere che l'email sia partita.
+      if (mia === recuperoId.current) setErroreRecupero('Non è stato possibile inviare la richiesta. Riprova tra qualche minuto.');
     } finally {
-      setRecuperoInCorso(false);
+      if (mia === recuperoId.current) setRecuperoInCorso(false);
     }
   };
 
@@ -79,7 +86,7 @@ export default function Login() {
               <button className="btn-primary w-full" disabled={loading}>
                 {loading ? 'Accesso in corso...' : 'Accedi'}
               </button>
-              <button type="button" className="block w-full text-center text-xs text-muted underline" onClick={() => { setModoRecupero(true); setRecuperoInviato(false); }}>
+              <button type="button" className="block w-full text-center text-xs text-muted underline" onClick={() => { recuperoId.current++; setRecuperoInCorso(false); setErroreRecupero(''); setModoRecupero(true); setRecuperoInviato(false); }}>
                 Password dimenticata?
               </button>
             </form>
@@ -105,6 +112,7 @@ export default function Login() {
               </p>
             ) : (
               <form onSubmit={richiediRecupero} className="space-y-4">
+                {erroreRecupero && <ErrorBanner message={erroreRecupero} />}
                 <p className="text-sm text-muted">
                   {branding.email_attive
                     ? 'Inserisci la tua email: ti mandiamo le istruzioni per reimpostare la password.'
@@ -119,7 +127,7 @@ export default function Login() {
                 </button>
               </form>
             )}
-            <button type="button" className="block w-full text-center text-xs text-muted underline" onClick={() => setModoRecupero(false)}>
+            <button type="button" className="block w-full text-center text-xs text-muted underline" onClick={() => { recuperoId.current++; setRecuperoInCorso(false); setModoRecupero(false); }}>
               Torna al login
             </button>
           </div>

@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
 import ErrorBanner from '../components/ErrorBanner.jsx';
 import { Link } from 'react-router-dom';
 import { Sunrise, Sunset, Trophy, Zap, Car, User, ArrowRight } from 'lucide-react';
@@ -6,14 +6,16 @@ import { api } from '../api.js';
 import { useAuth } from '../context/AuthContext.jsx';
 import { useBranding } from '../context/BrandingContext.jsx';
 import { descriviGiorni } from '../giorni.js';
+import { dataISO } from '../dateTimeUtils.js';
 import RideCard from '../components/RideCard.jsx';
 import RelevanceSlider from '../components/RelevanceSlider.jsx';
 import QuickOfferModal from '../components/QuickOfferModal.jsx';
 import { ordinaPerPertinenza, leggiSogliaSalvata, salvaSoglia } from '../relevance.js';
 
 function formatGiorno(dataStr) {
-  const oggi = new Date().toISOString().slice(0, 10);
-  const domani = new Date(Date.now() + 86400000).toISOString().slice(0, 10);
+  // Calendario locale (non UTC); domani = giorno di calendario successivo, non +24 ore.
+  const oggi = dataISO(0);
+  const domani = dataISO(1);
   if (dataStr === oggi) return 'Oggi';
   if (dataStr === domani) return 'Domani';
   return new Date(dataStr).toLocaleDateString('it-IT', { weekday: 'short', day: 'numeric', month: 'short' });
@@ -29,10 +31,19 @@ export default function Home() {
   const [soglia, setSoglia] = useState(leggiSogliaSalvata);
   const [offertaRapida, setOffertaRapida] = useState(false);
 
+  const richiesta = useRef(0); // identifica l'ultimo caricamento: le risposte superate si ignorano
+  const [caricamento, setCaricamento] = useState(true);
+
   const load = useCallback(() => {
     if (!user?.sede_id) return;
-    api.get(`/rides?home=1&giorni=${giorni}`).then((d) => setRides(d.rides)).catch((e) => setError(e.message));
-    api.get('/rides/prossimi-miei').then((d) => setProssimi(d.prossimi)).catch(() => {});
+    const mia = ++richiesta.current;
+    setError('');
+    setCaricamento(true);
+    api.get(`/rides?home=1&giorni=${giorni}`)
+      .then((d) => { if (mia === richiesta.current) { setRides(d.rides); setError(''); } })
+      .catch((e) => { if (mia === richiesta.current) setError(e.message); })
+      .finally(() => { if (mia === richiesta.current) setCaricamento(false); });
+    api.get('/rides/prossimi-miei').then((d) => { if (mia === richiesta.current) setProssimi(d.prossimi); }).catch(() => {});
   }, [user, giorni]);
 
   useEffect(() => { load(); }, [load]);
@@ -49,7 +60,6 @@ export default function Home() {
     );
   }
 
-  const oggi = new Date().toISOString().slice(0, 10);
   const andate = ordinaPerPertinenza((rides || []).filter((r) => r.tipo === 'andata'), soglia);
   const ritorni = ordinaPerPertinenza((rides || []).filter((r) => r.tipo === 'ritorno'), soglia);
 
@@ -118,7 +128,12 @@ export default function Home() {
         </section>
       )}
 
-      {error && <ErrorBanner message={error} />}
+      {error && (
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex-1"><ErrorBanner message={error} /></div>
+          <button type="button" className="btn-outline !py-1 !text-xs shrink-0" onClick={load}>Riprova</button>
+        </div>
+      )}
 
       <div className="flex items-center justify-between">
         <h2 className="font-display font-semibold text-sm text-ink">Passaggi disponibili</h2>
@@ -137,8 +152,8 @@ export default function Home() {
 
       <RelevanceSlider user={user} value={soglia} onChange={cambiaSoglia} />
 
-      <RideSection title="Passaggi andata" icon={Sunrise} rides={andate} loading={rides === null} onChanged={load} soglia={soglia} />
-      <RideSection title="Passaggi ritorno" icon={Sunset} rides={ritorni} loading={rides === null} onChanged={load} soglia={soglia} />
+      <RideSection title="Passaggi andata" icon={Sunrise} rides={andate} loading={caricamento && rides === null} errore={!!error && rides === null} onChanged={load} soglia={soglia} />
+      <RideSection title="Passaggi ritorno" icon={Sunset} rides={ritorni} loading={caricamento && rides === null} errore={!!error && rides === null} onChanged={load} soglia={soglia} />
     </div>
   );
 }
@@ -155,7 +170,7 @@ function StatoBadgeProssimo({ p }) {
   return null;
 }
 
-function RideSection({ title, icon: Icon, rides, loading, onChanged, soglia }) {
+function RideSection({ title, icon: Icon, rides, loading, errore, onChanged, soglia }) {
   return (
     <div>
       <div className="flex items-center gap-2 mb-3">
@@ -164,6 +179,8 @@ function RideSection({ title, icon: Icon, rides, loading, onChanged, soglia }) {
       </div>
       {loading ? (
         <div className="card animate-pulse h-20" />
+      ) : errore ? (
+        <div className="card text-center py-6 text-sm text-muted">Non è stato possibile caricare i passaggi.</div>
       ) : rides.length === 0 ? (
         <div className="card text-center py-6 text-sm text-muted">
           Nessun passaggio disponibile nei prossimi giorni.

@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
 import ErrorBanner from '../components/ErrorBanner.jsx';
 import { Search } from 'lucide-react';
 import { api } from '../api.js';
@@ -15,22 +15,29 @@ export default function FindRide() {
   const [tipo, setTipo] = useState('');
   const [rides, setRides] = useState(null);
   const [error, setError] = useState('');
+  const [erroreSedi, setErroreSedi] = useState('');
   const [soglia, setSoglia] = useState(leggiSogliaSalvata);
+  const richiesta = useRef(0); // identifica l'ultima ricerca: le risposte superate si ignorano
   const cambiaSoglia = (v) => { setSoglia(v); salvaSoglia(v); };
 
-  useEffect(() => {
+  const caricaSedi = useCallback(() => {
+    setErroreSedi('');
     api.get('/sedi').then((d) => {
       setSedi(d.sedi);
       if (user?.sede_id) setSedeId(String(user.sede_id));
-    });
+    }).catch((e) => setErroreSedi(e.message || 'Impossibile caricare le sedi.'));
   }, [user]);
+  useEffect(() => { caricaSedi(); }, [caricaSedi]);
 
   const load = useCallback(() => {
     if (!sedeId) return;
+    const mia = ++richiesta.current;
     const params = new URLSearchParams({ sede_id: sedeId });
     if (data) params.set('data', data);
     if (tipo) params.set('tipo', tipo);
-    api.get(`/rides?${params.toString()}`).then((d) => setRides(d.rides)).catch((e) => setError(e.message));
+    api.get(`/rides?${params.toString()}`)
+      .then((d) => { if (mia !== richiesta.current) return; setRides(d.rides); setError(''); })
+      .catch((e) => { if (mia !== richiesta.current) return; setError(e.message); setRides((r) => r ?? []); });
   }, [sedeId, data, tipo]);
 
   useEffect(() => { load(); }, [load]);
@@ -45,9 +52,16 @@ export default function FindRide() {
       <div className="card space-y-3">
         <div>
           <label htmlFor="findride-0" className="label">Sede</label>
-          <select id="findride-0" className="input" value={sedeId} onChange={(e) => setSedeId(e.target.value)}>
+          <select id="findride-0" className="input" value={sedeId} onChange={(e) => { setRides(null); setSedeId(e.target.value); }}>
+            {!sedeId && <option value="">Seleziona una sede...</option>}
             {sedi.map((s) => <option key={s.id} value={s.id}>{s.nome}</option>)}
           </select>
+          {erroreSedi && (
+            <div className="mt-1 flex items-center gap-2 text-xs text-danger" role="alert">
+              <span>{erroreSedi}</span>
+              <button type="button" className="underline text-primary" onClick={caricaSedi}>Riprova</button>
+            </div>
+          )}
         </div>
         <div className="flex flex-wrap gap-3">
           <div className="flex-1 min-w-[140px]">
@@ -69,7 +83,9 @@ export default function FindRide() {
 
       <RelevanceSlider user={user} value={soglia} onChange={cambiaSoglia} />
 
-      {rides === null ? (
+      {!sedeId ? (
+        <div className="card text-center py-10 text-sm text-muted">Seleziona una sede per cercare i passaggi.</div>
+      ) : rides === null ? (
         <div className="card animate-pulse h-20" />
       ) : rides.length === 0 ? (
         <div className="card text-center py-10">

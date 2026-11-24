@@ -5,7 +5,7 @@ import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { KeyRound, Check } from 'lucide-react';
 import { api } from '../api.js';
 import { useBranding } from '../context/BrandingContext.jsx';
-import { REQUISITI_PASSWORD } from '../passwordPolicy.js';
+import { REQUISITI_PASSWORD, passwordValida } from '../passwordPolicy.js';
 
 // Pagina pubblica raggiunta dal link inviato via email (solo quando SMTP è configurato,
 // vedi POST /auth/password-dimenticata). Senza email il reset passa dal mobility manager.
@@ -23,7 +23,7 @@ export default function ResetPassword() {
   const submit = async (e) => {
     e.preventDefault();
     setError('');
-    if (passwordNuova.length < 8) { setError('La password deve avere almeno 8 caratteri.'); return; }
+    if (!passwordValida(passwordNuova)) { setError(`Password non valida: ${REQUISITI_PASSWORD}`); return; }
     if (passwordNuova !== conferma) { setError('Le due password non coincidono.'); return; }
     setSaving(true);
     try {
@@ -71,12 +71,12 @@ export default function ResetPassword() {
             {error && <ErrorBanner message={error} />}
             <div>
               <label htmlFor="resetpassword-0" className="label">Nuova password</label>
-              <input id="resetpassword-0" type="password" required className="input" value={passwordNuova} onChange={(e) => setPasswordNuova(e.target.value)} />
+              <input id="resetpassword-0" type="password" autoComplete="new-password" required className="input" value={passwordNuova} onChange={(e) => setPasswordNuova(e.target.value)} />
               <p className="text-xs text-muted mt-1">{REQUISITI_PASSWORD}</p>
             </div>
             <div>
               <label htmlFor="resetpassword-1" className="label">Conferma nuova password</label>
-              <input id="resetpassword-1" type="password" required className="input" value={conferma} onChange={(e) => setConferma(e.target.value)} />
+              <input id="resetpassword-1" type="password" autoComplete="new-password" required className="input" value={conferma} onChange={(e) => setConferma(e.target.value)} />
             </div>
             <button className="btn-primary w-full" disabled={saving}>{saving ? 'Salvataggio...' : 'Reimposta password'}</button>
           </form>

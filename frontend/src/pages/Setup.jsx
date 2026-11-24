@@ -6,7 +6,12 @@ import { api, setToken } from '../api.js';
 import { useAuth } from '../context/AuthContext.jsx';
 import { useBranding } from '../context/BrandingContext.jsx';
 import AddressAutocomplete from '../components/AddressAutocomplete.jsx';
-import { REQUISITI_PASSWORD } from '../passwordPolicy.js';
+import { REQUISITI_PASSWORD, passwordValida } from '../passwordPolicy.js';
+
+// Ogni sede ha un identificativo stabile: eliminandone una, le altre non ereditano lo stato dei
+// campi (per esempio la posizione sulla mappa) della sede tolta.
+let contatoreSedi = 0;
+const nuovaSede = () => ({ uid: ++contatoreSedi, nome: '', indirizzo: '', lat: null, lon: null });
 
 export default function Setup({ onDone }) {
   const [step, setStep] = useState(1);
@@ -17,12 +22,12 @@ export default function Setup({ onDone }) {
 
   const [company, setCompany] = useState('');
   const [admin, setAdmin] = useState({ nome: '', cognome: '', email: '', password: '' });
-  const [sedi, setSedi] = useState([{ nome: '', indirizzo: '', lat: null, lon: null }]);
+  const [sedi, setSedi] = useState(() => [nuovaSede()]);
 
   const updateSede = (i, field, value) => {
     setSedi((prev) => prev.map((s, idx) => (idx === i ? { ...s, [field]: value } : s)));
   };
-  const addSede = () => setSedi((prev) => [...prev, { nome: '', indirizzo: '', lat: null, lon: null }]);
+  const addSede = () => setSedi((prev) => [...prev, nuovaSede()]);
   const removeSede = (i) => setSedi((prev) => prev.filter((_, idx) => idx !== i));
 
   const submit = async () => {
@@ -32,7 +37,8 @@ export default function Setup({ onDone }) {
       const payload = {
         company_name: company,
         ...admin,
-        sedi: sedi.filter((s) => s.nome.trim()),
+        // uid serve solo all'interfaccia (chiave stabile): non fa parte del contratto dell'API
+        sedi: sedi.filter((s) => s.nome.trim()).map(({ uid, ...sede }) => sede),
       };
       const data = await api.post('/setup', payload);
       setToken(data.token);
@@ -85,7 +91,7 @@ export default function Setup({ onDone }) {
               </div>
               <button
                 className="btn-primary w-full"
-                disabled={!admin.nome || !admin.cognome || !admin.email || admin.password.length < 8}
+                disabled={!admin.nome || !admin.cognome || !admin.email || !passwordValida(admin.password)}
                 onClick={() => setStep(2)}
               >
                 Continua <ArrowRight size={16} />
@@ -114,7 +120,7 @@ export default function Setup({ onDone }) {
               <StepTitle icon={Building2} title="Sedi aziendali" subtitle="Aggiungi le sedi tra cui i dipendenti potranno organizzare i passaggi." />
               <div className="space-y-3">
                 {sedi.map((s, i) => (
-                  <div key={i} className="flex gap-2 items-start">
+                  <div key={s.uid} className="flex gap-2 items-start">
                     <div className="flex-1 space-y-2">
                       <input className="input" placeholder={`Sede ${i + 1} — nome`} value={s.nome} onChange={(e) => updateSede(i, 'nome', e.target.value)} />
                       <AddressAutocomplete
@@ -134,7 +140,7 @@ export default function Setup({ onDone }) {
                       )}
                     </div>
                     {sedi.length > 1 && (
-                      <button className="p-2.5 text-muted hover:text-danger" onClick={() => removeSede(i)}><Trash2 size={16} /></button>
+                      <button type="button" aria-label={`Rimuovi la sede ${i + 1}${s.nome ? `: ${s.nome}` : ''}`} className="p-2.5 text-muted hover:text-danger" onClick={() => removeSede(i)}><Trash2 size={16} aria-hidden="true" /></button>
                     )}
                   </div>
                 ))}

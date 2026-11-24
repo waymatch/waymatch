@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
 import ErrorBanner from '../components/ErrorBanner.jsx';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
 import { Leaf, Route, Wallet, Users, FileDown, FileSpreadsheet } from 'lucide-react';
@@ -10,16 +10,27 @@ export default function Reports() {
   const [dal, setDal] = useState('');
   const [al, setAl] = useState('');
   const [report, setReport] = useState(null);
-  const [error, setError] = useState('');
+  // Errori separati: il successo di un'operazione non nasconde il fallimento dell'altra.
+  const [error, setError] = useState('');          // caricamento del report
+  const [erroreExport, setErroreExport] = useState('');
+  const [erroreSedi, setErroreSedi] = useState('');
+  const richiesta = useRef(0); // identifica l'ultimo caricamento: le risposte superate si ignorano
 
-  useEffect(() => { api.get('/sedi').then((d) => setSedi(d.sedi)); }, []);
+  const caricaSedi = useCallback(() => {
+    setErroreSedi('');
+    api.get('/sedi').then((d) => setSedi(d.sedi)).catch((e) => setErroreSedi(e.message || 'Impossibile caricare le sedi.'));
+  }, []);
+  useEffect(() => { caricaSedi(); }, [caricaSedi]);
 
   const load = useCallback(() => {
     const params = new URLSearchParams();
     if (sedeId) params.set('sede_id', sedeId);
     if (dal) params.set('dal', dal);
     if (al) params.set('al', al);
-    api.get(`/reports/summary?${params.toString()}`).then(setReport).catch((e) => setError(e.message));
+    const mia = ++richiesta.current;
+    api.get(`/reports/summary?${params.toString()}`)
+      .then((d) => { if (mia !== richiesta.current) return; setReport(d); setError(''); })
+      .catch((e) => { if (mia === richiesta.current) setError(e.message); });
   }, [sedeId, dal, al]);
   useEffect(() => { load(); }, [load]);
 
@@ -35,6 +46,7 @@ export default function Reports() {
 
   const esporta = async (formato) => {
     setExporting(formato);
+    setErroreExport('');
     try {
       const params = new URLSearchParams();
       if (sedeId) params.set('sede_id', sedeId);
@@ -42,7 +54,7 @@ export default function Reports() {
       if (al) params.set('al', al);
       await scaricaFile(`/reports/export/${formato}?${params.toString()}`, `report-carpooling.${formato}`);
     } catch (e) {
-      setError(e.message);
+      setErroreExport(e.message);
     } finally {
       setExporting('');
     }
@@ -72,6 +84,12 @@ export default function Reports() {
             <option value="">Tutte le sedi</option>
             {sedi.map((s) => <option key={s.id} value={s.id}>{s.nome}</option>)}
           </select>
+          {erroreSedi && (
+            <div className="mt-1 flex items-center gap-2 text-xs text-danger" role="alert">
+              <span>{erroreSedi}</span>
+              <button type="button" className="underline text-primary" onClick={caricaSedi}>Riprova</button>
+            </div>
+          )}
         </div>
         <div className="flex-1 min-w-[120px]">
           <label htmlFor="reports-1" className="label">Dal</label>
@@ -84,6 +102,7 @@ export default function Reports() {
       </div>
 
       {error && <ErrorBanner message={error} />}
+      {erroreExport && <ErrorBanner message={`Esportazione non riuscita: ${erroreExport}`} />}
 
       {!report ? (
         <div className="card animate-pulse h-32" />
