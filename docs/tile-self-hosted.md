@@ -30,7 +30,7 @@ di richieste, non servono chiavi e nessun dato lascia la tua rete.
 ```bash
 docker volume create osm-data
 
-docker run \
+docker run --rm \
     -e DOWNLOAD_PBF=https://download.geofabrik.de/europe/italy-latest.osm.pbf \
     -e DOWNLOAD_POLY=https://download.geofabrik.de/europe/italy.poly \
     -v osm-data:/data/database/ \
@@ -46,7 +46,9 @@ Per usare un file già scaricato al posto di `DOWNLOAD_PBF`, montalo su `/data/r
 ## 2. Far partire il server dei tile
 
 Il proxy (Caddy) gira in un container: per raggiungere `tile-server` per nome devono stare sulla
-stessa rete Docker. Trova quella dell'app con `docker network ls` (di solito `<cartella>_default`,
+stessa rete Docker, cioè **sullo stesso host dell'app**. Se invece i tile stanno su un altro
+server, pubblica lì la porta sulla rete interna e nel Caddyfile usa il suo indirizzo al posto di
+`tile-server:80` (per esempio `reverse_proxy 10.0.0.5:8080`). Trova quella dell'app con `docker network ls` (di solito `<cartella>_default`,
 per esempio `waymatch_default`) e usala qui:
 
 ```bash
@@ -94,7 +96,9 @@ I dati non si aggiornano da soli. Due strade:
   Importa in un **volume nuovo** (`docker volume create osm-data-2`, poi `-v osm-data-2:/data/database/`):
   sullo stesso volume l'importazione fallirebbe per l'utente `renderer` già esistente e sostituirebbe
   comunque i dati. Quando è finita, ferma e rimuovi `tile-server`, riavvialo con il volume nuovo e
-  solo allora elimina quello vecchio (`docker volume rm osm-data`).
+  solo allora elimina quello vecchio (`docker volume rm osm-data`). Se la prima importazione non
+  era stata lanciata con `--rm`, il suo container fermo tiene ancora il volume: rimuovilo prima
+  (`docker ps -a --filter volume=osm-data`, poi `docker rm <id>`).
 - **Aggiornamento automatico**: importa con `-e UPDATES=enabled` e il file `.poly` montato su
   `/data/region.poly`, e avvia il server con lo stesso `-e UPDATES=enabled`. Non combinarlo con
   `FLAT_NODES` se non importi l'intero pianeta (la documentazione del progetto lo sconsiglia).
