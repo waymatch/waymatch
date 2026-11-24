@@ -77,7 +77,8 @@ docker run -d --name tile-server \
 
 In questo caso nel Caddyfile usa `reverse_proxy 10.0.0.5:8080` al posto di `tile-server:80`.
 
-I tile sono serviti all'indirizzo `http://127.0.0.1:8080/tile/{z}/{x}/{y}.png`. Per riavviarlo
+I tile sono serviti a `http://127.0.0.1:8080/tile/{z}/{x}/{y}.png` (server sullo stesso host) o a
+`http://10.0.0.5:8080/tile/{z}/{x}/{y}.png` (server remoto, con il tuo indirizzo). Per riavviarlo
 dopo un riavvio del server aggiungi `--restart unless-stopped`. `THREADS=N` regola il numero di
 thread di rendering (4 per impostazione predefinita).
 

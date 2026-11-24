@@ -19,7 +19,8 @@ docs/       questa documentazione
 ```bash
 (cd backend && npm install) && (cd frontend && npm install)
 # una sola volta: la chiave del database locale, da conservare (cambiarla rende illeggibile il
-# database creato con la precedente; backend/data è ignorata da git)
+# database creato con la precedente; backend/data è ignorata da git). Se il file esiste già,
+# restringine i permessi senza rigenerarlo: chmod 600 backend/data/chiave-db
 (umask 077; mkdir -p backend/data && openssl rand -hex 32 > backend/data/chiave-db)
 # backend (porta 4000); il JWT_SECRET può cambiare a ogni avvio (chiude solo le sessioni aperte):
 cd backend && JWT_SECRET=$(openssl rand -hex 32) DB_ENCRYPTION_KEY_FILE=data/chiave-db node server.js
