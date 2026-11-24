@@ -9,7 +9,7 @@ const { notificaMatchProattivo, notificaPreferiti } = require('../utils/matching
 const { promuoviListaAttesa, notificaPromossi } = require('../utils/waitlist');
 const { distanzaPuntoDaPercorso, geometriaValida, sosteValide } = require('../utils/geoDistance');
 const { asyncHandler } = require('../utils/asyncHandler');
-const { richiediDocumentiConducente } = require('../utils/documentiLegali');
+const { richiediDocumentiConducente, documentiPendenti } = require('../utils/documentiLegali');
 
 const router = express.Router();
 
@@ -179,6 +179,12 @@ router.post('/', requireAuth, richiediDocumentiConducente, asyncHandler(async (r
     created.push(rideId);
   };
 
+  // Il controllo dei documenti si ripete dopo l'attesa dei km: nel frattempo una nuova versione o
+  // un nuovo documento del conducente possono essere diventati obbligatori. Da qui all'inserimento
+  // non ci sono più attese.
+  if (documentiPendenti(req.user.id, 'conducente').length > 0) {
+    return res.status(403).json({ error: 'Prima di offrire un passaggio devi accettare i documenti del conducente.', codice: 'DOCUMENTI_DA_ACCETTARE' });
+  }
   // Andata e ritorno, soste e punti in un'unica transazione; gli avvisi partono dopo.
   db.transaction(() => {
     if (conAndata) {
