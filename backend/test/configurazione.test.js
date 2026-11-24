@@ -16,7 +16,7 @@ function avvia(jwtSecret, nome, extra = {}) {
   const r = spawnSync('node', ['server.js'], {
     cwd: BACKEND, timeout: 3000, encoding: 'utf8',
     env: { ...process.env, PORT: '4993', DATA_DIR: path.join(dir, 'data'), UPLOAD_DIR: path.join(dir, 'uploads'),
-      JWT_SECRET: jwtSecret, DB_ENCRYPTION_KEY: crypto.randomBytes(32).toString('hex'), SMTP_HOST: '', ...extra },
+      JWT_SECRET: jwtSecret, DB_ENCRYPTION_KEY: crypto.randomBytes(32).toString('hex'), DB_ENCRYPTION_KEY_FILE: '', TILE_URL: '', TILE_ATTRIBUTION: '', SMTP_HOST: '', ...extra },
   });
   return { partito: r.error && r.error.code === 'ETIMEDOUT', uscita: (r.stderr || '') + (r.stdout || '') };
 }
@@ -44,7 +44,7 @@ async function conServer(extra, nome, porta, fn) {
   const srv = spawn('node', ['server.js'], {
     cwd: BACKEND, stdio: 'ignore',
     env: { ...process.env, PORT: String(porta), DATA_DIR: path.join(dir, 'data'), UPLOAD_DIR: path.join(dir, 'uploads'),
-      JWT_SECRET: SEGRETO, DB_ENCRYPTION_KEY: crypto.randomBytes(32).toString('hex'), SMTP_HOST: '', ...extra },
+      JWT_SECRET: SEGRETO, DB_ENCRYPTION_KEY: crypto.randomBytes(32).toString('hex'), DB_ENCRYPTION_KEY_FILE: '', TILE_URL: '', TILE_ATTRIBUTION: '', SMTP_HOST: '', ...extra },
   });
   try {
     for (let i = 0; i < 100; i++) { try { if ((await fetch(`http://127.0.0.1:${porta}/api/health`)).ok) break; } catch {} await new Promise((x) => setTimeout(x, 100)); }
@@ -76,7 +76,7 @@ console.log('\n[Colonna mappa_stile rimossa dai database esistenti]');
   const Database = require(path.join(BACKEND, 'node_modules/better-sqlite3-multiple-ciphers'));
   const dir = cartellaProva('t6');
   const chiave = crypto.randomBytes(32).toString('hex');
-  const env = { ...process.env, PORT: '4988', DATA_DIR: path.join(dir, 'data'), UPLOAD_DIR: path.join(dir, 'uploads'), JWT_SECRET: SEGRETO, DB_ENCRYPTION_KEY: chiave, SMTP_HOST: '' };
+  const env = { ...process.env, PORT: '4988', DB_ENCRYPTION_KEY_FILE: '', TILE_URL: '', TILE_ATTRIBUTION: '', DATA_DIR: path.join(dir, 'data'), UPLOAD_DIR: path.join(dir, 'uploads'), JWT_SECRET: SEGRETO, DB_ENCRYPTION_KEY: chiave, SMTP_HOST: '' };
   const colonne = () => { const d = new Database(path.join(dir, 'data', 'carpooling.db')); d.pragma(`key='${chiave}'`); const c = d.prepare('PRAGMA table_info(system_settings)').all().map((x) => x.name); d.close(); return c; };
   spawnSync('node', ['server.js'], { cwd: BACKEND, timeout: 3000, env });
   {
@@ -105,8 +105,11 @@ console.log('\n[Tile della mappa con il Referer]');
 console.log('\n[Nessuna chiamata a servizi esterni per i font]');
 const html = fs.readFileSync(path.join(FRONTEND, 'index.html'), 'utf8');
 check('index.html non punta a Google Fonts', !/fonts\.(googleapis|gstatic)\.com/.test(html));
-const server = fs.readFileSync(path.join(BACKEND, 'server.js'), 'utf8');
-check('la CSP non ammette Google Fonts', !/fonts\.(googleapis|gstatic)\.com'/.test(server.replace(/\/\/.*$/gm, '')));
+await conServer({}, 't-csp', 4986, async (base) => {
+  const c = csp(await fetch(base + '/api/branding'));
+  check('la CSP (header reale) è presente', c.length > 0);
+  check('la CSP non ammette Google Fonts', !/fonts\.(googleapis|gstatic)\.com/.test(c));
+});
 
 console.log('\n[Nessuna richiesta di denaro]');
 {

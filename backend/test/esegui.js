@@ -36,6 +36,10 @@ const SUITE = [
 
 const CHROME = process.env.CHROME_PATH || `${os.homedir()}/.cache/ms-playwright/chromium-1248/chrome-linux64/chrome`;
 const filtro = process.argv[2];
+if (filtro && !SUITE.some((s) => s.file.includes(filtro))) {
+  console.error(`Nessuna suite corrisponde a "${filtro}". Disponibili:\n  ${SUITE.map((s) => s.file).join('\n  ')}`);
+  process.exit(1);
+}
 // Le suite non devono chiamare il servizio pubblico OSRM: un indirizzo locale chiuso fa fallire
 // subito il calcolo dei km dal server, che ripiega sul limite di plausibilità. Chi vuole un
 // percorso preciso avvia un OSRM finto (vedi regole-carpooling.test.js).
@@ -62,7 +66,7 @@ try {
       }
     }
     const r = spawnSync(process.execPath, [path.join(__dirname, s.file)], {
-      cwd: BACKEND, encoding: 'utf8', env: { ...process.env, CP_TEST_DIR: radice }, timeout: 10 * 60 * 1000,
+      cwd: BACKEND, encoding: 'utf8', env: { ...process.env, CP_TEST_DIR: radice, DB_ENCRYPTION_KEY_FILE: '', TILE_URL: '', TILE_ATTRIBUTION: '' }, timeout: 10 * 60 * 1000,
     });
     process.stdout.write(r.stdout || '');
     process.stderr.write(r.stderr || '');

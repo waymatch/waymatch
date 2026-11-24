@@ -78,7 +78,7 @@ async function main() {
     check('non può eliminarsi', r.status === 400);
 
     console.log('\n[Import CSV]');
-    r = await call('POST', '/users/import-csv', { token: mm2.token, form: csv('utenti.csv', `Nome,Cognome,email,passtemporanea,ruolo\nMax,Due,mm2@test.it,,utente\nZed,Z,zed@test.it,${PW},utente\n`) });
+    r = await call('POST', '/users/import-csv', { token: mm2.token, form: csv('utenti.csv', `Nome,Cognome,email,passtemporanea,ruolo\nZed,Z,zed@test.it,${PW},utente\nMax,Due,mm2@test.it,,utente\n`) });
     check('un file che toglie il ruolo all\'ultimo admin viene rifiutato', r.status === 400 && /almeno un mobility manager/.test(r.data.error), `${r.status} ${JSON.stringify(r.data)}`);
     const d1 = db();
     check('il file non è stato applicato in parte (Zed non esiste)', !d1.prepare("SELECT 1 FROM users WHERE email = 'zed@test.it'").get());

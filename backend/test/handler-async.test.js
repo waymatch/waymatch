@@ -35,14 +35,18 @@ async function main() {
   app.use((err, req, res, next) => { res.status(500).json({ error: 'Errore interno del server' }); });
   const srv = await new Promise((r) => { const s = app.listen(0, () => r(s)); });
   const base = `http://127.0.0.1:${srv.address().port}`;
-  const a = await fetch(base + '/rifiuta');
-  check('la route che fallisce risponde 500', a.status === 500);
-  check('il messaggio è generico', (await a.json()).error === 'Errore interno del server');
-  await new Promise((r) => setTimeout(r, 100));
-  check('nessuna unhandled rejection', rifiuti.length === 0);
-  check('il server risponde ancora dopo l\'errore', (await fetch(base + '/ok')).status === 200);
-  srv.close();
-  process.off('unhandledRejection', onRej);
+  const chiama = (u) => fetch(base + u, { signal: AbortSignal.timeout(5000) }); // se la route non risponde il test fallisce subito
+  try {
+    const a = await chiama('/rifiuta');
+    check('la route che fallisce risponde 500', a.status === 500);
+    check('il messaggio è generico', (await a.json()).error === 'Errore interno del server');
+    await new Promise((r) => setTimeout(r, 100));
+    check('nessuna unhandled rejection', rifiuti.length === 0);
+    check('il server risponde ancora dopo l\'errore', (await chiama('/ok')).status === 200);
+  } finally {
+    srv.close();
+    process.off('unhandledRejection', onRej);
+  }
 
   console.log('\n[Rete di sicurezza]');
   check('server.js registra unhandledRejection', /process\.on\('unhandledRejection'/.test(fs.readFileSync(path.join(BACKEND, 'server.js'), 'utf8')));

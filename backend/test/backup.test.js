@@ -13,13 +13,13 @@ const KEY = crypto.randomBytes(32).toString('hex');
 const esito = { ok: 0, ko: 0 };
 const check = (n, c, x = '') => { c ? esito.ok++ : esito.ko++; console.log(`  ${c ? 'OK  ' : 'FAIL'} ${n}${x ? ' — ' + x : ''}`); };
 const backup = (dest, key = KEY) => spawnSync('node', ['scripts/backup-db.js', dest], {
-  cwd: BACKEND, encoding: 'utf8', env: { ...process.env, DATA_DIR: path.join(DIR, 'data'), DB_ENCRYPTION_KEY: key } });
+  cwd: BACKEND, encoding: 'utf8', env: { ...process.env, DATA_DIR: path.join(DIR, 'data'), DB_ENCRYPTION_KEY: key, DB_ENCRYPTION_KEY_FILE: '' } });
 
 async function main() {
   const server = spawn('node', ['server.js'], {
     cwd: BACKEND, stdio: 'ignore',
     env: { ...process.env, PORT: String(PORT), DATA_DIR: path.join(DIR, 'data'), UPLOAD_DIR: path.join(DIR, 'uploads'),
-      JWT_SECRET: crypto.randomBytes(32).toString('hex'), DB_ENCRYPTION_KEY: KEY, SMTP_HOST: '' },
+      JWT_SECRET: crypto.randomBytes(32).toString('hex'), DB_ENCRYPTION_KEY: KEY, DB_ENCRYPTION_KEY_FILE: '', SMTP_HOST: '' },
   });
   try {
     for (let i = 0; i < 100; i++) { try { if ((await fetch(API + '/health')).ok) break; } catch {} await new Promise((r) => setTimeout(r, 100)); }
@@ -57,7 +57,7 @@ async function main() {
       const d = new D(${JSON.stringify(path.join(MIG, 'carpooling.db'))}); d.pragma('journal_mode = WAL'); d.pragma('wal_autocheckpoint = 0');
       d.exec('CREATE TABLE prova (x INTEGER)'); for (let i = 0; i < 50; i++) d.prepare('INSERT INTO prova VALUES (?)').run(i); process.exit(0);`]);
     check('scenario di prova: righe ancora nel WAL', fs.existsSync(path.join(MIG, 'carpooling.db-wal')) && fs.statSync(path.join(MIG, 'carpooling.db-wal')).size > 0);
-    const cifra = spawnSync('node', ['scripts/cifra-database.js'], { cwd: BACKEND, encoding: 'utf8', env: { ...process.env, DATA_DIR: MIG, DB_ENCRYPTION_KEY: KEY } });
+    const cifra = spawnSync('node', ['scripts/cifra-database.js'], { cwd: BACKEND, encoding: 'utf8', env: { ...process.env, DATA_DIR: MIG, DB_ENCRYPTION_KEY: KEY, DB_ENCRYPTION_KEY_FILE: '' } });
     check('la migrazione riesce', cifra.status === 0, (cifra.stderr || cifra.stdout).trim().slice(0, 150));
     const bak = fs.readdirSync(MIG).find((f) => f.endsWith('.bak'));
     const bakDb = bak && new Database(path.join(MIG, bak), { readonly: true });

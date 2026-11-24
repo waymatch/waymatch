@@ -32,14 +32,17 @@ const entra = async (email) => (await call('POST', '/auth/login', { body: { emai
 function prossimoFeriale(daGiorni = 1) {
   const d = new Date(); d.setDate(d.getDate() + daGiorni);
   while (d.getDay() === 0) d.setDate(d.getDate() + 1);
-  return d.toISOString().slice(0, 10);
+  const due = (n) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${due(d.getMonth() + 1)}-${due(d.getDate())}`; // data locale: toISOString() la sposterebbe in UTC
 }
 
 // OSRM finto: ogni percorso misura 10 km.
 const http = require('http');
 const PORTA_OSRM = 4987;
 let ritardoOsrm = 0; // ms: per provare le modifiche concorrenti durante il calcolo dei km
+let alPrimoOsrm = null; // risolve la promessa del test alla prima richiesta ricevuta dal finto OSRM
 const osrm = http.createServer(async (req, res) => {
+  if (alPrimoOsrm) { alPrimoOsrm(); alPrimoOsrm = null; }
   if (ritardoOsrm) await new Promise((r) => setTimeout(r, ritardoOsrm));
   res.setHeader('Content-Type', 'application/json');
   res.end(JSON.stringify({ code: 'Ok', routes: [{ distance: 10000, duration: 900, geometry: { coordinates: [[9.04, 45.53], [9.18, 45.46]] } }] }));
@@ -112,8 +115,9 @@ async function main() {
 
     // Modifica concorrente: mentre il server calcola i km, un'altra modifica cambia l'orario.
     ritardoOsrm = 600;
+    const richiestaArrivata = new Promise((res) => { alPrimoOsrm = res; });
     const lenta = call('PUT', `/rides/${rideId}`, { token: autista, body: { partenza_lat: 45.54, partenza_lon: 9.05 } });
-    await new Promise((res) => setTimeout(res, 200));
+    await richiestaArrivata; // il server ha già copiato lo stato del passaggio: la modifica che segue è davvero concorrente
     sql("UPDATE rides SET ora = '09:10' WHERE id = ?", rideId);
     r = await lenta;
     ritardoOsrm = 0;

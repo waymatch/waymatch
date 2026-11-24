@@ -29,7 +29,7 @@ async function api(m, p, { token, body } = {}) {
 class Cdp { constructor(ws) { this.ws = ws; this.id = 0; this.a = new Map(); ws.addEventListener('message', (e) => { const m = JSON.parse(e.data); if (m.id && this.a.has(m.id)) { const { ok, ko } = this.a.get(m.id); this.a.delete(m.id); m.error ? ko(new Error(m.error.message)) : ok(m.result); } }); }
   send(method, params = {}, sessionId) { const id = ++this.id; this.ws.send(JSON.stringify({ id, method, params, ...(sessionId ? { sessionId } : {}) })); return new Promise((ok, ko) => this.a.set(id, { ok, ko })); } }
 
-const server = spawn('node', ['server.js'], { cwd: BACKEND, stdio: 'ignore', env: { ...process.env, PORT: String(PORT), DATA_DIR: path.join(DIR, 'data'), UPLOAD_DIR: path.join(DIR, 'uploads'), JWT_SECRET: crypto.randomBytes(32).toString('hex'), DB_ENCRYPTION_KEY: KEY, SMTP_HOST: '' } });
+const server = spawn('node', ['server.js'], { cwd: BACKEND, stdio: 'ignore', env: { ...process.env, PORT: String(PORT), DATA_DIR: path.join(DIR, 'data'), UPLOAD_DIR: path.join(DIR, 'uploads'), JWT_SECRET: crypto.randomBytes(32).toString('hex'), DB_ENCRYPTION_KEY: KEY, DB_ENCRYPTION_KEY_FILE: '', SMTP_HOST: '' } });
 const chrome = spawn(CHROME, ['--headless=new', '--no-sandbox', '--disable-gpu', '--disable-dev-shm-usage', '--remote-debugging-port=9335', `--user-data-dir=${path.join(DIR, 'chrome')}`, 'about:blank'], { stdio: 'ignore' });
 try {
   for (let i = 0; i < 100; i++) { try { if ((await fetch(ORIGINE + '/api/health')).ok) break; } catch {} await attendi(100); }
@@ -44,7 +44,12 @@ try {
   const tasto = async (key, code) => { for (const type of ['keyDown', 'keyUp']) await cdp.send('Input.dispatchKeyEvent', { type, key, code: code || key, windowsVirtualKeyCode: key === 'Escape' ? 27 : key === 'Tab' ? 9 : 0 }, s); await attendi(150); };
   const desk = () => cdp.send('Emulation.setDeviceMetricsOverride', { width: 1280, height: 800, deviceScaleFactor: 1, mobile: false }, s);
   const mob = () => cdp.send('Emulation.setDeviceMetricsOverride', { width: 390, height: 844, deviceScaleFactor: 1, mobile: true }, s);
-  const clicca = (t) => valuta(`(() => { const b = [...document.querySelectorAll('button,a')].find((x) => x.textContent.trim().includes(${JSON.stringify(t)})); if (b) { b.click(); return true; } return false; })()`);
+  const clicca = async (t) => {
+    const trovato = await valuta(`(() => { const b = [...document.querySelectorAll('button,a')].find((x) => x.textContent.trim().includes(${JSON.stringify(t)})); if (b) { b.click(); return true; } return false; })()`);
+    // Se il controllo non c'è (o ha cambiato etichetta) la scansione successiva analizzerebbe la pagina di prima.
+    if (trovato !== true) check(`trovato il controllo «${t}»`, false);
+    return trovato;
+  };
   const entra = async (token) => { await vai('/login', 600); await valuta(`localStorage.setItem('carpooling_token', ${JSON.stringify(token)}); localStorage.setItem('push_prompt_dismesso','1'); localStorage.setItem('pwa_install_dismesso','1')`); };
   const analizza = async (nome) => {
     await valuta(AXE);

@@ -134,8 +134,10 @@ async function main() {
     check('template voucher NON accessibile senza login', sTpl !== 200, `HTTP ${sTpl}`);
     check('PDF legale NON accessibile senza login', sPdf !== 200, `HTTP ${sPdf}`);
     for (const p of ['/uploads/', '/uploads/legal-documents/', '/uploads/voucher-templates/', '/uploads/../.env', '/uploads/%2e%2e/data/carpooling.db']) {
-      const s = await stato(p);
-      check(`nessun elenco o traversal su ${p}`, s !== 200 || !(await (await fetch(ORIGINE + p)).text()).includes('Index of'), `HTTP ${s}`);
+      const r = await fetch(ORIGINE + p);
+      const corpo = r.status === 200 ? await r.text() : '';
+      // Né un elenco di directory né il contenuto di file protetti (.env, database), qualunque sia lo stato.
+      check(`nessun elenco o traversal su ${p}`, !/Index of|JWT_SECRET|DB_ENCRYPTION_KEY|SQLite format/.test(corpo), `HTTP ${r.status}`);
     }
 
     console.log('\n[Endpoint autenticati]');
@@ -415,6 +417,7 @@ async function main() {
   } finally {
     chrome.kill(); server.kill();
     console.log(`\nRisultato: ${esito.ok} OK, ${esito.ko} FAIL`);
+    if (esito.ko) process.exitCode = 1; // anche in esecuzione diretta, fuori da esegui.js
     const errLog = log.split('\n').filter((l) => l && !l.startsWith('{"@timestamp') && !l.includes('in ascolto'));
     if (errLog.length) console.log('--- log server ---\n' + errLog.slice(-20).join('\n'));
   }
