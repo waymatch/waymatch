@@ -28,6 +28,7 @@ const CATEGORIE = {
   completamento_rifiutato: 'variazioni_viaggio',
   riscatto_approvato: 'premi',
   riscatto_rifiutato: 'premi',
+  riscatto_annullato: 'premi',
   riscatto_consegnato: 'premi',
   completamento_da_approvare: 'approvazioni_mm',
   promemoria_partenza: 'promemoria_partenza',
@@ -113,9 +114,11 @@ function destinazionePer(tipo) {
     case 'passaggio_preferito_pubblicato':
       return '/cerca';
     case 'riepilogo_settimanale':
-      return '/premi';
+      // Senza gamification la pagina Premi non c'è: il riepilogo parla solo di viaggi.
+      return require('./gamification').gamificationAttiva() ? '/premi' : '/i-miei-viaggi';
     case 'riscatto_approvato':
     case 'riscatto_rifiutato':
+    case 'riscatto_annullato':
     case 'riscatto_consegnato':
       return '/premi';
     default:

@@ -16,14 +16,16 @@ const PERIODI = [
 const STATO_LABEL = {
   in_attesa: 'In attesa',
   approvato: 'Approvato',
-  rifiutato: 'Rifiutato (rimborsato)',
+  rifiutato: 'Rifiutato',
   consegnato: 'Consegnato',
+  annullato: 'Annullato (punteggi azzerati)',
 };
 const STATO_COLORE = {
   in_attesa: 'bg-accent-light text-accent-dark',
   approvato: 'bg-primary-light text-primary-dark',
   rifiutato: 'bg-danger/10 text-danger',
   consegnato: 'bg-primary-light text-primary-dark',
+  annullato: 'bg-border text-muted',
 };
 
 export default function Rewards() {

@@ -4,6 +4,7 @@ import ErroreConRiprova from '../../components/ErroreConRiprova.jsx';
 import { Plus, Key, Ban, CheckCircle2, Upload, FileText, ArrowUp, ArrowDown, ArrowUpDown } from 'lucide-react';
 import { api } from '../../api.js';
 import { REQUISITI_PASSWORD } from '../../passwordPolicy.js';
+import { useBranding } from '../../context/BrandingContext.jsx';
 
 const RUOLI = [
   { value: 'utente', label: 'Utente' },
@@ -37,6 +38,7 @@ function Th({ label, campo, sort, onSort }) {
 }
 
 export default function AdminUsers() {
+  const { branding: { gamification } } = useBranding();
   const [users, setUsers] = useState(null);
   const [sedi, setSedi] = useState([]);
   const [showForm, setShowForm] = useState(false);
@@ -165,7 +167,7 @@ export default function AdminUsers() {
                 <Th label="Email" campo="email" sort={sort} onSort={toggleSort} />
                 <Th label="Sede" campo="sede" sort={sort} onSort={toggleSort} />
                 <Th label="Ruolo" campo="ruolo" sort={sort} onSort={toggleSort} />
-                <Th label="Punti" campo="punti" sort={sort} onSort={toggleSort} />
+                {gamification && <Th label="Punti" campo="punti" sort={sort} onSort={toggleSort} />}
                 <Th label="Stato" campo="stato" sort={sort} onSort={toggleSort} />
                 <th className="px-4 py-3 font-medium"><span className="sr-only">Azioni</span></th>
               </tr>
@@ -187,7 +189,7 @@ export default function AdminUsers() {
                       {RUOLI.map((r) => <option key={r.value} value={r.value}>{r.label}</option>)}
                     </select>
                   </td>
-                  <td className="px-4 py-3">{u.punti}</td>
+                  {gamification && <td className="px-4 py-3">{u.punti}</td>}
                   <td className="px-4 py-3">
                     <span className={`badge whitespace-nowrap ${STATO_COLORE[statoUtente(u)]}`}>{statoUtente(u)}</span>
                   </td>

@@ -1,6 +1,7 @@
 const db = require('./db');
 const { notifica, creaNotificaInApp, inAppAttiva, consegnaEsterna } = require('./utils/notify');
 const { totaleGuadagnato } = require('./utils/points');
+const { gamificationAttiva } = require('./utils/gamification');
 const { logEvent } = require('./utils/structuredLog');
 const { pulisciSessioniScadute } = require('./utils/sessioni');
 
@@ -194,7 +195,8 @@ async function inviaRiepilogoSettimanale() {
     if (giaInviato) continue;
     db.prepare('INSERT INTO weekly_summary_sent (user_id, settimana) VALUES (?, ?)').run(u.id, settimana);
 
-    const punti = totaleGuadagnato(u.id, 7);
+    const conPunti = gamificationAttiva();
+    const punti = conPunti ? totaleGuadagnato(u.id, 7) : 0;
     // Filtro sulla data del viaggio (quando è avvenuto), non su created_at (quando è
     // stato offerto/prenotato): un'offerta di giorni fa completata solo questa settimana
     // deve comunque contare in questo riepilogo.
@@ -210,7 +212,9 @@ async function inviaRiepilogoSettimanale() {
 
     await notifica(
       u.id, 'riepilogo_settimanale',
-      `Questa settimana: ${viaggi} viaggi completati e ${punti} punti guadagnati. Continua così!`
+      conPunti
+        ? `Questa settimana: ${viaggi} viaggi completati e ${punti} punti guadagnati. Continua così!`
+        : `Questa settimana: ${viaggi} viaggi completati in carpooling. Continua così!`
     );
   }
 }

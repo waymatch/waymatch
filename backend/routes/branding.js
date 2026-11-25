@@ -4,6 +4,7 @@ const path = require('path');
 const fs = require('fs');
 const db = require('../db');
 const { requireAuth, requireRole } = require('../middleware/auth');
+const { gamificationAttiva } = require('../utils/gamification');
 const { registraAzione } = require('../utils/audit');
 const { nomeCasuale } = require('../utils/fileCaricati');
 const { percorsoSicuro } = require('../utils/safePath');
@@ -47,7 +48,8 @@ router.get('/', (req, res) => {
   // SMTP non è configurato.
   const imp = db.prepare('SELECT icon_path, pwa_short_name FROM system_settings WHERE id = 1').get();
   res.json({ branding: { ...s, mappa: MAPPA, email_attive: smtpAttivo(), giorni_lavorativi: giorniLavorativi(),
-    icona: { personalizzata: !!iconaApp.sorgente(), caricata: !!imp.icon_path, versione: iconaApp.versione() }, pwa_short_name: imp.pwa_short_name || '' } });
+    icona: { personalizzata: !!iconaApp.sorgente(), caricata: !!imp.icon_path, versione: iconaApp.versione() }, pwa_short_name: imp.pwa_short_name || '',
+    gamification: gamificationAttiva() } });
 });
 
 router.put('/', requireAuth, requireRole('mobility_manager'), (req, res) => {

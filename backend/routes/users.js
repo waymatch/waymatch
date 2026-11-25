@@ -3,6 +3,7 @@ const multer = require('multer');
 const rateLimit = require('express-rate-limit');
 const db = require('../db');
 const { requireAuth, requireRole } = require('../middleware/auth');
+const { inizioPunti } = require('../utils/points');
 const { registraAzione } = require('../utils/audit');
 const { passwordValida, REQUISITI_PASSWORD } = require('../utils/passwordPolicy');
 const { hashPassword } = require('../utils/passwordHash');
@@ -37,11 +38,11 @@ router.get('/', requireAuth, requireRole('mobility_manager', 'supervisor'), (req
   // di persone.
   const users = db.prepare(`
     SELECT u.*, s.nome as sede_nome,
-      COALESCE((SELECT SUM(p.punti) FROM points_log p WHERE p.user_id = u.id), 0)
-      + COALESCE((SELECT SUM(m.punti) FROM manual_point_awards m WHERE m.user_id = u.id), 0) as punti
+      COALESCE((SELECT SUM(p.punti) FROM points_log p WHERE p.user_id = u.id AND p.created_at >= @inizio), 0)
+      + COALESCE((SELECT SUM(m.punti) FROM manual_point_awards m WHERE m.user_id = u.id AND m.created_at >= @inizio), 0) as punti
     FROM users u LEFT JOIN sedi s ON s.id = u.sede_id
     ORDER BY u.cognome, u.nome
-  `).all();
+  `).all({ inizio: inizioPunti() });
   res.json({ users: users.map(sanitizeUser) });
 });
 

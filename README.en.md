@@ -10,8 +10,8 @@
 **Two roads, one way.** WayMatch is a free, self-hosted carpooling platform for companies with one
 site or many: you install it on your own server, with your own brand.
 
-Colleagues who travel the same way find each other, share the car to work and earn points they can
-redeem for rewards. The company sees how many kilometres, how much CO2 and how much money it saves.
+Colleagues who travel the same way find each other and share the car to work; if the company turns
+gamification on (it is optional), they also earn points they can redeem for rewards. The company sees how many kilometres, how much CO2 and how much money it saves.
 It works on desktop, and on the phone it installs like any other app, without going through the
 app stores.
 

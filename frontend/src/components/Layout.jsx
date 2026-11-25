@@ -24,7 +24,7 @@ const mainNav = [
 
 // Voci raggruppate per area invece di un unico elenco piatto: con 10+ voci un elenco
 // senza struttura è difficile da scandire a colpo d'occhio.
-function adminGroupsFor(ruolo) {
+function adminGroupsFor(ruolo, gamification) {
   const gruppi = [];
 
   const monitoraggio = [];
@@ -50,6 +50,8 @@ function adminGroupsFor(ruolo) {
         { to: '/admin/sedi', icon: Building2, label: 'Sedi' },
       ],
     });
+  }
+  if (ruolo === 'mobility_manager' && gamification) {
     gruppi.push({
       titolo: 'Gamification',
       items: [
@@ -81,7 +83,9 @@ export default function Layout() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [sidebarWidth, setSidebarWidth] = useState(leggiSidebarWidth);
   const [resizing, setResizing] = useState(false);
-  const adminGroups = adminGroupsFor(user?.ruolo);
+  const adminGroups = adminGroupsFor(user?.ruolo, branding.gamification);
+  // Senza gamification non c'è la pagina Premi.
+  const navPrincipale = mainNav.filter((v) => branding.gamification || v.to !== '/premi');
 
   // Trascinamento della maniglia sul bordo destro della sidebar desktop: larghezza
   // salvata in localStorage, è una preferenza personale del browser, non un dato condiviso.
@@ -131,7 +135,7 @@ export default function Layout() {
           <NotificationBell />
         </div>
         <nav aria-label="Menu principale" className="mt-8 flex-1 min-h-0 overflow-y-auto space-y-1 pr-1">
-          {mainNav.map((item) => <NavItem key={item.to} {...item} />)}
+          {navPrincipale.map((item) => <NavItem key={item.to} {...item} />)}
           {adminGroups.map((g) => (
             <div key={g.titolo} className="pt-4 mt-4 border-t border-border">
               {g.titolo && <p className="px-3 pb-2 text-xs font-medium text-muted uppercase tracking-wide">{g.titolo}</p>}
@@ -139,7 +143,7 @@ export default function Layout() {
             </div>
           ))}
         </nav>
-        <UserCard user={user} punti={punti} onLogout={logout} />
+        <UserCard user={user} punti={branding.gamification ? punti : null} onLogout={logout} />
         <div className="pt-1 text-center"><PoweredBy /></div>
 
         {/* Separatore ridimensionabile anche da tastiera: frecce sinistra/destra, Home e Fine
@@ -214,7 +218,7 @@ export default function Layout() {
               </div>
             ))}
           </nav>
-          <UserCard user={user} punti={punti} onLogout={logout} onNavigate={() => setMenuOpen(false)} />
+          <UserCard user={user} punti={branding.gamification ? punti : null} onLogout={logout} onNavigate={() => setMenuOpen(false)} />
         <div className="pt-2 text-center"><PoweredBy /></div>
         </aside>
       </div>
@@ -230,7 +234,7 @@ export default function Layout() {
 
       {/* Bottom tab bar mobile */}
       <nav aria-label="Navigazione rapida" className="md:hidden fixed bottom-0 inset-x-0 z-30 bg-surface border-t border-border flex justify-around px-1 py-1.5">
-        {mainNav.map((item) => (
+        {navPrincipale.map((item) => (
           <NavLink
             key={item.to}
             to={item.to}
@@ -309,7 +313,7 @@ function UserCard({ user, punti, onLogout, onNavigate }) {
         </div>
         <div className="min-w-0 flex-1">
           <p className="text-sm font-medium truncate">{user.nome} {user.cognome}</p>
-          <p className="text-xs text-muted">{punti} punti</p>
+          {punti !== null && <p className="text-xs text-muted">{punti} punti</p>}
         </div>
         {/* Guide, novità e informazioni sul progetto: accanto al nome, come le altre azioni dell'account. */}
         <NavLink to="/informazioni" title="Informazioni" aria-label="Informazioni" onClick={onNavigate}

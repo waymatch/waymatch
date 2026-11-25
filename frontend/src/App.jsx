@@ -3,6 +3,7 @@ import { Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-
 import { api } from './api.js';
 import { useAuth } from './context/AuthContext.jsx';
 import Layout from './components/Layout.jsx';
+import { useBranding } from './context/BrandingContext.jsx';
 
 // Ogni pagina in un chunk separato: la mappa (Leaflet) e i grafici (Recharts), usati solo
 // da alcune pagine, non appesantiscono più il caricamento iniziale (login/home).
@@ -91,6 +92,15 @@ function RedirectGuida() {
   return <Navigate to={`/informazioni${hash}`} replace />;
 }
 
+
+// Pagine che esistono solo con la gamification attiva: altrimenti si torna alla home (anche da un
+// link o un segnalibro vecchio).
+function SoloConGamification({ children }) {
+  const { branding, caricato } = useBranding();
+  if (!caricato) return null;
+  return branding.gamification ? children : <Navigate to="/" replace />;
+}
+
 export default function App() {
   const [status, setStatus] = useState(null); // { initialized: bool }
   const { loading: authLoading } = useAuth();
@@ -122,7 +132,7 @@ export default function App() {
         <Route path="offri" element={<OfferRide />} />
         <Route path="cerca" element={<FindRide />} />
         <Route path="i-miei-viaggi" element={<MyRides />} />
-        <Route path="premi" element={<Rewards />} />
+        <Route path="premi" element={<SoloConGamification><Rewards /></SoloConGamification>} />
         <Route path="profilo" element={<Profile />} />
         <Route path="informazioni" element={<Informazioni />} />
         <Route path="guida" element={<RedirectGuida />} />

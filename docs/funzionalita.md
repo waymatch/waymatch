@@ -34,7 +34,11 @@ L'elenco completo di cosa fa WayMatch, per chi vuole i dettagli. Per una panoram
   effettivamente avvenuti.
 - **Notifiche**: centro notifiche in-app (campanella) + **notifiche push del browser** (nuova
   richiesta, richiesta confermata/rifiutata, viaggio annullato, esiti riscatto premi).
-- **Gamification**: regole punteggio **configurabili dal pannello mobility manager**
+- **Gamification facoltativa**: si accende o spegne da Impostazioni generali (spenta sulle
+  installazioni nuove). Spenta, nessun punto e nessuna pagina di punti, premi o contest; i viaggi
+  contano per i report. Il mobility manager può **azzerare i punteggi** in ogni momento, con un
+  riepilogo dei premi (export Excel dei riscatti) e la scelta se tenere o annullare quelli non
+  ancora consegnati; lo storico resta. Accesa: regole punteggio **configurabili dal pannello mobility manager**
   (punti per offerta, per viaggio completato come autista/passeggero, bonus km, bonus
   "macchina piena" separato per autista e passeggeri), assegnazione punti manuale con
   storico, classifica generale e per sede, contest a tempo, catalogo premi con

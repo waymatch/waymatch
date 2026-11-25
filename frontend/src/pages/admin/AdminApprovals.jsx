@@ -34,7 +34,7 @@ export default function AdminApprovals() {
       <div>
         <h1 className="font-display font-bold text-2xl">Approvazioni</h1>
         <p className="text-muted text-sm mt-0.5">
-          Viaggi in attesa di conferma prima dell'assegnazione dei punti.
+          Viaggi in attesa di conferma prima di essere contati nei report (e, se attivi, nei punti).
         </p>
       </div>
 

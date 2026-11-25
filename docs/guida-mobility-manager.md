@@ -84,6 +84,25 @@ Cinque schede:
 
 ![Gestione premi](img/admin-premi.png)
 
+La gamification (punti, premi, classifiche e contest) è **facoltativa** e sulle installazioni nuove
+parte **spenta**: c'è chi usa WayMatch solo per mettere in contatto i colleghi. La accendi o la spegni
+da **Impostazioni generali → Gamification**. Spenta, non si assegnano punti, le pagine di punti, premi
+e contest non si vedono (nemmeno il gruppo Gamification del menu) e la classifica dei report conta i
+viaggi invece dei punti; i viaggi continuano a contare per i report. Punti e storico restano: riaccesa,
+si riparte da lì. Le richieste di premio ancora aperte restano da gestire: la scheda Gamification te
+lo ricorda, con il collegamento a Gestione premi.
+
+**Azzerare i punteggi.** Dalla stessa scheda puoi riportare a zero i punti di tutti, in qualsiasi
+momento (per esempio a inizio anno o quando cambiano le regole); quando accendi o spegni la
+gamification te lo propone. Prima di confermare vedi quanti premi sono stati consegnati, quanti sono
+approvati ma da consegnare e quanti in attesa, e puoi **scaricare l'elenco dei riscatti in Excel**
+(chi, quale premio, stato, codice del voucher) per consegnare a mano quelli rimasti. Per i premi non
+ancora consegnati scegli tu: **tenerli** (restano da consegnare) o **annullarli** (chi li aveva
+chiesti riceve un avviso, i punti non tornano). Saldi, classifiche e contest ripartono da zero; lo
+storico resta, per i report e per l'export dei dati personali. L'operazione non si annulla. Un
+riscatto chiesto prima dell'azzeramento e rifiutato dopo non ridà punti. Conviene avvisare i
+colleghi prima: l'app non manda un messaggio a tutti.
+
 - **Gestione premi**: il catalogo. Un premio può essere "fisico" (lo consegni tu) o un **voucher
   digitale**, con un codice generato all'approvazione e stampato su un'immagine modello che
   carichi tu. Le richieste di riscatto le approvi o rifiuti da qui; se rifiuti, i punti tornano

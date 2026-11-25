@@ -1,11 +1,13 @@
 const express = require('express');
 const db = require('../db');
 const { requireAuth, requireRole } = require('../middleware/auth');
+const { inizioPunti } = require('../utils/points');
+const { richiediGamification } = require('../utils/gamification');
 const { registraAzione } = require('../utils/audit');
 
 const router = express.Router();
 
-router.get('/', requireAuth, (req, res) => {
+router.get('/', requireAuth, richiediGamification, (req, res) => {
   const contests = db.prepare(`
     SELECT c.*, s.nome as sede_nome FROM contests c LEFT JOIN sedi s ON s.id = c.sede_id
     WHERE c.attivo = 1 ORDER BY c.data_inizio DESC
@@ -39,7 +41,7 @@ router.delete('/:id', requireAuth, requireRole('mobility_manager'), (req, res) =
 });
 
 // Classifica di un contest specifico, in base alla metrica scelta
-router.get('/:id/classifica', requireAuth, (req, res) => {
+router.get('/:id/classifica', requireAuth, richiediGamification, (req, res) => {
   const contest = db.prepare('SELECT * FROM contests WHERE id = ?').get(req.params.id);
   if (!contest) return res.status(404).json({ error: 'Contest non trovato' });
 
@@ -62,15 +64,17 @@ router.get('/:id/classifica', requireAuth, (req, res) => {
     // Metrica "punti": include anche i bonus manuali del mobility manager (non i riscatti premi)
     query = `
       SELECT u.id, u.nome, u.cognome, u.sede_id,
-        COALESCE((SELECT SUM(p.punti) FROM points_log p WHERE p.user_id = u.id AND p.created_at >= ? AND p.created_at < ?), 0)
+        COALESCE((SELECT SUM(p.punti) FROM points_log p WHERE p.user_id = u.id AND p.created_at >= ? AND p.created_at < ? AND p.created_at >= ?), 0)
         +
-        COALESCE((SELECT SUM(m.punti) FROM manual_point_awards m WHERE m.user_id = u.id AND m.redemption_id IS NULL AND m.created_at >= ? AND m.created_at < ?), 0)
+        COALESCE((SELECT SUM(m.punti) FROM manual_point_awards m WHERE m.user_id = u.id AND m.redemption_id IS NULL AND m.created_at >= ? AND m.created_at < ? AND m.created_at >= ?), 0)
         as punteggio,
         0 as eventi
       FROM users u
       WHERE 1=1
     `;
-    params.push(inizio, fineEsclusa, inizio, fineEsclusa);
+    // Un azzeramento dei punteggi durante il contest vale anche per la sua classifica.
+    const azzerati = inizioPunti();
+    params.push(inizio, fineEsclusa, azzerati, inizio, fineEsclusa, azzerati);
   }
   if (contest.sede_id) { query += ' AND u.sede_id = ?'; params.push(contest.sede_id); }
   query += ' ORDER BY punteggio DESC LIMIT 50';

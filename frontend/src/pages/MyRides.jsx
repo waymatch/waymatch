@@ -5,6 +5,7 @@ import { Car, Check, X, Trash2, Flag, Phone, UserCheck, Pencil, Clock, Timer, Re
 import { api } from '../api.js';
 import EditRideModal from '../components/EditRideModal.jsx';
 import { dataISO, dataLocale } from '../dateTimeUtils.js';
+import { useBranding } from '../context/BrandingContext.jsx';
 
 export default function MyRides() {
   const [searchParams] = useSearchParams();
@@ -47,6 +48,7 @@ function TabButton({ active, children, onClick }) {
 }
 
 function OfferedRides() {
+  const { branding: { gamification } } = useBranding();
   const [rides, setRides] = useState(null);
   const [error, setError] = useState('');
   const [editRide, setEditRide] = useState(null);
@@ -73,7 +75,9 @@ function OfferedRides() {
     }
   };
   const completa = async (rideId) => {
-    if (!confirm('Segnare questo viaggio come completato? I punti verranno assegnati solo ai passeggeri con check-in effettuato.')) return;
+    if (!confirm(gamification
+      ? 'Segnare questo viaggio come completato? I punti verranno assegnati solo ai passeggeri con check-in effettuato.'
+      : 'Segnare questo viaggio come completato? Contano solo i passeggeri con check-in effettuato.')) return;
     try {
       const res = await api.post(`/rides/${rideId}/completa`);
       if (res.stato === 'in_approvazione') {

@@ -79,6 +79,10 @@ Qui trovi i viaggi in programma, i **turni fissi** e lo **storico**. Come autist
 
 ![Premi e classifica](img/premi.png)
 
+Punti e premi sono **facoltativi**: li attiva l'azienda. Se nel menu non vedi **Premi**, nella tua
+azienda non sono attivi e i viaggi non danno punti. Il mobility manager può anche **azzerare i
+punteggi** (per esempio a inizio anno): i punti di tutti tornano a zero e la classifica riparte.
+
 Ogni viaggio condiviso ti fa guadagnare punti (le regole le decide l'azienda). In **Premi** vedi la
 classifica, i contest in corso e il catalogo premi. Il riscatto toglie subito i punti; se il premio
 viene rifiutato i punti ti tornano. Alcuni premi sono **voucher digitali** con un codice.

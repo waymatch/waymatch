@@ -332,6 +332,14 @@ function addColumnIfMissing(table, column, definition) {
   }
 }
 addColumnIfMissing('sedi', 'lat', 'REAL');
+// Gamification facoltativa (utils/gamification.js): spenta sulle installazioni nuove. Su quelle già
+// configurate prima di questa opzione resta accesa, per non cambiare un servizio già in uso.
+if (!db.prepare('PRAGMA table_info(system_settings)').all().some((c) => c.name === 'gamification_attiva')) {
+  db.exec('ALTER TABLE system_settings ADD COLUMN gamification_attiva INTEGER NOT NULL DEFAULT 0');
+  db.prepare('UPDATE system_settings SET gamification_attiva = 1 WHERE initialized = 1').run();
+}
+// Ultimo azzeramento dei punteggi (utils/points.js, inizioPunti), al millisecondo.
+addColumnIfMissing('system_settings', 'punti_azzerati_il', 'TEXT');
 // Ultima versione pubblicata di WayMatch vista dal controllo giornaliero (utils/aggiornamenti.js).
 addColumnIfMissing('system_settings', 'ultima_versione', 'TEXT');
 addColumnIfMissing('system_settings', 'ultima_versione_url', 'TEXT');

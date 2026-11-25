@@ -93,16 +93,18 @@ export default function Home() {
         </p>
       </div>
 
-      <div className="grid grid-cols-2 gap-3">
-        <div className="card flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-accent-light text-accent-dark flex items-center justify-center shrink-0">
-            <Trophy size={18} />
+      <div className={`grid gap-3 ${branding.gamification ? 'grid-cols-2' : 'grid-cols-1'}`}>
+        {branding.gamification && (
+          <div className="card flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-accent-light text-accent-dark flex items-center justify-center shrink-0">
+              <Trophy size={18} />
+            </div>
+            <div>
+              <p className="text-xl font-display font-bold leading-none">{punti}</p>
+              <p className="text-xs text-muted mt-1">punti totali</p>
+            </div>
           </div>
-          <div>
-            <p className="text-xl font-display font-bold leading-none">{punti}</p>
-            <p className="text-xs text-muted mt-1">punti totali</p>
-          </div>
-        </div>
+        )}
         <button onClick={() => setOffertaRapida(true)} className="card flex items-center gap-3 hover:border-primary transition-colors text-left">
           <div className="w-10 h-10 rounded-xl bg-primary-light text-primary-dark flex items-center justify-center shrink-0">
             <Zap size={18} />
