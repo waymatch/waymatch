@@ -119,6 +119,12 @@ fornitore delle mappe, i giorni lavorativi, la conservazione dello storico e qua
 (utenti, mobility manager, sedi). Non mostra chiavi né dati riservati: serve a capire in un colpo
 d'occhio come è configurata l'installazione, per esempio quando devi chiedere aiuto all'IT.
 
+Alla voce **Aggiornamenti** vedi se è uscita una nuova versione di WayMatch, con il link alle note
+di rilascio: il server controlla una volta al giorno e, quando ne esce una, ricevi anche un avviso
+(categoria «Nuove versioni di WayMatch» nelle preferenze di notifica). L'installazione la fa l'IT,
+seguendo la guida di installazione (sezione «Aggiornare»). L'IT può disattivare il controllo: in
+quel caso la voce dice «controllo disattivato».
+
 ## Documenti e consensi
 
 Da **Documenti** pubblichi testi (informativa privacy, dichiarazione del conducente...) o PDF che

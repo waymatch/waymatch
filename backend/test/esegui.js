@@ -25,6 +25,7 @@ const SUITE = [
   { file: 'accessi-e-dati.test.js', cosa: 'sessioni oltre i limiti, cambio password, documenti per versione, CSV, anonimizzazione dei luoghi' },
   { file: 'regole-carpooling.test.js', cosa: 'prenotazioni, recapiti, turni fissi, premi e rimborsi, validazioni, endpoint push' },
   { file: 'ultimo-admin.test.js', cosa: 'ultimo mobility manager protetto' },
+  { file: 'aggiornamenti.test.js', cosa: 'avviso di nuova versione (release finta, nessuna chiamata a GitHub)' },
   { file: 'backup.test.js', cosa: 'backup del database cifrato (scripts/backup-db.js)' },
   { file: 'calendario.test.js', cosa: 'giorni lavorativi (domeniche e non solo)' },
   { file: 'brand.test.mjs', cosa: 'identità WayMatch, contrasto AA del tema' },
@@ -44,6 +45,8 @@ if (filtro && !SUITE.some((s) => s.file.includes(filtro))) {
 // subito il calcolo dei km dal server, che ripiega sul limite di plausibilità. Chi vuole un
 // percorso preciso avvia un OSRM finto (vedi regole-carpooling.test.js).
 process.env.OSRM_URL ||= 'http://127.0.0.1:9';
+// Né a GitHub per il controllo delle nuove versioni: lo prova aggiornamenti.test.js con una release finta.
+process.env.CONTROLLO_AGGIORNAMENTI = '0';
 const radice = fs.mkdtempSync(path.join(os.tmpdir(), 'carpooling-test-'));
 const risultati = [];
 

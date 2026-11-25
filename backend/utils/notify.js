@@ -41,6 +41,7 @@ const CATEGORIE = {
   richiesta_reset_password_ricevuta: 'approvazioni_mm',
   password_reset_completata: 'variazioni_viaggio',
   turni_in_pausa: 'variazioni_viaggio',
+  nuova_versione: 'nuove_versioni',
 };
 
 const CATEGORIE_INFO = [
@@ -54,6 +55,7 @@ const CATEGORIE_INFO = [
   { chiave: 'riepilogo_settimanale', nome: 'Riepilogo settimanale', descrizione: 'Un breve riepilogo dei punti guadagnati e dei viaggi fatti nell\'ultima settimana.' },
   { chiave: 'ritardo_passeggero', nome: 'Ritardo di un passeggero', descrizione: 'Quando un passeggero confermato ti segnala di essere in ritardo al punto di ritrovo.' },
   { chiave: 'approvazioni_mm', nome: 'Approvazioni da validare', descrizione: 'Nuovi viaggi in attesa di approvazione (solo Mobility Manager).', soloRuolo: 'mobility_manager' },
+  { chiave: 'nuove_versioni', nome: 'Nuove versioni di WayMatch', descrizione: 'Quando è disponibile una nuova versione della piattaforma, da far installare all\'IT (solo Mobility Manager).', soloRuolo: 'mobility_manager' },
 ];
 
 function getCategoria(tipo) {
@@ -96,6 +98,8 @@ function destinazionePer(tipo) {
       return '/profilo';
     case 'promemoria_partenza':
       return '/i-miei-viaggi';
+    case 'nuova_versione':
+      return '/informazioni#sistema';
     case 'turni_in_pausa':
       return '/offri'; // la pagina chiede di accettare i documenti del conducente
     case 'matching_proattivo':

@@ -76,6 +76,7 @@ deve:
 | `TILE_URL`, `TILE_ATTRIBUTION`, `TILE_MAX_ZOOM` | no | Provider della mappa. Default OpenStreetMap, **solo per prove** (vedi sotto) |
 | `NOMINATIM_URL`, `OSRM_URL`, `PHOTON_URL`, `OSM_USER_AGENT`, `GEO_COUNTRY_CODES` | no | Ricerca indirizzi e percorsi. Default: server pubblici di OpenStreetMap |
 | `RITENZIONE_STORICO_MESI` | no | Mesi di conservazione di storico e log prima dell'archiviazione (default 24) |
+| `CONTROLLO_AGGIORNAMENTI` | no | `0` disattiva il controllo giornaliero delle nuove versioni su GitHub (vedi [Sicurezza](sicurezza.md)) |
 
 ## Servizi esterni
 

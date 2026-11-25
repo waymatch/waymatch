@@ -235,4 +235,8 @@ questa architettura:
 - **SSRF** sulle chiamate di geocodifica: l'host di destinazione è fisso (variabili d'ambiente del
   gestore), l'utente controlla solo il testo della ricerca.
 - **SSRF** nel frontend: è codice che gira nel browser e chiama solo la propria API.
+- **Controllo delle nuove versioni**: una volta al giorno il server legge l'ultima release pubblica
+  da `api.github.com` (indirizzo fisso). Non invia dati dell'azienda né degli utenti, ma GitHub
+  vede l'indirizzo del server; dalla risposta si usano solo il numero di versione e un link che
+  deve portare a `github.com`. Si disattiva con `CONTROLLO_AGGIORNAMENTI=0`.
 - **CSRF**: vedi sopra; le API richiedono un token nell'intestazione, che il browser non allega da solo.

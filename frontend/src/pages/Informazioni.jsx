@@ -143,6 +143,7 @@ function Sistema() {
       <div className="card">
         <h2 className="font-display font-semibold text-base mb-1">Piattaforma</h2>
         <Riga nome="Versione" valore={`${d.versione}`} />
+        <Riga nome="Aggiornamenti" valore={<StatoAggiornamenti a={d.aggiornamenti} />} />
         <Riga nome="Attiva da" valore={durata(d.ambiente.attivo_da_secondi)} />
         <Riga nome="Node" valore={d.ambiente.node} />
         <Riga nome="Sistema" valore={d.ambiente.sistema} />
@@ -165,6 +166,19 @@ function Sistema() {
       </div>
     </div>
   );
+}
+
+// Esito dell'ultimo controllo giornaliero delle versioni pubblicate (server: utils/aggiornamenti.js).
+function StatoAggiornamenti({ a }) {
+  if (!a?.attivo) return 'controllo disattivato';
+  if (a.disponibile) {
+    return (
+      <a href={a.url || `${PROGETTO.repository}/releases`} target="_blank" rel="noopener noreferrer" className="underline text-primary font-medium">
+        disponibile la {a.ultima}
+      </a>
+    );
+  }
+  return a.controllato_il ? 'versione più recente' : 'non ancora controllati';
 }
 
 function LinkEsterno({ href, icona: Icona, titolo, descrizione }) {

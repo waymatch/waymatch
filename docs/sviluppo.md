@@ -93,6 +93,7 @@ uploads in una cartella temporanea cancellata alla fine: non toccano `data/` né
 | `configurazione.test.js` | segreti deboli rifiutati, nessun font da Google, file del progetto presenti |
 | `handler-async.test.js` | ogni handler async passa da `asyncHandler`: un errore dà 500 e non ferma il server |
 | `limiti-e-anonimizzazione.test.js` | limiti su reset password e `/setup`, anonimizzazione elaborata una sola volta, header Permissions-Policy |
+| `aggiornamenti.test.js` | avviso di nuova versione: confronto delle versioni, un avviso per versione solo ai mobility manager, risposte non valide, controllo disattivato (release finta in locale) |
 | `ultimo-admin.test.js` | non si può disattivare né declassare l'ultimo mobility manager (modifica, eliminazione, import CSV, anonimizzazione) |
 | `export.test.js` | formule neutralizzate negli export Excel |
 | `backup.test.js` | copia del database cifrato: coerente, cifrata, mai sovrascritta |
