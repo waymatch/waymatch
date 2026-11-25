@@ -24,7 +24,7 @@ function puntiValidi(v) {
 }
 
 // Importo storico di un riscatto: quanto è stato davvero addebitato, non il prezzo attuale
-// del premio (che il mobility manager può cambiare dopo).
+// del premio (che il Mobility Manager può cambiare dopo).
 const PUNTI_ADDEBITATI = `(SELECT -COALESCE(SUM(m.punti), 0) FROM manual_point_awards m WHERE m.redemption_id = rr.id AND m.punti < 0)`;
 
 router.get('/', requireAuth, richiediGamification, (req, res) => {
@@ -191,7 +191,7 @@ router.put('/redemptions/:id', requireAuth, requireRole('mobility_manager'), asy
 }));
 
 // Genera al volo l'immagine del voucher: template grafico + codice sovrapposto.
-// Accessibile solo al proprietario del riscatto o a un mobility manager.
+// Accessibile solo al proprietario del riscatto o a un Mobility Manager.
 router.get('/redemptions/:id/voucher-image', requireAuth, asyncHandler(async (req, res) => {
   const redemption = db.prepare(`
     SELECT rr.*, r.voucher_template_id, r.nome as reward_nome FROM reward_redemptions rr

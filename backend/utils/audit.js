@@ -1,7 +1,7 @@
 const db = require('../db');
 const { logEvent } = require('./structuredLog');
 
-// Registra un'azione nel log attività, visibile ai mobility manager con filtro per
+// Registra un'azione nel log attività, visibile ai Mobility Manager con filtro per
 // categoria: "gestione" per le operazioni di amministrazione, "utente" per un
 // sottoinsieme curato delle azioni degli utenti sui propri passaggi/prenotazioni/premi
 // (non ogni singolo click, altrimenti il log diventa enorme e inutile).

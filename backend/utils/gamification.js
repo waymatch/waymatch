@@ -1,6 +1,6 @@
 const db = require('../db');
 
-// Punti, premi, classifiche e contest sono facoltativi: il mobility manager li attiva o li spegne
+// Punti, premi, classifiche e contest sono facoltativi: il Mobility Manager li attiva o li spegne
 // da Impostazioni generali → Gamification. Spenti, non si assegnano punti e le parti dell'app che
 // li riguardano non si vedono; lo storico resta nel database.
 function gamificationAttiva() {

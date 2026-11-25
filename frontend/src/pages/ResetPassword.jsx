@@ -8,7 +8,7 @@ import { useBranding } from '../context/BrandingContext.jsx';
 import { REQUISITI_PASSWORD, passwordValida } from '../passwordPolicy.js';
 
 // Pagina pubblica raggiunta dal link inviato via email (solo quando SMTP è configurato,
-// vedi POST /auth/password-dimenticata). Senza email il reset passa dal mobility manager.
+// vedi POST /auth/password-dimenticata). Senza email il reset passa dal Mobility Manager.
 export default function ResetPassword() {
   const { branding } = useBranding();
   const [searchParams] = useSearchParams();

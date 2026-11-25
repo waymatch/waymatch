@@ -51,12 +51,12 @@ Regole che i test difendono e che conviene non rompere:
   processo);
 - niente chiamate a servizi esterni dal browser oltre al provider dei tile;
 - le password provvisorie bloccano tutte le API tranne il cambio password;
-- l'ultimo mobility manager non si può disattivare né declassare.
+- l'ultimo Mobility Manager non si può disattivare né declassare.
 
 ## Guida nell'app e versioni
 
 La sezione **Informazioni** dell'app mostra `docs/guida-utente.md`, `docs/guida-mobility-manager.md` (solo
-ai mobility manager), `docs/novita.md` e le immagini di `docs/img/`, incorporati al momento della
+ai Mobility Manager), `docs/novita.md` e le immagini di `docs/img/`, incorporati al momento della
 build: la guida è sempre quella della versione installata. Le immagini sono file separati,
 caricati solo quando si apre la guida (non entrano nella cache offline della PWA).
 
@@ -93,10 +93,10 @@ uploads in una cartella temporanea cancellata alla fine: non toccano `data/` né
 | `configurazione.test.js` | segreti deboli rifiutati, nessun font da Google, file del progetto presenti |
 | `handler-async.test.js` | ogni handler async passa da `asyncHandler`: un errore dà 500 e non ferma il server |
 | `limiti-e-anonimizzazione.test.js` | limiti su reset password e `/setup`, anonimizzazione elaborata una sola volta, header Permissions-Policy |
-| `foto-profilo.test.js` | foto del profilo: cifrata su disco, 256×256 senza EXIF, solo dopo l'accesso, file non validi o enormi rifiutati, rimozione (utente e mobility manager), export dei dati personali, anonimizzazione |
-| `gamification.test.js` | gamification facoltativa: spenta sulle installazioni nuove (nessun punto, riscatto, classifica o contest), interruttore solo per il mobility manager, accesa sulle installazioni già in uso; azzeramento dei punteggi (conferma, premi tenuti o annullati, rimborsi, export Excel dei riscatti) |
-| `aggiornamenti.test.js` | avviso di nuova versione: confronto delle versioni, un avviso per versione solo ai mobility manager, risposte non valide, controllo disattivato (release finta in locale) |
-| `ultimo-admin.test.js` | non si può disattivare né declassare l'ultimo mobility manager (modifica, eliminazione, import CSV, anonimizzazione) |
+| `foto-profilo.test.js` | foto del profilo: cifrata su disco, 256×256 senza EXIF, solo dopo l'accesso, file non validi o enormi rifiutati, rimozione (utente e Mobility Manager), export dei dati personali, anonimizzazione |
+| `gamification.test.js` | gamification facoltativa: spenta sulle installazioni nuove (nessun punto, riscatto, classifica o contest), interruttore solo per il Mobility Manager, accesa sulle installazioni già in uso; azzeramento dei punteggi (conferma, premi tenuti o annullati, rimborsi, export Excel dei riscatti) |
+| `aggiornamenti.test.js` | avviso di nuova versione: confronto delle versioni, un avviso per versione solo ai Mobility Manager, risposte non valide, controllo disattivato (release finta in locale) |
+| `ultimo-admin.test.js` | non si può disattivare né declassare l'ultimo Mobility Manager (modifica, eliminazione, import CSV, anonimizzazione) |
 | `export.test.js` | formule neutralizzate negli export Excel |
 | `backup.test.js` | copia del database cifrato: coerente, cifrata, mai sovrascritta |
 | `calendario.test.js` | giorni lavorativi per passaggi e turni fissi |

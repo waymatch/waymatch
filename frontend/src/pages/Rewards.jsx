@@ -3,6 +3,7 @@ import { Gift, Trophy, Medal, History, QrCode } from 'lucide-react';
 import { api, caricaImmagineAutenticata } from '../api.js';
 import { useAuth } from '../context/AuthContext.jsx';
 import { dataLocale } from '../dateTimeUtils.js';
+import Avatar from '../components/Avatar.jsx';
 
 const PERIODI = [
   { value: '7', label: '7 giorni' },
@@ -75,7 +76,7 @@ export default function Rewards() {
     setMsg('');
     try {
       await api.post(`/rewards/${id}/redeem`);
-      setMsg('Richiesta di riscatto inviata! Il mobility manager la valuterà a breve.');
+      setMsg('Richiesta di riscatto inviata! Il Mobility Manager la valuterà a breve.');
       load();
     } catch (e) {
       setMsg(e.message);
@@ -197,6 +198,7 @@ export default function Rewards() {
             {classifica.slice(0, 10).map((c, i) => (
               <div key={c.id} className={`flex items-center gap-3 py-2.5 first:pt-0 last:pb-0 ${c.id === user.id ? 'font-semibold' : ''}`}>
                 <span className="w-6 text-center text-sm text-muted">{i + 1}</span>
+                <Avatar id={c.id} nome={c.nome} cognome={c.cognome} versione={c.foto_versione} dimensione="xs" />
                 <span className="flex-1 text-sm truncate">{c.nome} {c.cognome}</span>
                 <span className="text-sm text-primary">{c.punti} pt</span>
               </div>

@@ -61,7 +61,7 @@ async function main() {
     console.log('\n[Admin del primo avvio]');
     check('non ha password provvisoria e usa le API', (await call('GET', '/users', { token: mm })).status === 200);
 
-    console.log('\n[Utente creato dal mobility manager]');
+    console.log('\n[Utente creato dal Mobility Manager]');
     await call('POST', '/users', { token: mm, body: { nome: 'Ugo', cognome: 'U', email: 'ugo@test.it', password: PW } });
     const ugo = await accedi('ugo@test.it', PW);
     check('il login riesce', ugo.status === 200 && !!ugo.token);
@@ -93,7 +93,7 @@ async function main() {
     }
     check('il flag è spento', (await call('GET', '/auth/me', { token: cambio.data.token })).data.user.password_da_cambiare === 0);
 
-    console.log('\n[Reset da parte del mobility manager]');
+    console.log('\n[Reset da parte del Mobility Manager]');
     const ugoId = (await call('GET', '/auth/me', { token: cambio.data.token })).data.user.id;
     await call('POST', `/users/${ugoId}/reset-password`, { token: mm, body: { password_nuova: PW } });
     const dopoReset = await accedi('ugo@test.it', PW);
@@ -107,8 +107,8 @@ async function main() {
     const richiesta = (await call('GET', '/auth/password-reset-richieste', { token: mm })).data.richieste.find((r) => r.email === 'rita@test.it');
     const gen = await call('POST', `/auth/password-reset-richieste/${richiesta.id}/genera`, { token: mm });
     const rita = await accedi('rita@test.it', gen.data.password_temporanea);
-    check('password generata dal mobility manager: login riesce', rita.status === 200);
-    check('password generata dal mobility manager: bloccato', bloccata(await call('GET', '/rides', { token: rita.token })));
+    check('password generata dal Mobility Manager: login riesce', rita.status === 200);
+    check('password generata dal Mobility Manager: bloccato', bloccata(await call('GET', '/rides', { token: rita.token })));
 
     console.log('\n[Utente importato da CSV]');
     const f = new FormData();
@@ -118,7 +118,7 @@ async function main() {
     const ivo = await accedi('ivo@test.it', PW);
     check('utente importato bloccato', bloccata(await call('GET', '/notifications', { token: ivo.token })));
 
-    console.log('\n[Mobility manager creato con password provvisoria]');
+    console.log('\n[Mobility Manager creato con password provvisoria]');
     await call('POST', '/users', { token: mm, body: { nome: 'Max', cognome: 'M', email: 'max@test.it', password: PW, ruolo: 'mobility_manager' } });
     const max = await accedi('max@test.it', PW);
     check('niente funzioni di amministrazione prima del cambio', bloccata(await call('GET', '/users', { token: max.token })));

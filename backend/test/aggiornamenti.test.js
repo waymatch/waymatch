@@ -47,7 +47,7 @@ async function main() {
   release = { corpo: { tag_name: `v${piuNuova}`, html_url: `https://github.com/waymatch/waymatch/releases/tag/v${piuNuova}` } };
   s = await agg.controlla();
   check('una release più recente risulta disponibile', s.disponibile === true && s.ultima === piuNuova, JSON.stringify(s));
-  check('il mobility manager riceve un avviso (e solo lui)', avvisi() === 1
+  check('il Mobility Manager riceve un avviso (e solo lui)', avvisi() === 1
     && db.prepare("SELECT user_id FROM notifications WHERE tipo = 'nuova_versione'").get().user_id === mm);
   await agg.controlla();
   check('al controllo successivo l\'avviso non si ripete', avvisi() === 1, String(avvisi()));

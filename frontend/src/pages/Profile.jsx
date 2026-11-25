@@ -496,7 +496,7 @@ function PrivacyTab() {
   };
 
   const richiedi = async () => {
-    if (!confirm('Confermi di voler richiedere la cancellazione del tuo account? La valuterà un mobility manager.')) return;
+    if (!confirm('Confermi di voler richiedere la cancellazione del tuo account? La valuterà un Mobility Manager.')) return;
     setInviando(true);
     setMsg('');
     try {
@@ -536,7 +536,7 @@ function PrivacyTab() {
           <p className="text-sm text-muted">
             Hai una richiesta di cancellazione in attesa, inviata il{' '}
             {new Date(richiesta.created_at.replace(' ', 'T') + 'Z').toLocaleDateString('it-IT')}.
-            Un mobility manager la valuterà a breve.
+            Un Mobility Manager la valuterà a breve.
           </p>
         ) : (
           <>
@@ -546,7 +546,7 @@ function PrivacyTab() {
               </p>
             )}
             <p className="text-xs text-muted">
-              Puoi chiedere la cancellazione dei tuoi dati personali. Se un mobility manager la
+              Puoi chiedere la cancellazione dei tuoi dati personali. Se un Mobility Manager la
               approva, il tuo profilo viene anonimizzato e non potrai più accedere. I passaggi
               condivisi con altri colleghi restano visibili nel loro storico, senza i tuoi dati
               identificativi.

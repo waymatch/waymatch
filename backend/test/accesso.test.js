@@ -193,7 +193,7 @@ async function main() {
       check('hash del reset a costo 12', rounds('mario@test.it') === 12);
     }
 
-    console.log('\n[Password provvisoria dal mobility manager — S7]');
+    console.log('\n[Password provvisoria dal Mobility Manager — S7]');
     {
       await call('POST', '/auth/password-dimenticata', { body: { email: 'vecchio@test.it' } });
       const elenco = await call('GET', '/auth/password-reset-richieste', { token: mm });
@@ -235,7 +235,7 @@ async function main() {
 
     console.log('\n[Anonimizzazione GDPR]');
     {
-      // Utenti creati dal mobility manager: hanno la password provvisoria e le API
+      // Utenti creati dal Mobility Manager: hanno la password provvisoria e le API
       // rispondono solo dopo il cambio. Qui simuliamo che l'abbiano già cambiata.
       { const d = apriDb(); d.prepare(`UPDATE users SET password_da_cambiare = 0 WHERE email = 'csv1@test.it'`).run(); d.close(); }
       const lu = await call('POST', '/auth/login', { body: { email: 'csv1@test.it', password: 'Csv-Password-12345!' } });

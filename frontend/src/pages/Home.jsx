@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react';
 import ErrorBanner from '../components/ErrorBanner.jsx';
 import { Link } from 'react-router-dom';
-import { Sunrise, Sunset, Trophy, Zap, Car, User, ArrowRight } from 'lucide-react';
+import { Sunrise, Sunset, Trophy, Zap, Car, ArrowRight } from 'lucide-react';
 import { api } from '../api.js';
 import { useAuth } from '../context/AuthContext.jsx';
 import { useBranding } from '../context/BrandingContext.jsx';
@@ -11,6 +11,7 @@ import RideCard from '../components/RideCard.jsx';
 import RelevanceSlider from '../components/RelevanceSlider.jsx';
 import QuickOfferModal from '../components/QuickOfferModal.jsx';
 import { ordinaPerPertinenza, leggiSogliaSalvata, salvaSoglia } from '../relevance.js';
+import Avatar from '../components/Avatar.jsx';
 
 function formatGiorno(dataStr) {
   // Calendario locale (non UTC); domani = giorno di calendario successivo, non +24 ore.
@@ -137,9 +138,13 @@ export default function Home() {
           <div className="grid gap-2 lg:grid-cols-2">
             {prossimi.map((p, i) => (
               <Link to={`/i-miei-viaggi?tab=${p.ruolo === 'autista' ? 'offerti' : 'prenotati'}`} key={`${p.ruolo}-${p.id}-${i}`} className="card flex items-center gap-3 hover:border-primary transition-colors">
-                <div className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 ${p.ruolo === 'autista' ? 'bg-primary-light text-primary-dark' : 'bg-accent-light text-accent-dark'}`}>
-                  {p.ruolo === 'autista' ? <Car size={16} /> : <User size={16} />}
-                </div>
+                {p.ruolo === 'autista' ? (
+                  <div className="w-9 h-9 rounded-lg flex items-center justify-center shrink-0 bg-primary-light text-primary-dark">
+                    <Car size={16} />
+                  </div>
+                ) : (
+                  <Avatar id={p.driver_id} nome={p.driver_nome} cognome={p.driver_cognome} versione={p.driver_foto} />
+                )}
                 <div className="min-w-0 flex-1">
                   <p className="text-sm font-medium">
                     {formatGiorno(p.data)} · {p.ora} · {p.tipo === 'andata' ? 'Andata' : 'Ritorno'}

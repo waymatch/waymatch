@@ -1,5 +1,5 @@
 // Controllo delle nuove versioni di WayMatch: una volta al giorno il server legge l'ultima release
-// pubblica su GitHub e, se è più recente di quella installata, avvisa i mobility manager (una volta
+// pubblica su GitHub e, se è più recente di quella installata, avvisa i Mobility Manager (una volta
 // per versione). È una semplice lettura: non si invia nessun dato dell'azienda, ma GitHub vede
 // l'indirizzo del server. Si disattiva con CONTROLLO_AGGIORNAMENTI=0 (installazioni senza accesso
 // a Internet, o per scelta).
@@ -56,7 +56,7 @@ async function controlla() {
   return stato();
 }
 
-// Un avviso a ogni mobility manager attivo, una volta per versione.
+// Un avviso a ogni Mobility Manager attivo, una volta per versione.
 async function avvisaMobilityManager() {
   const s = stato();
   if (!s.disponibile) return 0;
@@ -72,7 +72,7 @@ async function avvisaMobilityManager() {
         return { inApp: inAppAttiva(id, 'nuova_versione') ? creaNotificaInApp(id, 'nuova_versione', messaggio) : null };
       })();
     } catch (e) {
-      console.error(`[aggiornamenti] avviso al mobility manager ${id} non salvato:`, e.message);
+      console.error(`[aggiornamenti] avviso al Mobility Manager ${id} non salvato:`, e.message);
       continue;
     }
     if (!esito) continue;

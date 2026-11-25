@@ -151,7 +151,7 @@ async function main() {
     check('template: senza login 401', (await raw('GET', `/api/voucher-templates/${tplId}/immagine`)).status === 401);
     check('template: utente normale 403', (await raw('GET', `/api/voucher-templates/${tplId}/immagine`, ugo.token)).status === 403);
     const rt = await raw('GET', `/api/voucher-templates/${tplId}/immagine`, mm);
-    check('template: mobility manager 200 image/png, no-store, nosniff', rt.status === 200 && rt.tipo === 'image/png' && rt.cache.includes('no-store') && rt.nosniff === 'nosniff', `${rt.status} ${rt.tipo} ${rt.cache}`);
+    check('template: Mobility Manager 200 image/png, no-store, nosniff', rt.status === 200 && rt.tipo === 'image/png' && rt.cache.includes('no-store') && rt.nosniff === 'nosniff', `${rt.status} ${rt.tipo} ${rt.cache}`);
     check('template: id inesistente 404', (await raw('GET', '/api/voucher-templates/9999/immagine', mm)).status === 404);
     check('nome file del template generato (UUID)', /^\/uploads\/voucher-templates\/[0-9a-f-]{36}\.png$/.test(tplPath), tplPath);
     check('nome file del PDF generato (UUID)', /^\/uploads\/legal-documents\/[0-9a-f-]{36}\.pdf$/.test(docInfo.file_path), docInfo.file_path);
@@ -174,7 +174,7 @@ async function main() {
     await api('DELETE', `/legal-documents/${doc2.id}`, { token: mm });
     check('PDF disattivato: utente non ottiene il link', (await raw('POST', `/api/legal-documents/${doc2.id}/link`, ugo.token)).status === 404);
     const linkMm = (await api('POST', `/legal-documents/${doc2.id}/link`, { token: mm })).url;
-    check('PDF disattivato: il mobility manager lo vede ancora', (await raw('GET', linkMm)).status === 200);
+    check('PDF disattivato: il Mobility Manager lo vede ancora', (await raw('GET', linkMm)).status === 200);
     check('PDF: senza login nessun link', (await raw('POST', `/api/legal-documents/${doc.id}/link`)).status === 401);
 
     // --- Browser ---
@@ -228,7 +228,7 @@ async function main() {
       check('il server dichiara che le email non sono attive', (await api('GET', '/branding')).branding.email_attive === false);
       check('login: "Password dimenticata?" è presente', await clicca('Password dimenticata?'));
       await attendi(400);
-      check('login: la richiesta spiega che risponde il mobility manager', await valuta(`document.body.innerText.includes('il mobility manager riceverà la richiesta')`) === true);
+      check('login: la richiesta spiega che risponde il Mobility Manager', await valuta(`document.body.innerText.includes('il Mobility Manager riceverà la richiesta')`) === true);
       await valuta(`(() => { const i = document.querySelector('input[type=email]'); Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(i,'chiunque@test.it'); i.dispatchEvent(new Event('input',{bubbles:true})); })()`);
       await cliccaSe(`x.textContent.includes('Invia') || x.type === 'submit'`);
       await attendi(800);
@@ -328,7 +328,7 @@ async function main() {
       check('la pagina Informazioni si apre', await valuta(`document.body.innerText.includes('Guida, novità e informazioni su WayMatch')`) === true);
       check('mostra la versione dell\'app', await valuta(`/Versione \\d+\\.\\d+\\.\\d+/.test(document.body.innerText)`) === true);
       check('la guida per l\'utente ha il suo contenuto', await valuta(`document.body.innerText.includes('Primo accesso')`) === true);
-      check('l\'utente semplice NON vede la guida del mobility manager né il Sistema', await valuta(`![...document.querySelectorAll('nav[aria-label="Sezioni"] button')].some((b) => /mobility manager|Sistema/.test(b.textContent))`) === true);
+      check('l\'utente semplice NON vede la guida del Mobility Manager né il Sistema', await valuta(`![...document.querySelectorAll('nav[aria-label="Sezioni"] button')].some((b) => /Mobility Manager|Sistema/.test(b.textContent))`) === true);
       // Le immagini sono caricate quando si scorre fino a loro (loading=lazy).
       await valuta(`(async () => { for (const i of document.querySelectorAll('img')) { i.scrollIntoView(); await new Promise((r) => setTimeout(r, 250)); } })()`);
       await attendi(1200);
@@ -340,7 +340,7 @@ async function main() {
       check('la voce Guida è nel menu', await valuta(`[...document.querySelectorAll('a')].some((a) => a.getAttribute('href') === '/informazioni')`) === true);
     }
 
-    console.log('\n[Mobility manager: anteprima template voucher]');
+    console.log('\n[Mobility Manager: anteprima template voucher]');
     await entraCome(mm);
     await api('POST', `/legal-documents/${doc.id}/accept`, { token: mm, body: { versione: doc.versione ?? 1 } });
     console.log('\n[Senza SMTP: preferenze notifiche]');
@@ -358,14 +358,14 @@ async function main() {
     const tplOk = await immagineCaricata('img[alt="Template"]');
     check('anteprima del template visibile', tplOk === true, `caricata=${tplOk}, CSP ${JSON.stringify(await csp())}`);
 
-    console.log('\n[Guida nell\'app: mobility manager]');
+    console.log('\n[Guida nell\'app: Mobility Manager]');
     {
       await vai('/guida');
       check('/guida porta a Informazioni', await valuta(`location.pathname === '/informazioni'`) === true);
-      check('il mobility manager vede la sua guida', await clicca('Guida mobility manager'));
+      check('il Mobility Manager vede la sua guida', await clicca('Guida Mobility Manager'));
       await attendi(500);
       check('con i giorni lavorativi spiegati', await valuta(`document.body.innerText.includes('giorni lavorativi')`) === true);
-      check('il mobility manager vede Sistema', await clicca('Sistema'));
+      check('il Mobility Manager vede Sistema', await clicca('Sistema'));
       await attendi(800);
       check('Sistema mostra versione e stato dei servizi', await valuta(`/Versione/.test(document.body.innerText) && /Email \\(SMTP\\)/.test(document.body.innerText) && /Giorni lavorativi/.test(document.body.innerText)`) === true);
       const sis = await raw('GET', '/api/sistema', mm);
@@ -377,13 +377,13 @@ async function main() {
       check('un link diretto apre la sezione giusta', await valuta(`(() => { const e = document.getElementById('impostazioni-generali'); return !!e && e.getBoundingClientRect().top < window.innerHeight; })()`) === true);
     }
 
-    console.log('\n[Mobility manager: logo nella barra laterale e nelle impostazioni]');
+    console.log('\n[Mobility Manager: logo nella barra laterale e nelle impostazioni]');
     await vai('/');
     check('logo nella barra laterale', await immagineCaricata('aside img[alt^="Logo"], img[alt="WayMatch"]') === true);
     await vai('/admin/impostazioni');
     check('logo nelle impostazioni', await immagineCaricata('img[alt^="Logo"], img[alt="WayMatch"]') === true);
 
-    console.log('\n[Mobility manager: PDF attuale nella gestione documenti]');
+    console.log('\n[Mobility Manager: PDF attuale nella gestione documenti]');
     await vai('/admin/documenti');
     await cliccaSe(`x.title === 'Modifica'`);
     await attendi(1000);
@@ -398,8 +398,7 @@ async function main() {
     const logo2 = await api('POST', '/branding/logo', { token: mm, form: conFile('logo', await png(0x123456ff, 100, 40), 'nuovo.png', 'image/png') });
     check('nuovo logo pubblico', (await raw('GET', logo2.logo_path)).status === 200);
     check('vecchio logo non più servito', (await raw('GET', logo.logo_path)).status === 404);
-    check('vecchio logo cancellato dal disco', !fs.existsSync(path.join(DIR, 'uploads', path.basename(logo.logo_path))));
-    fs.copyFileSync(path.join(DIR, 'uploads', path.basename(logo2.logo_path)), path.join(DIR, 'uploads', 'logo.jpg'));
+    check('vecchio logo cancellato dal disco', !fs.existsSync(path.join(DIR, 'uploads', path.basename(logo.logo_path))));    fs.copyFileSync(path.join(DIR, 'uploads', path.basename(logo2.logo_path)), path.join(DIR, 'uploads', 'logo.jpg'));
     fs.copyFileSync(path.join(DIR, 'uploads', 'voucher-templates', path.basename(tplPath)), path.join(DIR, 'uploads', 'voucher-templates', 'template-1789719388835.jpg'));
     {
       const d = new Database(path.join(DIR, 'data', 'carpooling.db')); d.pragma(`key='${DB_KEY}'`);
@@ -413,6 +412,14 @@ async function main() {
     check('template con il nome vecchio servito dall\'API come image/jpeg', rv.status === 200 && rv.tipo === 'image/jpeg', `${rv.status} ${rv.tipo}`);
     check('template con il nome vecchio non pubblico', (await raw('GET', '/uploads/voucher-templates/template-1789719388835.jpg')).status === 404);
     check('/uploads/<nome del template> non pubblico', (await raw('GET', '/uploads/template-1789719388835.jpg')).status === 404);
+    {
+      const logo3 = await api('POST', '/branding/logo', { token: mm, form: conFile('logo', await png(0x654321ff, 100, 40), 'terzo.png', 'image/png') });
+      const rimozione = await raw('DELETE', '/api/branding/logo', mm);
+      check('il logo si rimuove: niente più logo nel branding e file cancellato', rimozione.status === 200 && (await api('GET', '/branding')).branding.logo_path === null
+        && !fs.existsSync(path.join(DIR, 'uploads', path.basename(logo3.logo_path))));
+      check('un utente semplice non rimuove il logo', (await raw('DELETE', '/api/branding/logo', ugo.token)).status === 403);
+    }
+
 
     console.log('\n[Foto del profilo: ritaglio nel browser]');
     {

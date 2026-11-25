@@ -1,5 +1,5 @@
 // Foto del profilo: cifrata su disco, ridotta e senza metadati, servita solo dopo l'accesso, tolta
-// dall'utente o dal mobility manager, nell'export dei dati personali e cancellata con l'anonimizzazione.
+// dall'utente o dal Mobility Manager, nell'export dei dati personali e cancellata con l'anonimizzazione.
 const { spawn } = require('child_process');
 const crypto = require('crypto');
 const fs = require('fs');
@@ -119,7 +119,7 @@ async function main() {
     check('un collega non può togliere la foto di un altro', r.status === 403 && riga().foto_path !== null, String(r.status));
     const daTogliere = riga().foto_path;
     r = await call('DELETE', `/foto/${ugoId}`, { token: mm });
-    check('il mobility manager la toglie (file compreso)', r.status === 200 && riga().foto_path === null && !fs.existsSync(path.join(DIR, 'uploads', daTogliere)));
+    check('il Mobility Manager la toglie (file compreso)', r.status === 200 && riga().foto_path === null && !fs.existsSync(path.join(DIR, 'uploads', daTogliere)));
     check('e resta nel log attività', sql("SELECT COUNT(*) n FROM audit_log WHERE azione = 'foto_profilo_rimossa_mm'")[0].n === 1);
     await call('PUT', '/foto', { token: ugo, form: conFoto(await jpegConExif()) });
     const versionePrima = riga().foto_versione;

@@ -58,12 +58,12 @@ router.get('/:id/classifica', requireAuth, richiediGamification, (req, res) => {
       ? `(SELECT COUNT(*) FROM rides r WHERE r.driver_id = u.id AND r.stato != 'annullato' AND r.data >= ? AND r.data < ?)`
       : `(SELECT COUNT(*) FROM bookings b JOIN rides r ON r.id = b.ride_id
            WHERE b.passenger_id = u.id AND b.stato = 'completato' AND r.data >= ? AND r.data < ?)`;
-    query = `SELECT u.id, u.nome, u.cognome, u.sede_id, ${conteggio} AS eventi, ${conteggio} AS punteggio FROM users u WHERE 1=1`;
+    query = `SELECT u.id, u.nome, u.cognome, CASE WHEN u.foto_path IS NOT NULL THEN u.foto_versione END AS foto_versione, u.sede_id, ${conteggio} AS eventi, ${conteggio} AS punteggio FROM users u WHERE 1=1`;
     params.push(inizio, fineEsclusa, inizio, fineEsclusa);
   } else {
-    // Metrica "punti": include anche i bonus manuali del mobility manager (non i riscatti premi)
+    // Metrica "punti": include anche i bonus manuali del Mobility Manager (non i riscatti premi)
     query = `
-      SELECT u.id, u.nome, u.cognome, u.sede_id,
+      SELECT u.id, u.nome, u.cognome, CASE WHEN u.foto_path IS NOT NULL THEN u.foto_versione END AS foto_versione, u.sede_id,
         COALESCE((SELECT SUM(p.punti) FROM points_log p WHERE p.user_id = u.id AND p.created_at >= ? AND p.created_at < ? AND p.generazione = ?), 0)
         +
         COALESCE((SELECT SUM(m.punti) FROM manual_point_awards m WHERE m.user_id = u.id AND m.redemption_id IS NULL AND m.created_at >= ? AND m.created_at < ? AND m.generazione = ?), 0)

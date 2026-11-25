@@ -12,7 +12,7 @@ const DEFAULTS = {
   giorni_lavorativi: [1, 2, 3, 4, 5, 6], // 1 = lunedì ... 7 = domenica
   email_attive: false, // il server dice se SMTP è configurato
   mappa: null, // arriva dal server (TILE_URL); finché non c'è non si disegnano tile
-  gamification: false, // punti, premi, classifiche e contest: li attiva il mobility manager
+  gamification: false, // punti, premi, classifiche e contest: li attiva il Mobility Manager
 };
 
 const rgbStr = ([r, g, b]) => `${r} ${g} ${b}`;

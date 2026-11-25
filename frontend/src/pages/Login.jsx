@@ -96,8 +96,8 @@ export default function Login() {
             <details className="mt-4 text-sm text-muted max-w-sm mx-auto">
               <summary className="cursor-pointer text-center hover:text-ink">Serve aiuto?</summary>
               <ul className="mt-3 space-y-2 text-left list-disc pl-5">
-                <li><strong>Primo accesso:</strong> usa l'email e la password provvisoria che ti ha dato il mobility manager. Subito dopo sceglierai una password tua (almeno 14 caratteri).</li>
-                <li><strong>Password dimenticata:</strong> usa il link "Password dimenticata?" qui sopra. {branding.email_attive ? 'Riceverai un\'email con le istruzioni.' : 'La richiesta arriva al mobility manager, che ti assegnerà una nuova password.'}</li>
+                <li><strong>Primo accesso:</strong> usa l'email e la password provvisoria che ti ha dato il Mobility Manager. Subito dopo sceglierai una password tua (almeno 14 caratteri).</li>
+                <li><strong>Password dimenticata:</strong> usa il link "Password dimenticata?" qui sopra. {branding.email_attive ? 'Riceverai un\'email con le istruzioni.' : 'La richiesta arriva al Mobility Manager, che ti assegnerà una nuova password.'}</li>
                 <li><strong>Altro:</strong> la guida completa è dentro l'app, nella voce "Informazioni" del menu, dopo l'accesso.</li>
               </ul>
             </details>
@@ -108,7 +108,7 @@ export default function Login() {
               <p className="text-sm text-center">
                 {branding.email_attive
                   ? "Se l'indirizzo è registrato, riceverai a breve un'email con le istruzioni per reimpostare la password."
-                  : "Se l'indirizzo è registrato, il mobility manager è stato avvisato e ti contatterà per assegnarti una nuova password. In questa installazione non vengono inviate email."}
+                  : "Se l'indirizzo è registrato, il Mobility Manager è stato avvisato e ti contatterà per assegnarti una nuova password. In questa installazione non vengono inviate email."}
               </p>
             ) : (
               <form onSubmit={richiediRecupero} className="space-y-4">
@@ -116,7 +116,7 @@ export default function Login() {
                 <p className="text-sm text-muted">
                   {branding.email_attive
                     ? 'Inserisci la tua email: ti mandiamo le istruzioni per reimpostare la password.'
-                    : 'Inserisci la tua email: il mobility manager riceverà la richiesta e ti assegnerà una nuova password.'}
+                    : 'Inserisci la tua email: il Mobility Manager riceverà la richiesta e ti assegnerà una nuova password.'}
                 </p>
                 <div>
                   <label htmlFor="login-2" className="label">Email aziendale</label>

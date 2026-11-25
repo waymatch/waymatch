@@ -53,7 +53,7 @@ fissi. Trovi i colleghi che passano vicino a casa tua, chiedi un posto e ricevi 
 telefono. Se l'azienda attiva la gamification, ogni viaggio condiviso vale punti, che scalano la
 classifica e si cambiano in premi.
 
-**Per il mobility manager.** Gestisci dipendenti (anche da un file), sedi e giorni lavorativi. Decidi
+**Per il Mobility Manager.** Gestisci dipendenti (anche da un file), sedi e giorni lavorativi. Decidi
 se usare la gamification (è facoltativa e si accende o spegne in ogni momento) e, se sì, le regole
 dei punti, i premi, i contest e i voucher. Pubblichi i documenti da accettare, come
 l'informativa privacy. I report ti dicono quanti chilometri, quanta CO2 e quanti costi avete
@@ -82,11 +82,11 @@ Per un'installazione in produzione (dominio, HTTPS, backup, aggiornamenti):
 | Per chi | Cosa |
 |---|---|
 | Chi usa l'app | [Guida per gli utenti](docs/guida-utente.md) · [Novità](docs/novita.md) |
-| Mobility manager | [Guida per il mobility manager](docs/guida-mobility-manager.md) |
+| Mobility Manager | [Guida per il Mobility Manager](docs/guida-mobility-manager.md) |
 | IT e sicurezza | [Installazione](docs/installazione.md) · [Sicurezza](docs/sicurezza.md) · [Mappe sul proprio server](docs/tile-self-hosted.md) |
 | Sviluppatori | [Per chi sviluppa](docs/sviluppo.md) · [Funzionalità](docs/funzionalita.md) · [CHANGELOG](CHANGELOG.md) |
 
-Le guide per utenti e mobility manager sono anche dentro l'app, alla voce **Informazioni**, sempre
+Le guide per utenti e Mobility Manager sono anche dentro l'app, alla voce **Informazioni**, sempre
 allineate alla versione installata.
 
 ## Il vostro logo, i vostri colori

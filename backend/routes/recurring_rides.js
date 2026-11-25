@@ -141,7 +141,7 @@ router.put('/:id/attivo', requireAuth, asyncHandler(async (req, res) => {
     return res.status(403).json({ error: 'Non autorizzato' });
   }
   // Riattivare è un'offerta nuova: servono i documenti del conducente accettati, anche se a
-  // riattivare è il mobility manager.
+  // riattivare è il Mobility Manager.
   if (attivo && documentiPendenti(turno.driver_id, 'conducente').length > 0) {
     return res.status(403).json({
       error: turno.driver_id === req.user.id
@@ -275,7 +275,7 @@ function generaOccorrenzePerTemplate(recurringId, giorni) {
   // restano (offerte con le condizioni di allora), di nuove non se ne creano. All'accettazione il
   // giro successivo dello scheduler riempie di nuovo i giorni mancanti.
   if (documentiPendenti(t.driver_id, 'conducente').length > 0) return 0;
-  // I giorni del turno e quelli lavorativi dell'azienda: se il mobility manager ne toglie uno
+  // I giorni del turno e quelli lavorativi dell'azienda: se il Mobility Manager ne toglie uno
   // dopo la creazione del turno, non si generano più passaggi in quel giorno.
   const lavorativi = giorniLavorativi();
   const giorniValidi = t.giorni_settimana.split(',').slice(0, 7).map(Number).filter((g) => lavorativi.includes(g));

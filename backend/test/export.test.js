@@ -55,9 +55,9 @@ const MALEVOLI = ['=HYPERLINK("http://evil.example","clic")', '+1+1', '-2+3', '@
 
   try {
     const mm = (await api('POST', '/setup', { body: { company_name: '=Azienda', nome: 'Admin', cognome: 'MM', email: 'mm@test.it', password: PW } })).token;
-    // Utente con nome malevolo creato dal mobility manager; motivo malevolo scritto dall'utente stesso.
+    // Utente con nome malevolo creato dal Mobility Manager; motivo malevolo scritto dall'utente stesso.
     await api('POST', '/users', { token: mm, body: { nome: '=HYPERLINK("http://evil.example","clic")', cognome: 'X', email: 'x@test.it', password: PW } });
-    // Utenti creati dal mobility manager: hanno la password provvisoria e le API
+    // Utenti creati dal Mobility Manager: hanno la password provvisoria e le API
     // rispondono solo dopo il cambio. Qui simuliamo che l'abbiano già cambiata.
     { const d = new Database(path.join(DIR, 'data', 'carpooling.db')); d.pragma(`key='${DB_KEY}'`); d.prepare(`UPDATE users SET password_da_cambiare = 0 WHERE email = 'x@test.it'`).run(); d.close(); }
     const ux = (await api('POST', '/auth/login', { body: { email: 'x@test.it', password: PW } })).token;

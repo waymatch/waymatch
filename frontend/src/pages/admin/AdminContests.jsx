@@ -4,6 +4,7 @@ import ErroreConRiprova from '../../components/ErroreConRiprova.jsx';
 import { dataLocale } from '../../dateTimeUtils.js';
 import { Plus, Trash2, Trophy } from 'lucide-react';
 import { api } from '../../api.js';
+import Avatar from '../../components/Avatar.jsx';
 
 const METRICHE = [
   { value: 'punti', label: 'Punti totali' },
@@ -120,6 +121,7 @@ export default function AdminContests() {
                 {classifica.map((u, i) => (
                   <div key={u.id} className="flex items-center gap-3 py-2 first:pt-0">
                     <span className="w-5 text-center text-xs text-muted">{i + 1}</span>
+                    <Avatar id={u.id} nome={u.nome} cognome={u.cognome} versione={u.foto_versione} dimensione="xs" />
                     <span className="flex-1 text-sm truncate">{u.nome} {u.cognome}</span>
                     {/* Con la metrica "punti" il valore è il punteggio; per i passaggi è il conteggio. */}
                     <span className="text-sm text-primary">{c.metrica === 'punti' ? u.punteggio : u.eventi}</span>

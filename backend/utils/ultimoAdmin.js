@@ -1,12 +1,12 @@
 // Protezione dell'ultimo amministratore: l'app deve avere sempre almeno un
-// mobility manager attivo, altrimenti nessuno può più gestire utenti, sedi e impostazioni, e
+// Mobility Manager attivo, altrimenti nessuno può più gestire utenti, sedi e impostazioni, e
 // senza SMTP né SSO non c'è modo di recuperare l'accesso dall'interno.
 //
-// Si usa DENTRO una transazione dopo la modifica: se non resta nessun mobility manager attivo
+// Si usa DENTRO una transazione dopo la modifica: se non resta nessun Mobility Manager attivo
 // si lancia l'errore e la transazione annulla tutto.
 const db = require('../db');
 
-const MESSAGGIO = 'Deve restare almeno un mobility manager attivo.';
+const MESSAGGIO = 'Deve restare almeno un Mobility Manager attivo.';
 
 class ErroreUltimoAdmin extends Error {
   constructor() { super(MESSAGGIO); this.ultimoAdmin = true; }

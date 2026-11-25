@@ -91,6 +91,15 @@ function BrandingTab() {
     } catch (e) { setMsg(e.message); }
   };
 
+  const rimuoviLogo = async () => {
+    if (!confirm('Rimuovere il logo? Al suo posto comparirà il simbolo di WayMatch.')) return;
+    setMsg('');
+    try {
+      await api.del('/branding/logo');
+      setMsg((await refresh()) ? 'Logo rimosso.' : NON_RILETTO);
+    } catch (e) { setMsg(e.message); }
+  };
+
   const caricaIcona = async (e) => {
     const file = e.target.files[0];
     e.target.value = '';
@@ -121,9 +130,12 @@ function BrandingTab() {
           ) : (
             <div className="w-16 h-16 rounded-xl bg-bg border border-dashed border-border" />
           )}
-          <button type="button" className="btn-outline" onClick={() => fileRef.current.click()}>
-            <Upload size={16} /> Carica logo
-          </button>
+          <div className="flex gap-2 flex-wrap">
+            <button type="button" className="btn-outline" onClick={() => fileRef.current.click()}>
+              <Upload size={16} /> {branding.logo_path ? 'Cambia logo' : 'Carica il logo'}
+            </button>
+            {branding.logo_path && <button type="button" className="btn-ghost" onClick={rimuoviLogo}>Rimuovi il logo</button>}
+          </div>
           <input ref={fileRef} type="file" accept="image/png,image/jpeg" className="hidden" onChange={uploadLogo} />
         </div>
         <p className="text-xs text-muted">PNG o JPG, max 2 MB.</p>
@@ -144,9 +156,9 @@ function BrandingTab() {
           />
           <div className="flex gap-2 flex-wrap">
             <button type="button" className="btn-outline" onClick={() => iconaRef.current.click()}>
-              <Upload size={16} /> {branding.icona?.caricata ? 'Cambia icona' : 'Carica icona'}
+              <Upload size={16} /> {branding.icona?.caricata ? 'Cambia icona' : 'Carica l\'icona'}
             </button>
-            {branding.icona?.caricata && <button type="button" className="btn-ghost" onClick={rimuoviIcona}>Rimuovi icona</button>}
+            {branding.icona?.caricata && <button type="button" className="btn-ghost" onClick={rimuoviIcona}>Rimuovi l'icona</button>}
           </div>
           <input ref={iconaRef} type="file" accept="image/png,image/jpeg" className="hidden" onChange={caricaIcona} />
         </div>
@@ -551,7 +563,7 @@ function Riga({ label, valore }) {
   );
 }
 
-// Punti, premi, classifiche e contest: facoltativi, li accende o li spegne il mobility manager, che
+// Punti, premi, classifiche e contest: facoltativi, li accende o li spegne il Mobility Manager, che
 // può anche azzerare i punteggi (alla accensione, allo spegnimento o in qualsiasi momento).
 function GamificationTab() {
   const { refresh } = useBranding();

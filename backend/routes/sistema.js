@@ -1,4 +1,4 @@
-// Stato dell'installazione per il mobility manager (pagina Informazioni → Sistema).
+// Stato dell'installazione per il Mobility Manager (pagina Informazioni → Sistema).
 // Solo informazioni di servizio: nessun segreto, nessuna chiave, nessun hostname. Dell'indirizzo
 // dei tile si mostra l'host, perché l'URL completo può contenere la chiave del provider.
 const express = require('express');

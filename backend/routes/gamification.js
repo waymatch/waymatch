@@ -1,4 +1,4 @@
-// Gamification facoltativa: il mobility manager la attiva o la spegne (Impostazioni generali →
+// Gamification facoltativa: il Mobility Manager la attiva o la spegne (Impostazioni generali →
 // Gamification) e può azzerare i punteggi. Lo storico di punti e riscatti resta in ogni caso.
 const express = require('express');
 const db = require('../db');
@@ -51,7 +51,7 @@ router.put('/', ...soloMm, (req, res) => {
 
 // Azzeramento dei punteggi: da adesso saldi, classifiche e contest ripartono da zero (lo storico
 // resta). I premi già consegnati non cambiano; quelli chiesti e non ancora consegnati si tengono
-// (l'azienda li consegnerà) oppure si annullano, a scelta del mobility manager.
+// (l'azienda li consegnerà) oppure si annullano, a scelta del Mobility Manager.
 router.post('/azzera', ...soloMm, asyncHandler(async (req, res) => {
   const { premi, conferma } = req.body || {};
   if (conferma !== true) return res.status(400).json({ error: 'Conferma l\'azzeramento: l\'operazione non si annulla.' });
@@ -76,7 +76,7 @@ router.post('/azzera', ...soloMm, asyncHandler(async (req, res) => {
     return righe;
   })();
   // Prima la risposta (l'azzeramento è già confermato), poi un avviso per ogni premio annullato,
-  // in parallelo: push ed email lenti non fanno aspettare il mobility manager.
+  // in parallelo: push ed email lenti non fanno aspettare il Mobility Manager.
   res.json({ ...stato(), annullati: annullati.length });
   await Promise.all(annullati.map((r) =>
     notificaMassiva([r.user_id], 'riscatto_annullato', `La richiesta per "${r.nome}" è stata annullata con l'azzeramento dei punteggi.`)));
