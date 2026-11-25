@@ -69,6 +69,13 @@ function preferenza(userId, categoria) {
   return row || { inapp: 1, push: 1, email: 1 }; // predefinito: tutti i canali attivi
 }
 
+// Aggiunge ?nid= (la notifica da segnare come letta all'apertura) prima dell'eventuale frammento:
+// "/informazioni#sistema" diventa "/informazioni?nid=42#sistema", non "/informazioni#sistema?nid=42".
+function conNid(url, nid) {
+  const [percorso, frammento] = url.split('#');
+  return `${percorso}${percorso.includes('?') ? '&' : '?'}nid=${nid}${frammento !== undefined ? `#${frammento}` : ''}`;
+}
+
 function destinazionePer(tipo) {
   switch (tipo) {
     case 'nuova_richiesta':
@@ -159,7 +166,7 @@ async function consegnaEsterna(userId, tipo, messaggio, inApp) {
         body: messaggio,
         icon: iconaPush(),
         // Con la notifica nella campanella, aprire il push la segna come letta.
-        url: inApp ? `${url}${url.includes('?') ? '&' : '?'}nid=${inApp.id}` : url,
+        url: inApp ? conNid(url, inApp.id) : url,
       });
       for (const sub of subs) {
         try {
