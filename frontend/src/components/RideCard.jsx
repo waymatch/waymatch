@@ -4,6 +4,7 @@ import { api } from '../api.js';
 import RouteMap from './RouteMap.jsx';
 import { dataISO, dataLocale } from '../dateTimeUtils.js';
 import AddressAutocomplete from './AddressAutocomplete.jsx';
+import { AVVISO_ORARI } from '../avvisoOrari.js';
 
 function formatGiorno(dataStr) {
   // Calendario locale (toISOString userebbe l'UTC: dopo mezzanotte darebbe il giorno prima); per
@@ -222,6 +223,7 @@ export default function RideCard({ ride, onChanged, soglia }) {
               ))}
             </div>
           )}
+          <p className="text-xs text-muted mt-3">{AVVISO_ORARI}</p>
 
           {!richiestaAttiva && (
             <div className="mt-3">

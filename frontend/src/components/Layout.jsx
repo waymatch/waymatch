@@ -59,7 +59,6 @@ function adminGroupsFor(ruolo) {
       ],
     });
   }
-  gruppi.push({ titolo: '', items: [{ to: '/informazioni', icon: Info, label: 'Informazioni' }] });
   return gruppi;
 }
 
@@ -312,6 +311,11 @@ function UserCard({ user, punti, onLogout }) {
           <p className="text-sm font-medium truncate">{user.nome} {user.cognome}</p>
           <p className="text-xs text-muted">{punti} punti</p>
         </div>
+        {/* Guide, novità e informazioni sul progetto: accanto al nome, come le altre azioni dell'account. */}
+        <NavLink to="/informazioni" title="Informazioni" aria-label="Informazioni"
+          className={({ isActive }) => `p-2 rounded-lg ${isActive ? 'text-primary' : 'text-muted hover:text-primary'}`}>
+          <Info size={16} />
+        </NavLink>
         <button onClick={onLogout} className="p-2 text-muted hover:text-danger" title="Esci" aria-label="Esci">
           <LogOut size={16} />
         </button>

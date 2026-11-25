@@ -190,7 +190,7 @@ function Progetto() {
         <p className="text-sm text-muted mt-1">{PROGETTO.descrizione}</p>
         <p className="text-sm text-muted mt-3">
           Il logo e i colori che vedi nell'intestazione sono quelli della tua azienda, impostati dal mobility
-          manager. WayMatch è la piattaforma sotto.
+          manager; il servizio funziona con WayMatch.
         </p>
         <p className="text-sm mt-3">Versione <strong>{__APP_VERSION__}</strong> · creato da <strong>{PROGETTO.autore}</strong></p>
       </div>

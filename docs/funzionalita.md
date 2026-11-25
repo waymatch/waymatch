@@ -141,4 +141,6 @@ riparlare in una [segnalazione su GitHub](https://github.com/waymatch/waymatch/i
   applicazioni nel tenant e senza credenziali dedicate. Molte organizzazioni preferiscono così,
   per non collegare il proprio SSO a uno strumento interno di terze parti. Non vale per tutte,
   però: se alla vostra azienda serve, parliamone. L'integrazione con Teams, pensata per mettere
-  in contatto autista e passeggero, presuppone l'SSO e segue la stessa strada.
+  in contatto autista e passeggero, aprirebbe una chat sull'app Teams del dispositivo (o sulla
+  versione web) a partire dall'account aziendale del collega: la valuteremo dopo la 1.0,
+  insieme all'SSO.
