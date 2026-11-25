@@ -7,9 +7,35 @@ Il formato segue [Keep a Changelog](https://keepachangelog.com/it-IT/1.1.0/) e l
 il [versionamento semantico](https://semver.org/lang/it/). Le versioni 0.x sono di sviluppo: la
 1.0.0 sarà la prima versione pubblica stabile.
 
-## [Non rilasciato]
+## [0.10.0] — 2026-11
+
+Rilascio interno di prova: non è pubblicato come release su GitHub.
+
+### Aggiunto
+- **Gamification facoltativa**: interruttore del Mobility Manager (Impostazioni generali →
+  Gamification), spenta sulle installazioni nuove e accesa su quelle già configurate. Spenta, non si
+  assegnano punti e non si vedono punti, premi, classifiche e contest; i viaggi contano per i report.
+- **Azzeramento dei punteggi** con riepilogo ed export Excel dei riscatti e scelta su premi non
+  consegnati (tenuti o annullati). Confine esatto per generazione dei punti; lo storico resta.
+- **Foto del profilo** facoltativa: ritaglio nel browser, 256×256 senza metadati, cifrata su disco
+  (AES-256-GCM, chiave derivata da `DB_ENCRYPTION_KEY`), visibile ai colleghi accanto al nome;
+  rimovibile dall'utente e dal Mobility Manager; nell'export dei dati personali.
+- **Avviso di nuova versione** per il Mobility Manager (controllo giornaliero delle release su GitHub,
+  disattivabile con `CONTROLLO_AGGIORNAMENTI=0`).
+- **Log tecnico** in JSON con livelli (`LOG_LEVEL`), segreti oscurati ed **eventi di sicurezza** solo
+  per l'IT (accessi, uscite, sessioni, permessi, limiti di frequenza).
+- **Log attività**: filtri per area, sede, periodo e ricerca libera, anche nell'export.
+- **Turni fissi in pausa** se il conducente ha documenti da accettare: corse già create mantenute,
+  nessuna nuova occorrenza, riattivazione e ripristino di date bloccati, ripresa all'accettazione.
+- **Rimozione del logo** aziendale; foto anche in home, classifiche, lista utenti e report.
+- Avviso sugli orari indicativi (traffico e imprevisti) nei passaggi e nelle offerte.
 
 ### Modificato
+- `scripts/ripristina.sh`: prima copia completa dei dati attuali, poi la sostituzione; con un
+  ripristino interrotto l'app resta ferma (segnaposto `data/.ripristino-in-corso`).
+- Informazioni si apre dall'icona ⓘ accanto al nome; «Mobility Manager» con le maiuscole ovunque;
+  revisione dei testi.
+- Nuovo simbolo WayMatch: due tragitti che si uniscono presto e proseguono insieme. Cambiano tutti
 - Nuovo simbolo WayMatch: due tragitti che si uniscono presto e proseguono insieme. Cambiano tutti
   i file del kit che lo contengono (lockup, icone, favicon, badge, powered by, banner, anteprima
   social); nomi dei file, palette, font e testi restano uguali. Il componente `Simbolo` prende la
