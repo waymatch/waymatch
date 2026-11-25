@@ -57,7 +57,12 @@ function indicatori(doc, voci, c) {
   voci.forEach((v, i) => {
     const x = MARGINE + i * (w + 8);
     doc.roundedRect(x, y, w, 58, 6).lineWidth(1).strokeColor(CHIARO).stroke();
-    doc.font('Helvetica-Bold').fontSize(17).fillColor(c).text(v.valore, x + 6, y + 9, { width: w - 12, align: 'center', lineBreak: false });
+    // Il valore si rimpicciolisce finché sta in una riga: con un numero grande (o cinque riquadri) andrebbe
+    // a capo e il «€» finirebbe sopra l'etichetta.
+    let corpo = 17;
+    doc.font('Helvetica-Bold').fontSize(corpo);
+    while (corpo > 8 && doc.widthOfString(v.valore) > w - 12) { corpo -= 1; doc.fontSize(corpo); }
+    doc.fillColor(c).text(v.valore, x + 6, y + 9 + (17 - corpo) / 2, { width: w - 12, align: 'center', lineBreak: false });
     doc.font('Helvetica').fontSize(8).fillColor(GRIGIO).text(v.etichetta, x + 6, y + 34, { width: w - 12, align: 'center' });
   });
   doc.y = y + 70;

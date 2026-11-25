@@ -82,6 +82,11 @@ async function provaFunzioni() {
     check('qualità dei dati', /Qualità dei dati/.test(t) && /con chilometri verificati dal server/.test(t) && /80%/.test(t) && /78%/.test(t), t.match(/.{0,40}chilometri verificati.{0,40}/)?.[0]);
     check('piè di pagina su ogni pagina con marchio, metodo e numero', (t.match(/Realizzato con WayMatch/g) || []).length >= 2 && /Metodo WayMatch v1 - pagina 1 di \d+/.test(t));
     check('con tante sedi e mesi: ultimi 12 mesi e sedi raggruppate', /ultimi 12 mesi di 15/.test(t) && /Altre 3 sedi/.test(t), t.match(/.{0,30}ultimi.{0,30}/)?.[0]);
+    // Numeri grandi: ogni valore degli indicatori sta in una riga sola (non va a capo sull'etichetta).
+    return scrivi({ report: { ...report, totali: { ...report.totali, km_risparmiati: 12345678, co2_kg_risparmiata: 987654.3, costo_risparmiato_eur: 1234567.89, viaggi_completati: 1234567 } }, azienda: 'Grande Spa', coloreAzienda: '#14424F', filtri: {} });
+  }).then((buf) => {
+    const t = testoPdf(buf);
+    check('con numeri grandi i valori restano interi su una riga', /1\.234\.567,89 [\x80€]/.test(t) && /987\.654,3 kg/.test(t) && /12\.345\.678/.test(t), t.match(/.{0,20}1\.234\.567.{0,12}/)?.[0]);
     return scrivi({ report: { ...report, per_mese: {}, per_sede: {} }, azienda: 'Vuota Srl', coloreAzienda: 'non-un-colore', filtri: {} });
   }).then((buf) => {
     const t = testoPdf(buf);
@@ -163,7 +168,14 @@ async function main() {
     const foglio = wb.getWorksheet('Metodo e qualità');
     const celle = []; foglio?.eachRow((riga) => celle.push(riga.values.slice(1).join(' | ')));
     check('l\'Excel ha il foglio con metodo e qualità dei dati', xl.status === 200 && /Metodo WayMatch v1/.test(celle[0] || '') && celle.some((c) => /Passeggeri conteggiati \| 8/.test(c)) && celle.some((c) => /ISPRA/.test(c)), celle.slice(0, 3).join(' // '));
-    check('un utente semplice non scarica il PDF', (await fetch(`${API}/reports/export/pdf`, { headers: { Authorization: `Bearer ${(await call('POST', '/auth/login', { body: { email: 'p1@test.it', password: PW } })).data?.token || 'x'}`, 'X-Forwarded-For': '10.34.9.3' } })).status !== 200);
+    // Un utente vero (password valida), così il rifiuto viene dal controllo del ruolo e non dal login.
+    await call('POST', '/users', { token: mm, body: { nome: 'semplice', cognome: 'T', email: 'semplice@test.it', password: PW, sede_id: sedeId } });
+    sql("UPDATE users SET password_da_cambiare = 0 WHERE email = 'semplice@test.it'");
+    const semplice = (await call('POST', '/auth/login', { body: { email: 'semplice@test.it', password: PW } })).data?.token;
+    check('un utente semplice entra', typeof semplice === 'string' && semplice.length > 20);
+    check('ma non scarica il PDF né l\'Excel (403 dal controllo del ruolo)',
+      (await fetch(`${API}/reports/export/pdf`, { headers: { Authorization: `Bearer ${semplice}`, 'X-Forwarded-For': '10.34.9.3' } })).status === 403
+      && (await fetch(`${API}/reports/export/xlsx`, { headers: { Authorization: `Bearer ${semplice}`, 'X-Forwarded-For': '10.34.9.4' } })).status === 403);
 
     console.log('\n[Pannello costi: la CO2 non si modifica]');
     let c = await call('GET', '/reports/cost-co2-clusters', { token: mm });
