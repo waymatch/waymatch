@@ -5,6 +5,7 @@
 // diventa un no-op automatico dopo la prima esecuzione riuscita.
 const db = require('../db');
 const { reverseGeocodeCitta } = require('./geocode');
+const { log } = require('./structuredLog');
 
 const LIMITE_RIGHE = 300; // margine di sicurezza, non un limite pensato per essere raggiunto in uso normale
 
@@ -70,7 +71,7 @@ async function backfillCittaMancanti() {
     }
   }
 
-  if (aggiornati > 0) console.log(`Recupero città: aggiornate ${aggiornati} righe (profili/passaggi/turni fissi).`);
+  if (aggiornati > 0) log.info('citta_recuperate', { righe: aggiornati });
 }
 
 module.exports = { backfillCittaMancanti };

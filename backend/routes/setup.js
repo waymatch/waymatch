@@ -6,6 +6,7 @@ const { passwordValida, REQUISITI_PASSWORD } = require('../utils/passwordPolicy'
 const { hashPassword } = require('../utils/passwordHash');
 const { asyncHandler } = require('../utils/asyncHandler');
 const { creaSessione, impostaCookie } = require('../utils/sessioni');
+const { log } = require('../utils/structuredLog');
 
 const router = express.Router();
 
@@ -80,7 +81,7 @@ router.post('/', setupLimiter, asyncHandler(async (req, res) => {
     if (String(e.message).includes('UNIQUE')) {
       return res.status(400).json({ error: 'Email già in uso' });
     }
-    console.error(e);
+    log.error('setup_fallito', { errore: e });
     res.status(500).json({ error: 'Errore durante il setup' });
   }
 }));

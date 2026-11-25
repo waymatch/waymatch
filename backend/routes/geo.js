@@ -2,6 +2,7 @@ const express = require('express');
 const rateLimit = require('express-rate-limit');
 const { searchAddress, calcRoute, calcRouteMultiPoint } = require('../utils/geocode');
 const { asyncHandler } = require('../utils/asyncHandler');
+const { log } = require('../utils/structuredLog');
 
 const router = express.Router();
 
@@ -26,7 +27,7 @@ router.get('/search', asyncHandler(async (req, res) => {
     const results = await searchAddress(req.query.q || '');
     res.json({ results });
   } catch (e) {
-    console.error('Errore ricerca indirizzo:', e.message);
+    log.warn('geocodifica_non_riuscita', { errore: e });
     res.status(502).json({ error: 'Servizio di ricerca indirizzi non disponibile, riprova.' });
   }
 }));
@@ -43,7 +44,7 @@ router.get('/route', asyncHandler(async (req, res) => {
     );
     res.json(route);
   } catch (e) {
-    console.error('Errore calcolo percorso:', e.message);
+    log.warn('percorso_non_calcolato', { errore: e });
     res.status(502).json({ error: 'Servizio di calcolo percorso non disponibile, riprova.' });
   }
 }));
@@ -60,7 +61,7 @@ router.post('/route-multi', asyncHandler(async (req, res) => {
     const route = await calcRouteMultiPoint(punti);
     res.json(route);
   } catch (e) {
-    console.error('Errore calcolo percorso multi-tappa:', e.message);
+    log.warn('percorso_multitappa_non_calcolato', { errore: e });
     res.status(502).json({ error: 'Servizio di calcolo percorso non disponibile, riprova.' });
   }
 }));

@@ -1,5 +1,6 @@
 const nodemailer = require('nodemailer');
 const { readSecret } = require('./secrets');
+const { log } = require('./structuredLog');
 
 // Configurazione SMTP tramite variabili d'ambiente (docker-compose / .env):
 // SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS, SMTP_FROM, SMTP_SECURE (true/false),
@@ -50,7 +51,7 @@ async function inviaEmail(to, subject, testo) {
       text: testo,
     });
   } catch (e) {
-    console.error('Errore invio email:', e.message);
+    log.warn('email_non_inviata', { errore: e });
   }
 }
 

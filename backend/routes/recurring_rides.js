@@ -9,6 +9,7 @@ const { asyncHandler } = require('../utils/asyncHandler');
 const { richiediDocumentiConducente, documentiPendenti } = require('../utils/documentiLegali');
 const { giorniLavorativi, NOMI } = require('../utils/calendario');
 const { geometriaValida, sosteValide } = require('../utils/geoDistance');
+const { log } = require('../utils/structuredLog');
 
 const router = express.Router();
 
@@ -329,8 +330,8 @@ function generaOccorrenzePerTemplate(recurringId, giorni) {
       return id;
     })();
     const rideCompleto = db.prepare('SELECT * FROM rides WHERE id = ?').get(rideId);
-    notificaMatchProattivo(rideCompleto).catch((e) => console.error('Errore matching proattivo:', e.message));
-    notificaPreferiti(rideCompleto).catch((e) => console.error('Errore notifica preferiti:', e.message));
+    notificaMatchProattivo(rideCompleto).catch((e) => log.warn('matching_proattivo_non_riuscito', { errore: e }));
+    notificaPreferiti(rideCompleto).catch((e) => log.warn('notifica_preferiti_non_riuscita', { errore: e }));
     generati++;
   }
   return generati;

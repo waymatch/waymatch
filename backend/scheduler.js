@@ -2,7 +2,7 @@ const db = require('./db');
 const { notifica, creaNotificaInApp, inAppAttiva, consegnaEsterna } = require('./utils/notify');
 const { totaleGuadagnato } = require('./utils/points');
 const { gamificationAttiva } = require('./utils/gamification');
-const { logEvent } = require('./utils/structuredLog');
+const { log, logEvent } = require('./utils/structuredLog');
 const { pulisciSessioniScadute } = require('./utils/sessioni');
 
 // Quanto conservare nel database applicativo il log punti, il log attività e lo storico
@@ -17,10 +17,10 @@ function avviaScheduler() {
       const { generaTutteLeOccorrenze } = require('./routes/recurring_rides');
       const { avvisaTurniInPausa } = require('./utils/turniInPausa');
       const n = generaTutteLeOccorrenze(14);
-      if (n > 0) console.log(`[scheduler] Generate ${n} occorrenze da turni fissi`);
-      avvisaTurniInPausa().catch((e) => console.error('[scheduler] Errore avviso turni in pausa:', e.message));
+      if (n > 0) log.info('turni_occorrenze_generate', { occorrenze: n });
+      avvisaTurniInPausa().catch((e) => log.error('turni_in_pausa_avviso_non_riuscito', { errore: e }));
     } catch (e) {
-      console.error('[scheduler] Errore generazione turni fissi:', e.message);
+      log.error('turni_generazione_non_riuscita', { errore: e });
     }
   };
   eseguiGenerazioneTurni();
@@ -31,7 +31,7 @@ function avviaScheduler() {
   const eseguiControlloAggiornamenti = () => {
     const { controlla, attivo } = require('./utils/aggiornamenti');
     if (!attivo()) return;
-    controlla().catch((e) => console.error('[scheduler] Controllo nuove versioni non riuscito:', e.message));
+    controlla().catch((e) => log.warn('controllo_versioni_non_riuscito', { errore: e }));
   };
   setTimeout(eseguiControlloAggiornamenti, 60 * 1000).unref();
   setInterval(eseguiControlloAggiornamenti, 24 * 60 * 60 * 1000);
@@ -41,7 +41,7 @@ function avviaScheduler() {
     try {
       await inviaPromemoriaPartenza();
     } catch (e) {
-      console.error('[scheduler] Errore invio promemoria:', e.message);
+      log.error('promemoria_non_inviati', { errore: e });
     }
   };
   eseguiPromemoria();
@@ -55,7 +55,7 @@ function avviaScheduler() {
     try {
       await inviaRiepilogoSettimanale();
     } catch (e) {
-      console.error('[scheduler] Errore riepilogo settimanale:', e.message);
+      log.error('riepilogo_settimanale_non_inviato', { errore: e });
     }
   };
   eseguiRiepilogoSettimanale();
@@ -67,7 +67,7 @@ function avviaScheduler() {
     try {
       pulisciDatiScaduti();
     } catch (e) {
-      console.error('[scheduler] Errore pulizia dati scaduti:', e.message);
+      log.error('pulizia_non_riuscita', { errore: e });
     }
   };
   eseguiPulizia();
@@ -82,7 +82,7 @@ function avviaScheduler() {
     try {
       archiviaDatiStorici();
     } catch (e) {
-      console.error('[scheduler] Errore archiviazione storico:', e.message);
+      log.error('archiviazione_non_riuscita', { errore: e });
     }
   };
   eseguiArchiviazione();
@@ -101,7 +101,7 @@ function pulisciDatiScaduti() {
   `).run();
   const sessioniRimosse = pulisciSessioniScadute();
   if (notifiche.changes > 0 || token.changes > 0 || sessioniRimosse > 0) {
-    console.log(`[scheduler] Pulizia: ${notifiche.changes} notifiche vecchie, ${token.changes} token di reset scaduti, ${sessioniRimosse} sessioni scadute o revocate rimossi.`);
+    log.info('pulizia_eseguita', { notifiche: notifiche.changes, token_reset: token.changes, sessioni: sessioniRimosse });
   }
 }
 
@@ -179,7 +179,7 @@ function archiviaDatiStorici() {
   })();
 
   if (auditRimossi > 0 || puntiConsolidati > 0 || rideRimosse > 0) {
-    console.log(`[scheduler] Archiviazione storico (oltre ${RITENZIONE_STORICO_MESI} mesi): ${auditRimossi} voci di log attività, ${puntiConsolidati} righe di log punti consolidate, ${rideRimosse} viaggi rimossi.`);
+    log.info('archiviazione_eseguita', { oltre_mesi: RITENZIONE_STORICO_MESI, log_attivita: auditRimossi, punti_consolidati: puntiConsolidati, viaggi: rideRimosse });
   }
 }
 

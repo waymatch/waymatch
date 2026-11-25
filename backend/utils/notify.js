@@ -1,6 +1,7 @@
 const webpush = require('web-push');
 const db = require('../db');
 const { inviaEmail, smtpAttivo } = require('./mailer');
+const { log } = require('./structuredLog');
 
 let vapidConfigured = false;
 function ensureVapid() {
@@ -182,7 +183,7 @@ async function consegnaEsterna(userId, tipo, messaggio, inApp) {
           if (e.statusCode === 404 || e.statusCode === 410) {
             db.prepare('DELETE FROM push_subscriptions WHERE id = ?').run(sub.id);
           } else {
-            console.error('Errore invio push:', e.message);
+            log.warn('push_non_inviata', { errore: e, user_id: userId, tipo });
           }
         }
       }
@@ -194,12 +195,12 @@ async function consegnaEsterna(userId, tipo, messaggio, inApp) {
         try {
           await inviaEmail(utente.email, 'WayMatch — nuova notifica', messaggio);
         } catch (e) {
-          console.error('Errore invio email di notifica:', e.message);
+          log.warn('email_notifica_non_inviata', { errore: e, user_id: userId, tipo });
         }
       }
     }
   } catch (e) {
-    console.error(`[notifiche] consegna di "${tipo}" all'utente ${userId} non completata:`, e.message);
+    log.error('notifica_consegna_non_completata', { errore: e, user_id: userId, tipo });
   }
 }
 
@@ -211,7 +212,7 @@ async function notifica(userId, tipo, messaggio, rideId = null) {
   try {
     if (inAppAttiva(userId, tipo)) inApp = creaNotificaInApp(userId, tipo, messaggio, rideId);
   } catch (e) {
-    console.error(`[notifiche] notifica "${tipo}" all'utente ${userId} non salvata:`, e.message);
+    log.error('notifica_non_salvata', { errore: e, user_id: userId, tipo });
     return;
   }
   await consegnaEsterna(userId, tipo, messaggio, inApp);

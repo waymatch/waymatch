@@ -9,6 +9,7 @@ const { totalePunti, generazionePunti, GENERAZIONE_ATTUALE } = require('../utils
 const { notifica } = require('../utils/notify');
 const { registraAzione } = require('../utils/audit');
 const { asyncHandler } = require('../utils/asyncHandler');
+const { log } = require('../utils/structuredLog');
 
 const router = express.Router();
 
@@ -232,7 +233,7 @@ router.get('/redemptions/:id/voucher-image', requireAuth, asyncHandler(async (re
     res.set({ 'Content-Type': 'image/png', 'Cache-Control': 'private, no-store' });
     res.send(buffer);
   } catch (e) {
-    console.error('Errore generazione immagine voucher:', e.message);
+    log.error('voucher_immagine_non_generata', { errore: e, riscatto: req.params.id });
     res.status(500).json({ error: 'Impossibile generare l\'immagine del voucher' });
   }
 }));

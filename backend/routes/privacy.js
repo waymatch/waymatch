@@ -10,6 +10,7 @@ const { totalePunti, totaleGuadagnato } = require('../utils/points');
 const { hashPassword } = require('../utils/passwordHash');
 const { asyncHandler } = require('../utils/asyncHandler');
 const { MESSAGGIO: MESSAGGIO_ULTIMO_ADMIN } = require('../utils/ultimoAdmin');
+const { log } = require('../utils/structuredLog');
 
 const router = express.Router();
 
@@ -259,7 +260,7 @@ router.post('/cancellazioni/:id/completa', requireAuth, requireRole('mobility_ma
   // Il file della foto si cancella dopo il commit: se la transazione fallisse, la foto resterebbe.
   fotoProfilo.elimina(fotoDaEliminare);
   for (const invia of daNotificare) {
-    try { await invia(); } catch (e) { console.error('[cancellazione] notifica non inviata:', e.message); }
+    try { await invia(); } catch (e) { log.warn('cancellazione_notifica_non_inviata', { errore: e }); }
   }
 
   res.json({ ok: true });

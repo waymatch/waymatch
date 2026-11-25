@@ -11,6 +11,7 @@ const { passwordValida, REQUISITI_PASSWORD } = require('../utils/passwordPolicy'
 const { hashPassword, verificaPassword, richiedeRehash } = require('../utils/passwordHash');
 const { asyncHandler } = require('../utils/asyncHandler');
 const sessioni = require('../utils/sessioni');
+const { sicurezza } = require('../utils/structuredLog');
 
 const router = express.Router();
 
@@ -52,11 +53,13 @@ router.post('/login', loginLimiter, asyncHandler(async (req, res) => {
   const user = db.prepare('SELECT * FROM users WHERE email = ?').get(email.toLowerCase().trim());
   if (!user || !user.attivo) {
     await verificaPassword(password, null);
+    sicurezza('warn', 'accesso_fallito', req, { motivo: user ? 'account_non_attivo' : 'utente_sconosciuto', email: email.toLowerCase().trim().slice(0, 120), user_id: user?.id });
     return res.status(401).json({ error: 'Credenziali non valide' });
   }
 
   const minutiPrima = minutiBloccoRimasti(user.id);
   if (minutiPrima) {
+    sicurezza('warn', 'accesso_rifiutato_account_bloccato', req, { user_id: user.id });
     return res.status(429).json({ error: `Troppi tentativi falliti. Riprova tra ${minutiPrima} minuto/i.` });
   }
 
@@ -78,8 +81,10 @@ router.post('/login', loginLimiter, asyncHandler(async (req, res) => {
     if (tentativi >= MAX_TENTATIVI) {
       db.prepare(`UPDATE users SET tentativi_falliti = 0, bloccato_fino = datetime('now', '+${BLOCCO_MINUTI} minutes') WHERE id = ?`).run(user.id);
       registraAzione(user.id, 'account_bloccato', `${BLOCCO_MINUTI} minuti dopo ${MAX_TENTATIVI} tentativi falliti`, 'gestione');
+      sicurezza('warn', 'account_bloccato', req, { user_id: user.id, minuti: BLOCCO_MINUTI });
       return res.status(429).json({ error: `Troppi tentativi falliti. Account bloccato per ${BLOCCO_MINUTI} minuti.` });
     }
+    sicurezza('warn', 'accesso_fallito', req, { motivo: 'password_errata', user_id: user.id, tentativi });
     return res.status(401).json({ error: 'Credenziali non valide' });
   }
 
@@ -95,6 +100,7 @@ router.post('/login', loginLimiter, asyncHandler(async (req, res) => {
 
   const { id: sessioneId, segreto } = sessioni.creaSessione(user.id, req);
   sessioni.impostaCookie(req, res, segreto);
+  sicurezza('info', 'accesso_riuscito', req, { user_id: user.id, sessione: sessioneId });
   res.json({ token: signToken(user, sessioneId), user: sanitizeUser(user) });
 }));
 
@@ -127,6 +133,7 @@ router.post('/logout', (req, res) => {
   const jti = header.startsWith('Bearer ') ? sessioneDelToken(header.slice(7)) : null;
   if (jti) sessioni.revocaSessione(jti);
   sessioni.cancellaCookie(req, res);
+  sicurezza('info', 'uscita', req, { sessione: jti || undefined });
   res.json({ ok: true });
 });
 
@@ -139,6 +146,7 @@ router.delete('/sessioni/:id', requireAuth, (req, res) => {
   const sessione = sessioni.sessioneAttiva(req.params.id);
   if (!sessione || sessione.user_id !== req.user.id) return res.status(404).json({ error: 'Sessione non trovata' });
   sessioni.revocaSessione(sessione.id);
+  sicurezza('info', 'sessione_revocata', req, { user_id: req.user.id, sessione: sessione.id });
   if (sessione.id === req.sessioneId) sessioni.cancellaCookie(req, res);
   res.json({ ok: true });
 });
@@ -149,6 +157,7 @@ router.post('/esci-ovunque', requireAuth, (req, res) => {
   sessioni.revocaSessioniUtente(req.user.id, req.sessioneId);
   db.prepare('UPDATE users SET token_version = token_version + 1 WHERE id = ?').run(req.user.id);
   registraAzione(req.user.id, 'esci_da_tutti_i_dispositivi', null, 'utente');
+  sicurezza('info', 'uscita_da_tutti_i_dispositivi', req, { user_id: req.user.id });
   const user = db.prepare('SELECT * FROM users WHERE id = ?').get(req.user.id);
   res.json({ ok: true, token: signToken(user, req.sessioneId) });
 });
@@ -202,6 +211,7 @@ router.put('/me/password', requireAuth, cambioPasswordLimiter, asyncHandler(asyn
   const { password_attuale, password_nuova } = req.body;
   const user = db.prepare('SELECT * FROM users WHERE id = ?').get(req.user.id);
   if (!(await verificaPassword(password_attuale, user.password_hash))) {
+    sicurezza('warn', 'cambio_password_fallito', req, { user_id: req.user.id, motivo: 'password_attuale_errata' });
     return res.status(400).json({ error: 'Password attuale errata' });
   }
   if (!passwordValida(password_nuova)) {
@@ -218,6 +228,7 @@ router.put('/me/password', requireAuth, cambioPasswordLimiter, asyncHandler(asyn
     WHERE id = ?
   `).run(hash, req.user.id);
   sessioni.revocaSessioniUtente(req.user.id, req.sessioneId);
+  sicurezza('info', 'password_cambiata', req, { user_id: req.user.id });
   const aggiornato = db.prepare('SELECT * FROM users WHERE id = ?').get(req.user.id);
   res.json({ ok: true, token: signToken(aggiornato, req.sessioneId) });
 }));
@@ -343,13 +354,17 @@ router.post('/reimposta-password', reimpostaPasswordLimiter, asyncHandler(async 
   const riga = db.prepare(`
     SELECT * FROM password_reset_tokens WHERE token_hash = ? AND usato = 0 AND scade_il > datetime('now')
   `).get(hashToken(token));
-  if (!riga) return res.status(400).json({ error: 'Link non valido o scaduto: richiedine uno nuovo.' });
+  if (!riga) {
+    sicurezza('warn', 'reimpostazione_password_link_non_valido', req);
+    return res.status(400).json({ error: 'Link non valido o scaduto: richiedine uno nuovo.' });
+  }
 
   db.prepare(`
     UPDATE users SET password_hash = ?, token_version = token_version + 1, password_da_cambiare = 0 WHERE id = ?
   `).run(hash, riga.user_id);
   db.prepare('UPDATE password_reset_tokens SET usato = 1 WHERE id = ?').run(riga.id);
   sessioni.revocaSessioniUtente(riga.user_id);
+  sicurezza('info', 'password_reimpostata_con_link', req, { user_id: riga.user_id });
   res.json({ ok: true });
 }));
 

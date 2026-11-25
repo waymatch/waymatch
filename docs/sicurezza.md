@@ -143,6 +143,20 @@ sono dati personali e non sono cifrati.
   Il log del container (stdout/stderr, letto con `docker logs`) è comunque soggetto anche
   lui a un limite: `docker-compose.yml` imposta una rotazione (max 50MB totali).
 
+- **Log tecnico, livelli ed eventi di sicurezza**: il server scrive una riga JSON per evento
+  (`@timestamp`, `livello`, `evento`, dati), avvisi ed errori su stderr e il resto su stdout.
+  `LOG_LEVEL` (`error`, `warn`, `info` predefinito, `debug`) sceglie da quale livello in su
+  scrivere. I campi con nomi come password, token, chiave, cookie o authorization sono sempre
+  oscurati. Gli eventi di sicurezza hanno `"area": "sicurezza"` e l'indirizzo di provenienza:
+  accessi riusciti e falliti (con il motivo; per un utente sconosciuto anche l'email digitata),
+  accessi rifiutati per account bloccato, blocchi, uscite, sessioni revocate, cambi e
+  reimpostazioni di password, accessi negati per ruolo, richieste respinte dai limiti di
+  frequenza. **Stanno solo nel log tecnico**, per l'IT: il Mobility Manager non vede gli orari di
+  accesso dei colleghi, che potrebbero configurare un controllo a distanza dei lavoratori (art. 4
+  dello Statuto dei lavoratori). Nel log attività del Mobility Manager resta solo il blocco di un
+  account, perché richiede un suo intervento. Conservazione e accesso al log tecnico li decide
+  l'IT con le proprie politiche.
+
 - **Log management**: ogni azione registrata nel log attività, e ogni riga archiviata dalla
   pulizia periodica sopra, viene anche emessa in tempo reale come una riga JSON su stdout
   (vedi `backend/utils/structuredLog.js`) — il pattern standard di logging per applicazioni

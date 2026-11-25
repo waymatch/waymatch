@@ -11,6 +11,7 @@ const { asyncHandler } = require('../utils/asyncHandler');
 const { revocaSessioniUtente } = require('../utils/sessioni');
 
 const { ErroreUltimoAdmin, verificaResteUnAdmin, MESSAGGIO: MESSAGGIO_ULTIMO_ADMIN } = require('../utils/ultimoAdmin');
+const { log } = require('../utils/structuredLog');
 
 const router = express.Router();
 const uploadCsv = multer({ storage: multer.memoryStorage(), limits: { fileSize: 1 * 1024 * 1024 } });
@@ -67,7 +68,7 @@ router.post('/', requireAuth, requireRole('mobility_manager'), asyncHandler(asyn
     res.json({ user: sanitizeUser(db.prepare('SELECT * FROM users WHERE id = ?').get(info.lastInsertRowid)) });
   } catch (e) {
     if (String(e.message).includes('UNIQUE')) return res.status(400).json({ error: 'Email già in uso' });
-    console.error(e);
+    log.error('utente_errore', { errore: e });
     res.status(500).json({ error: 'Errore creazione utente' });
   }
 }));

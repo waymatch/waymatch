@@ -25,6 +25,7 @@ const SUITE = [
   { file: 'accessi-e-dati.test.js', cosa: 'sessioni oltre i limiti, cambio password, documenti per versione, CSV, anonimizzazione dei luoghi' },
   { file: 'regole-carpooling.test.js', cosa: 'prenotazioni, recapiti, turni fissi, premi e rimborsi, validazioni, endpoint push' },
   { file: 'ultimo-admin.test.js', cosa: 'ultimo Mobility Manager protetto' },
+  { file: 'log.test.js', cosa: 'log tecnico (livelli, segreti oscurati, eventi di sicurezza) e filtri del log attività' },
   { file: 'foto-profilo.test.js', cosa: 'foto del profilo: cifrata, ridotta, senza metadati, accesso e rimozione, dati personali' },
   { file: 'gamification.test.js', cosa: 'gamification facoltativa: spenta sulle installazioni nuove, nessun punto né riscatto da spenta' },
   { file: 'aggiornamenti.test.js', cosa: 'avviso di nuova versione (release finta, nessuna chiamata a GitHub)' },

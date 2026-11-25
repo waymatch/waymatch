@@ -16,6 +16,9 @@ const ETICHETTE = {
   sede_eliminata: 'Sede eliminata',
   branding_modificato: 'Branding modificato',
   logo_rimosso: 'Logo rimosso',
+  esci_da_tutti_i_dispositivi: 'Uscita da tutti i dispositivi',
+  icona_app_aggiornata: 'Icona dell\'app aggiornata',
+  icona_app_rimossa: 'Icona dell\'app rimossa',
   logo_aggiornato: 'Logo aggiornato',
   impostazioni_modificate: 'Impostazioni modificate',
   gamification_attivata: 'Gamification attivata',
@@ -68,7 +71,7 @@ const ETICHETTE = {
   documento_modificato: 'Documento modificato',
   documento_disattivato: 'Documento disattivato',
   documento_accettato: 'Documento accettato',
-  cluster_costo_co2_modificato: 'Cluster costo/CO2 modificato',
+  cluster_costo_co2_modificato: 'Costi e CO2 modificati',
   cluster_costo_co2_ripristinato: 'Costi e CO2 riportati ai valori predefiniti',
 };
 
@@ -78,11 +81,30 @@ const FILTRI_CATEGORIA = [
   { value: 'utente', label: 'Utenti' },
 ];
 
+// Aree del log (le stesse del server, routes/audit_log.js).
+const AREE = {
+  utenti: 'Utenti e accessi',
+  passaggi: 'Passaggi e turni',
+  punti: 'Punti',
+  premi: 'Premi e contest',
+  documenti: 'Documenti',
+  impostazioni: 'Impostazioni e sedi',
+  privacy: 'Privacy',
+};
+
 export default function AdminAuditLog() {
   const [log, setLog] = useState(null);
   const [categoria, setCategoria] = useState('');
   const [azione, setAzione] = useState('');
   const [userId, setUserId] = useState('');
+  const [sedeId, setSedeId] = useState('');
+  const [area, setArea] = useState('');
+  const [dal, setDal] = useState('');
+  const [al, setAl] = useState('');
+  const [testo, setTesto] = useState('');
+  const [cerca, setCerca] = useState(''); // il testo, applicato dopo una breve pausa di digitazione
+  const [sedi, setSedi] = useState([]);
+  const [ritenzione, setRitenzione] = useState(null);
   const [tipiEvento, setTipiEvento] = useState([]);
   const [utenti, setUtenti] = useState([]);
   const [error, setError] = useState('');           // caricamento del registro
@@ -96,7 +118,12 @@ export default function AdminAuditLog() {
     const errore = (e) => setErroreFiltri(e.message || 'Impossibile caricare i filtri.');
     api.get('/audit-log/tipi-evento').then((d) => setTipiEvento(d.tipi)).catch(errore);
     api.get('/users').then((d) => setUtenti(d.users)).catch(errore);
+    api.get('/sedi').then((d) => setSedi(d.sedi)).catch(errore);
   }, []);
+  useEffect(() => {
+    const t = setTimeout(() => setCerca(testo.trim()), 350);
+    return () => clearTimeout(t);
+  }, [testo]);
   useEffect(() => { caricaFiltri(); }, [caricaFiltri]);
 
   const filtriAttuali = useCallback(() => {
@@ -104,14 +131,19 @@ export default function AdminAuditLog() {
     if (categoria) params.set('categoria', categoria);
     if (azione) params.set('azione', azione);
     if (userId) params.set('user_id', userId);
+    if (sedeId) params.set('sede_id', sedeId);
+    if (area) params.set('area', area);
+    if (dal) params.set('dal', dal);
+    if (al) params.set('al', al);
+    if (cerca) params.set('q', cerca);
     return params;
-  }, [categoria, azione, userId]);
+  }, [categoria, azione, userId, sedeId, area, dal, al, cerca]);
 
   const load = useCallback(() => {
     const mia = ++richiesta.current;
     setError('');
     api.get(`/audit-log?${filtriAttuali().toString()}`)
-      .then((d) => { if (mia === richiesta.current) { setLog(d.log); setError(''); } })
+      .then((d) => { if (mia === richiesta.current) { setLog(d.log); setRitenzione(d.ritenzione_mesi); setError(''); } })
       .catch((e) => { if (mia === richiesta.current) setError(e.message); });
   }, [filtriAttuali]);
 
@@ -136,7 +168,7 @@ export default function AdminAuditLog() {
           <h1 className="font-display font-bold text-2xl">Log attività</h1>
           <p className="text-muted text-sm mt-0.5">
             Azioni di gestione e attività significative degli utenti (non ogni singolo click).
-            Conservato per 24 mesi, poi archiviato automaticamente.
+            {ritenzione ? `Conservato per ${ritenzione} mesi, poi archiviato automaticamente.` : ''}
           </p>
         </div>
         <button className="btn-outline !text-xs" disabled={esportando} onClick={esporta}>
@@ -169,6 +201,24 @@ export default function AdminAuditLog() {
           <option value="">Tutti gli utenti</option>
           {utenti.map((u) => <option key={u.id} value={u.id}>{u.nome} {u.cognome}</option>)}
         </select>
+        <select aria-label="Area" className="input flex-1 min-w-[160px]" value={area} onChange={(e) => setArea(e.target.value)}>
+          <option value="">Tutte le aree</option>
+          {Object.entries(AREE).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+        </select>
+        <select aria-label="Sede di chi ha agito" className="input flex-1 min-w-[160px]" value={sedeId} onChange={(e) => setSedeId(e.target.value)}>
+          <option value="">Tutte le sedi</option>
+          {sedi.map((s) => <option key={s.id} value={s.id}>{s.nome}</option>)}
+        </select>
+      </div>
+      <div className="flex flex-wrap gap-3 items-end">
+        <label className="text-xs text-muted">Dal
+          <input type="date" className="input mt-1" value={dal} max={al || undefined} onChange={(e) => setDal(e.target.value)} />
+        </label>
+        <label className="text-xs text-muted">Al
+          <input type="date" className="input mt-1" value={al} min={dal || undefined} onChange={(e) => setAl(e.target.value)} />
+        </label>
+        <input type="search" aria-label="Cerca nel log" placeholder="Cerca nei dettagli o per nome…" className="input flex-1 min-w-[200px]"
+          value={testo} onChange={(e) => setTesto(e.target.value)} />
       </div>
 
       {erroreFiltri && <ErroreConRiprova messaggio={`Filtri non disponibili: ${erroreFiltri}`} onRiprova={caricaFiltri} />}
@@ -196,7 +246,7 @@ export default function AdminAuditLog() {
                 </div>
                 {l.dettagli && <p className="text-xs text-muted mt-0.5">{l.dettagli}</p>}
                 <p className="text-xs text-muted mt-0.5">
-                  {l.nome ? `${l.nome} ${l.cognome}` : 'Utente eliminato'}
+                  {l.nome ? `${l.nome} ${l.cognome}` : 'Utente eliminato'}{l.sede_nome ? ` · ${l.sede_nome}` : ''}
                 </p>
               </div>
             </div>

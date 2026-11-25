@@ -128,9 +128,14 @@ colleghi prima: l'app non manda un messaggio a tutti.
 ![Log attività](img/admin-log.png)
 
 - **Log attività**: chi ha fatto cosa (gestione di utenti, sedi, premi, impostazioni e una scelta
-  delle azioni degli utenti). Filtri per categoria, evento e utente; esportazione in Excel. I dati
-  più vecchi vengono archiviati secondo la ritenzione impostata dall'IT (24 mesi per
-  impostazione predefinita).
+  delle azioni degli utenti). Con più Mobility Manager ogni voce dice chi ha agito. Filtri per
+  categoria (Mobility Manager o utenti), tipo di evento, utente, **area** (utenti e accessi,
+  passaggi e turni, punti, premi e contest, documenti, impostazioni e sedi, privacy), **sede** di
+  chi ha agito, **periodo** e **ricerca libera** nei dettagli; l'esportazione in Excel usa gli
+  stessi filtri. I dati più vecchi vengono archiviati secondo la ritenzione impostata dall'IT (24
+  mesi per impostazione predefinita). Gli accessi dei colleghi (quando entrano ed escono
+  dall'app) **non** sono qui: stanno nel log tecnico per l'IT, a fini di sicurezza; qui vedi solo
+  quando un account viene bloccato per troppi tentativi.
 
 ## Informazioni → Sistema
 

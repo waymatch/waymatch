@@ -2,6 +2,7 @@ const jwt = require('jsonwebtoken');
 const db = require('../db');
 const { readSecret } = require('../utils/secrets');
 const { sessioneAttiva, registraUso } = require('../utils/sessioni');
+const { sicurezza } = require('../utils/structuredLog');
 
 const JWT_SECRET = readSecret('JWT_SECRET');
 if (!JWT_SECRET) {
@@ -69,6 +70,7 @@ function requireRole(...ruoli) {
   return (req, res, next) => {
     if (!req.user) return res.status(401).json({ error: 'Non autenticato' });
     if (!ruoli.includes(req.user.ruolo)) {
+      sicurezza('warn', 'accesso_negato', req, { user_id: req.user.id, ruolo: req.user.ruolo, metodo: req.method, percorso: req.originalUrl.split('?')[0] });
       return res.status(403).json({ error: 'Non autorizzato per questa azione' });
     }
     next();
