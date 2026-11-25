@@ -8,6 +8,9 @@ import Schede from '../../components/Schede.jsx';
 import { GIORNI_SETTIMANA, descriviGiorni } from '../../giorni.js';
 import { controllaColorePrimario } from '../../colori.js';
 
+// Il salvataggio è riuscito ma la rilettura no: l'app mostra ancora i valori di prima.
+const NON_RILETTO = 'Salvato, ma non riesco a ricaricare le impostazioni: ricarica la pagina per vederle applicate.';
+
 const TABS = [
   { id: 'branding', label: 'Branding', icon: Palette },
   { id: 'validazione', label: 'Validazione viaggi', icon: ClipboardCheck },
@@ -64,8 +67,7 @@ function BrandingTab() {
     setMsg('');
     try {
       await api.put('/branding', { company_name: companyName, primary_color: primaryColor, accent_color: accentColor, pwa_short_name: nomeBreve });
-      await refresh();
-      setMsg('Impostazioni salvate.');
+      setMsg((await refresh()) ? 'Impostazioni salvate.' : NON_RILETTO);
     } catch (e) {
       setMsg(e.message);
     } finally {
@@ -75,12 +77,14 @@ function BrandingTab() {
 
   const uploadLogo = async (e) => {
     const file = e.target.files[0];
+    e.target.value = ''; // così si può riprovare con lo stesso file
     if (!file) return;
+    setMsg('');
     const form = new FormData();
     form.append('logo', file);
     try {
       await api.post('/branding/logo', form);
-      await refresh();
+      if (!(await refresh())) setMsg(NON_RILETTO);
     } catch (e) { setMsg(e.message); }
   };
 
@@ -93,16 +97,14 @@ function BrandingTab() {
     form.append('icona', file);
     try {
       await api.post('/branding/icona', form);
-      await refresh();
-      setIconaMsg('Icona aggiornata.');
+      setIconaMsg((await refresh()) ? 'Icona aggiornata.' : NON_RILETTO);
     } catch (err) { setIconaMsg(err.message); }
   };
   const rimuoviIcona = async () => {
     setIconaMsg('');
     try {
       await api.del('/branding/icona');
-      await refresh();
-      setIconaMsg('Icona rimossa.');
+      setIconaMsg((await refresh()) ? 'Icona rimossa.' : NON_RILETTO);
     } catch (err) { setIconaMsg(err.message); }
   };
 
@@ -222,8 +224,7 @@ function CalendarioTab() {
     try {
       await api.put('/settings', { giorni_lavorativi: nuovi });
       setGiorni(nuovi);
-      await refresh();
-      setMsg('Salvato.');
+      setMsg((await refresh()) ? 'Salvato.' : NON_RILETTO);
     } catch (e) {
       setMsg(e.message);
     } finally {
@@ -331,7 +332,10 @@ const ALIMENTAZIONE_LABEL = {
 function CostiCo2Tab() {
   const [clusters, setClusters] = useState(null);
   const [edit, setEdit] = useState({});
-  const [saving, setSaving] = useState(null);
+  // Alimentazioni con un salvataggio in corso: ognuna ha il suo, così salvarne una non riattiva l'altra.
+  const [saving, setSaving] = useState(() => new Set());
+  const inizia = (k) => setSaving((s) => new Set(s).add(k));
+  const finisci = (k) => setSaving((s) => { const n = new Set(s); n.delete(k); return n; });
   const [msg, setMsg] = useState('');
   const [erroreCarica, setErroreCarica] = useState('');
   // Alimentazioni modificate e non ancora rilette, ognuna con la generazione della sua ultima modifica:
@@ -378,7 +382,7 @@ function CostiCo2Tab() {
   useEffect(() => { load(); }, []);
 
   const salva = async (chiave) => {
-    setSaving(chiave);
+    inizia(chiave);
     setMsg('');
     try {
       await api.put(`/reports/cost-co2-clusters/${chiave}`, edit[chiave]);
@@ -387,12 +391,12 @@ function CostiCo2Tab() {
     } catch (e) {
       setMsg(e.message);
     } finally {
-      setSaving(null);
+      finisci(chiave);
     }
   };
 
   const ripristina = async (chiave) => {
-    setSaving(chiave);
+    inizia(chiave);
     setMsg('');
     try {
       await api.del(`/reports/cost-co2-clusters/${chiave}`);
@@ -400,7 +404,7 @@ function CostiCo2Tab() {
     } catch (e) {
       setMsg(e.message);
     } finally {
-      setSaving(null);
+      finisci(chiave);
     }
   };
 
@@ -443,11 +447,11 @@ function CostiCo2Tab() {
             </div>
             <p className="text-xs text-muted">Predefinito: € {c.costo_km_eur_default}/km · {c.co2_g_km_default} g/km</p>
             <div className="flex gap-2">
-              <button type="button" className="btn-primary !py-1.5 !text-sm flex-1" disabled={saving === c.alimentazione} onClick={() => salva(c.alimentazione)}>
+              <button type="button" className="btn-primary !py-1.5 !text-sm flex-1" disabled={saving.has(c.alimentazione)} onClick={() => salva(c.alimentazione)}>
                 <Pencil size={13} /> Salva
               </button>
               {c.personalizzato && (
-                <button type="button" className="btn-outline !py-1.5 !text-sm" disabled={saving === c.alimentazione} onClick={() => ripristina(c.alimentazione)}>
+                <button type="button" className="btn-outline !py-1.5 !text-sm" disabled={saving.has(c.alimentazione)} onClick={() => ripristina(c.alimentazione)}>
                   <RotateCcw size={13} /> Ripristina predefinito
                 </button>
               )}
