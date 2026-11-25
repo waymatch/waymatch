@@ -287,7 +287,13 @@ async function main() {
       && sql('SELECT attivo FROM recurring_rides WHERE id = ?', turnoD).attivo === 0, String(r.status));
     r = await call('PUT', `/recurring-rides/${turnoD}/attivo`, { token: mm, body: { attivo: true } });
     check('nemmeno se a riattivarlo è il mobility manager', r.status === 403, String(r.status));
+    // Un turno attivo in pausa riprende appena il conducente accetta, senza aspettare lo scheduler.
+    sql('UPDATE recurring_rides SET attivo = 1 WHERE id = ?', turnoD);
+    sql("DELETE FROM rides WHERE recurring_ride_id = ? AND stato = 'annullato'", turnoD);
+    const inPausa = futureD();
     await call('POST', `/legal-documents/${docC.id}/accept`, { token: autista, body: { versione: versione2 } });
+    check('all\'accettazione le corse mancanti si creano subito', inPausa === 0 && futureD() === primaD, `${inPausa} → ${futureD()} su ${primaD}`);
+    sql('UPDATE recurring_rides SET attivo = 0 WHERE id = ?', turnoD);
     r = await call('PUT', `/recurring-rides/${turnoD}/attivo`, { token: autista, body: { attivo: true } });
     check('dopo l\'accettazione si riattiva e le corse mancanti tornano', r.status === 200 && futureD() === primaD, `${r.status}, ${futureD()} su ${primaD}`);
     await giroScheduler();
