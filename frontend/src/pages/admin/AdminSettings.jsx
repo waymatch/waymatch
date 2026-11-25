@@ -455,7 +455,7 @@ function CostiCo2Tab() {
               </div>
               <div>
                 <p className="label">CO2 media (g/km)</p>
-                <p className="input bg-bg text-muted" aria-label={`CO2 media ${ALIMENTAZIONE_LABEL[c.alimentazione] || c.alimentazione}: ${c.co2_g_km} grammi al chilometro, non modificabile`}>{c.co2_g_km}</p>
+                <p className="input bg-bg text-muted">{c.co2_g_km}<span className="sr-only"> grammi al chilometro per {ALIMENTAZIONE_LABEL[c.alimentazione] || c.alimentazione}, non modificabile</span></p>
               </div>
             </div>
             <p className="text-xs text-muted">Costo predefinito: € {c.costo_km_eur_default}/km</p>

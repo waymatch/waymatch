@@ -99,7 +99,7 @@ async function main() {
       return id;
     };
     viaggio(20, 20, 20, 0, [p1, p2, p3, p4, p5, p6]); // 1: sei passeggeri, quattro contano
-    viaggio(25, 25, 20, 1, [p1]);                      // 2: deviazione di 5 km
+    viaggio(25, 25, 20, 1, [p1, p2]);                  // 2: due passeggeri e deviazione di 5 km
     viaggio(10, 10, null, 1, [p2]);                    // 3: viaggio precedente, senza km del percorso diretto
     viaggio(10, null, null, 0, []);                    // 4: nessun passeggero
     viaggio(10, 30, 5, 1, [p2]);                       // 5: la deviazione supera il risparmio
@@ -108,19 +108,22 @@ async function main() {
     const r = await call('GET', '/reports/summary', { token: mm });
     const t = r.data?.totali || {};
     const q = r.data?.qualita || {};
-    // 1: 20 x (148,5 + 167,1 + 161,7 + 0) = 9546 g · 2: 25 x 148,5 - 5 x 153,9 = 2943 g · 3: 10 x 167,1 = 1671 g · 5: 0 (non negativo)
-    check('CO2 evitata: 14,2 kg (9546 + 2943 + 1671 g)', vicino(t.co2_kg_risparmiata, 14.2, 0.05), String(t.co2_kg_risparmiata));
-    check('km evitati: 110 (80 + 20 + 10)', t.km_risparmiati === 110, String(t.km_risparmiati));
-    check('costo evitato: € 22,75 (con il costo al km di ogni auto)', vicino(t.costo_risparmiato_eur, 22.75), String(t.costo_risparmiato_eur));
-    check('viaggi e passeggeri trasportati', t.viaggi_completati === 5 && t.passeggeri_trasportati_totali === 9, JSON.stringify(t));
-    check('un viaggio con deviazione maggiore del risparmio non lo rende negativo', t.co2_kg_risparmiata >= 14.1);
+    // 1: 20 x (148,5 + 167,1 + 161,7 + 0) = 9546 g
+    // 2: due passeggeri sul tragitto diretto di 20 km (non sui 25 con il giro in più): 20 x 148,5 + 20 x 167,1 = 6312 g,
+    //    meno la deviazione una volta sola: 5 x 153,9 = 769,5 g -> 5542,5 g
+    // 3: 10 x 167,1 = 1671 g (senza km diretti la deviazione non si calcola) · 5: la deviazione supera il risparmio -> 0
+    check('CO2 evitata: 16,8 kg (9546 + 5542,5 + 1671 g)', vicino(t.co2_kg_risparmiata, 16.8, 0.05), String(t.co2_kg_risparmiata));
+    check('km evitati: 125 (80 + 35 + 10)', t.km_risparmiati === 125, String(t.km_risparmiati));
+    check('costo evitato: € 25,90 (con il costo al km di ogni auto)', vicino(t.costo_risparmiato_eur, 25.9), String(t.costo_risparmiato_eur));
+    check('viaggi e passeggeri trasportati', t.viaggi_completati === 5 && t.passeggeri_trasportati_totali === 10, JSON.stringify(t));
+    check('un viaggio con deviazione maggiore del risparmio non lo rende negativo', t.co2_kg_risparmiata >= 16.7);
     check('il metodo è dichiarato nel report', r.data?.metodo?.versione === 1 && /ISPRA/.test(r.data.metodo.fonte_fattori));
     check('qualità: viaggi e km verificati', q.viaggi_completati === 5 && q.viaggi_con_km_verificati === 4, JSON.stringify(q));
-    check('qualità: passeggeri conteggiati ed esclusi', q.passeggeri_completati === 9 && q.passeggeri_conteggiati === 7 && q.esclusi_scenario === 1 && q.esclusi_senza_auto === 1, JSON.stringify(q));
-    check('qualità: da dove viene il fattore di ogni passeggero', q.fattori?.segmento_euro === 2 && q.fattori?.alimentazione === 4 && q.fattori?.media === 1 && q.fattori?.modello === 0, JSON.stringify(q.fattori));
+    check('qualità: passeggeri conteggiati ed esclusi', q.passeggeri_completati === 10 && q.passeggeri_conteggiati === 8 && q.esclusi_scenario === 1 && q.esclusi_senza_auto === 1, JSON.stringify(q));
+    check('qualità: da dove viene il fattore di ogni passeggero', q.fattori?.segmento_euro === 2 && q.fattori?.alimentazione === 5 && q.fattori?.media === 1 && q.fattori?.modello === 0, JSON.stringify(q.fattori));
     check('qualità: deviazione non calcolabile per il viaggio senza km diretti', q.viaggi_con_deviazione_non_calcolabile === 1, String(q.viaggi_con_deviazione_non_calcolabile));
-    r.data && check('per sede e per mese hanno la stessa CO2 del totale', vicino(Object.values(r.data.per_sede).reduce((s, g) => s + g.co2_kg, 0), 14.16, 0.01)
-      && vicino(Object.values(r.data.per_mese).reduce((s, g) => s + g.co2_kg, 0), 14.16, 0.01));
+    r.data && check('per sede e per mese hanno la stessa CO2 del totale', vicino(Object.values(r.data.per_sede).reduce((s, g) => s + g.co2_kg, 0), 16.76, 0.01)
+      && vicino(Object.values(r.data.per_mese).reduce((s, g) => s + g.co2_kg, 0), 16.76, 0.01));
 
     console.log('\n[Pannello costi: la CO2 non si modifica]');
     let c = await call('GET', '/reports/cost-co2-clusters', { token: mm });

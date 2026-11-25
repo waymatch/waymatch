@@ -67,7 +67,16 @@ function calcolaViaggio(ride, passeggeri, qualita) {
   qualita.viaggi_completati += 1;
   if (Number(ride.km_verificati) > 0) qualita.viaggi_con_km_verificati += 1;
 
-  const km = kmAffidabili(ride);
+  // Deviazione dell'autista (§3.4): percorso con le soste meno percorso diretto, una volta per viaggio.
+  let kmDeviazione = 0;
+  const calcolabile = Number(ride.km_verificati) > 0 && Number(ride.km_diretti) > 0;
+  if (calcolabile) kmDeviazione = Math.max(0, ride.km_verificati - ride.km_diretti);
+  else if (Number(ride.soste) > 0) qualita.viaggi_con_deviazione_non_calcolabile += 1;
+
+  // Ogni passeggero evita il tragitto diretto: i km del viaggio SENZA il giro in più dell'autista.
+  // La deviazione si sottrae poi una volta sola dal totale del viaggio; se contasse anche nei km di
+  // ogni passeggero, con più passeggeri il risparmio crescerebbe al crescere della deviazione.
+  const km = calcolabile ? Math.max(0, kmAffidabili(ride) - kmDeviazione) : kmAffidabili(ride);
   let kmEvitati = 0, co2gEvitati = 0, costoEvitato = 0;
   for (const p of passeggeri) {
     qualita.passeggeri_completati += 1;
@@ -80,12 +89,6 @@ function calcolaViaggio(ride, passeggeri, qualita) {
     co2gEvitati += km * f.g_km;
     costoEvitato += km * costoKmPerAlimentazione(p.auto_alimentazione);
   }
-
-  // Deviazione dell'autista (§3.4): percorso con le soste meno percorso diretto, una volta per viaggio.
-  let kmDeviazione = 0;
-  const calcolabile = Number(ride.km_verificati) > 0 && Number(ride.km_diretti) > 0;
-  if (calcolabile) kmDeviazione = Math.max(0, ride.km_verificati - ride.km_diretti);
-  else if (Number(ride.soste) > 0) qualita.viaggi_con_deviazione_non_calcolabile += 1;
 
   if (kmEvitati > 0 && kmDeviazione > 0) {
     const fa = fattore({ alimentazione: ride.auto_alimentazione, segmento: ride.auto_segmento, anno: ride.auto_anno });
