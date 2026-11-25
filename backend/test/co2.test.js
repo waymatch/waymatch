@@ -162,7 +162,7 @@ async function main() {
     const wb = new ExcelJS.Workbook(); await wb.xlsx.load(Buffer.from(await xl.arrayBuffer()));
     const foglio = wb.getWorksheet('Metodo e qualità');
     const celle = []; foglio?.eachRow((riga) => celle.push(riga.values.slice(1).join(' | ')));
-    check('l\'Excel ha il foglio con metodo e qualità dei dati', xl.status === 200 && /Metodo WayMatch v1/.test(celle[0] || '') && celle.some((c) => /Passeggeri conteggiati \| 7/.test(c)) && celle.some((c) => /ISPRA/.test(c)), celle.slice(0, 3).join(' // '));
+    check('l\'Excel ha il foglio con metodo e qualità dei dati', xl.status === 200 && /Metodo WayMatch v1/.test(celle[0] || '') && celle.some((c) => /Passeggeri conteggiati \| 8/.test(c)) && celle.some((c) => /ISPRA/.test(c)), celle.slice(0, 3).join(' // '));
     check('un utente semplice non scarica il PDF', (await fetch(`${API}/reports/export/pdf`, { headers: { Authorization: `Bearer ${(await call('POST', '/auth/login', { body: { email: 'p1@test.it', password: PW } })).data?.token || 'x'}`, 'X-Forwarded-For': '10.34.9.3' } })).status !== 200);
 
     console.log('\n[Pannello costi: la CO2 non si modifica]');
