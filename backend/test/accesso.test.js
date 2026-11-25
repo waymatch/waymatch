@@ -160,7 +160,11 @@ async function main() {
       const ordinate = [...attese].sort((a, b) => a - b);
       const mediana = ordinate[Math.floor(ordinate.length / 2)];
       const peggiore = ordinate[ordinate.length - 1];
-      check('/health risponde durante un login (mediana < un quarto di un bcrypt sincrono)', mediana < bloccoSincrono / 4 + 20 && peggiore < bloccoSincrono * 1.5 && attese.length >= 3,
+      // bcryptjs in modalità asincrona lavora a blocchi di circa 100 ms e poi cede il turno: una
+      // richiesta può aspettare un blocco, non l'intero hash. Il limite tiene conto del blocco,
+      // altrimenti su macchine veloci (bcrypt sincrono sotto i 400 ms) il test fallirebbe a torto.
+      const limite = Math.max(bloccoSincrono / 4, 100) + 50;
+      check('/health risponde durante un login (mediana entro un blocco di bcryptjs, non l\'intero hash)', mediana < limite && peggiore < Math.max(bloccoSincrono * 1.5, 300) && attese.length >= 3,
         `${attese.length} richieste, mediana ${mediana.toFixed(0)} ms, peggiore ${peggiore.toFixed(0)} ms; un bcrypt sincrono a costo 12 bloccherebbe ~${bloccoSincrono.toFixed(0)} ms`);
     }
 

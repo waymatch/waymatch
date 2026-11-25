@@ -30,11 +30,31 @@ class Cdp { constructor(ws) { this.ws = ws; this.id = 0; this.a = new Map(); ws.
   send(method, params = {}, sessionId) { const id = ++this.id; this.ws.send(JSON.stringify({ id, method, params, ...(sessionId ? { sessionId } : {}) })); return new Promise((ok, ko) => this.a.set(id, { ok, ko })); } }
 
 const server = spawn('node', ['server.js'], { cwd: BACKEND, stdio: 'ignore', env: { ...process.env, PORT: String(PORT), DATA_DIR: path.join(DIR, 'data'), UPLOAD_DIR: path.join(DIR, 'uploads'), JWT_SECRET: crypto.randomBytes(32).toString('hex'), DB_ENCRYPTION_KEY: KEY, DB_ENCRYPTION_KEY_FILE: '', SMTP_HOST: '' } });
-const chrome = spawn(CHROME, ['--headless=new', '--no-sandbox', '--disable-gpu', '--disable-dev-shm-usage', '--remote-debugging-port=9335', `--user-data-dir=${path.join(DIR, 'chrome')}`, 'about:blank'], { stdio: 'ignore' });
+// Chromium sulle macchine condivise della CI a volte non parte al primo colpo: si riprova con un
+// profilo nuovo, e l'output del browser finisce nell'errore se non risponde mai.
+let chrome = null;
+let logChrome = '';
+const avviaChrome = (n) => {
+  chrome = spawn(CHROME, ['--headless=new', '--no-sandbox', '--disable-gpu', '--disable-dev-shm-usage', '--remote-debugging-port=9335', `--user-data-dir=${path.join(DIR, `chrome-${n}`)}`, 'about:blank'], { stdio: ['ignore', 'ignore', 'pipe'] });
+  chrome.stderr.on('data', (d) => { logChrome += d; });
+};
 try {
   for (let i = 0; i < 100; i++) { try { if ((await fetch(ORIGINE + '/api/health')).ok) break; } catch {} await attendi(100); }
-  let ws; for (let i = 0; i < 60 && !ws; i++) { try { ws = (await (await fetch('http://127.0.0.1:9335/json/version')).json()).webSocketDebuggerUrl; } catch { await attendi(200); } }
-  if (!ws) throw new Error('Chromium non risponde sulla porta 9335');
+  let ws;
+  for (let tentativo = 1; tentativo <= 3 && !ws; tentativo++) {
+    if (chrome) {
+      // Si aspetta che il browser precedente sia davvero uscito (al massimo 5 s, poi SIGKILL):
+      // altrimenti la porta 9335 potrebbe rispondere ancora con il suo WebSocket.
+      const vecchio = chrome;
+      const uscito = new Promise((r) => { if (vecchio.exitCode !== null || vecchio.signalCode !== null) r(); else vecchio.once('exit', r); });
+      vecchio.kill();
+      await Promise.race([uscito, attendi(5000)]);
+      if (vecchio.exitCode === null && vecchio.signalCode === null) { vecchio.kill('SIGKILL'); await Promise.race([uscito, attendi(2000)]); }
+    }
+    avviaChrome(tentativo);
+    for (let i = 0; i < 100 && !ws; i++) { try { ws = (await (await fetch('http://127.0.0.1:9335/json/version')).json()).webSocketDebuggerUrl; } catch { await attendi(200); } }
+  }
+  if (!ws) throw new Error(`Chromium non risponde sulla porta 9335. Output:\n${logChrome.slice(-1500)}`);
   const sock = new WebSocket(ws); await new Promise((r) => sock.addEventListener('open', r)); const cdp = new Cdp(sock);
   const { targetId } = await cdp.send('Target.createTarget', { url: 'about:blank' });
   const { sessionId: s } = await cdp.send('Target.attachToTarget', { targetId, flatten: true });
@@ -127,7 +147,7 @@ try {
 } catch (e) {
   check('il test non deve fallire per errori', false, e.message);
 } finally {
-  chrome.kill(); server.kill();
+  chrome?.kill(); server.kill();
   console.log(`\nRisultato: ${esito.ok} OK, ${esito.ko} FAIL`);
   if (esito.ko) process.exitCode = 1;
 }
