@@ -77,8 +77,9 @@ function useMarkNotificationFromUrl() {
       if (annullato) return;
       params.delete('nid');
       const nuovaQuery = params.toString();
-      // Il frammento resta (per esempio #sistema in Informazioni).
-      navigate(`${location.pathname}${nuovaQuery ? `?${nuovaQuery}` : ''}${location.hash}`, { replace: true });
+      // Il frammento resta (per esempio #sistema in Informazioni): quello di adesso, se nel frattempo
+      // l'utente l'ha cambiato.
+      navigate(`${location.pathname}${nuovaQuery ? `?${nuovaQuery}` : ''}${window.location.hash}`, { replace: true });
     }).catch(() => {});
     return () => { annullato = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
