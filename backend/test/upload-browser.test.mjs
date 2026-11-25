@@ -365,6 +365,9 @@ async function main() {
       check('il Mobility Manager vede la sua guida', await clicca('Guida Mobility Manager'));
       await attendi(500);
       check('con i giorni lavorativi spiegati', await valuta(`document.body.innerText.includes('giorni lavorativi')`) === true);
+      check('il Mobility Manager vede il metodo di calcolo', await clicca('Metodo di calcolo'));
+      await attendi(500);
+      check('con versione, confine e fonte ISPRA', await valuta(`/v1/.test(document.body.innerText) && /solo CO2 allo scarico/i.test(document.body.innerText) && /ISPRA/.test(document.body.innerText)`) === true);
       check('il Mobility Manager vede Sistema', await clicca('Sistema'));
       await attendi(800);
       check('Sistema mostra versione e stato dei servizi', await valuta(`/Versione/.test(document.body.innerText) && /Email \\(SMTP\\)/.test(document.body.innerText) && /Giorni lavorativi/.test(document.body.innerText)`) === true);

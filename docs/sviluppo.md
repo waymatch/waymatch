@@ -93,6 +93,7 @@ uploads in una cartella temporanea cancellata alla fine: non toccano `data/` né
 | `configurazione.test.js` | segreti deboli rifiutati, nessun font da Google, file del progetto presenti |
 | `handler-async.test.js` | ogni handler async passa da `asyncHandler`: un errore dà 500 e non ferma il server |
 | `limiti-e-anonimizzazione.test.js` | limiti su reset password e `/setup`, anonimizzazione elaborata una sola volta, header Permissions-Policy |
+| `co2.test.js` | metodo di calcolo della CO2 evitata v1: classe Euro dall'anno, fattori ISPRA (segmento e classe Euro, alimentazione, auto media), scenario del passeggero, deviazione dell'autista, risparmio mai negativo, qualità dei dati, CO2 non modificabile e costo al km sì |
 | `log.test.js` | log tecnico JSON (livelli, segreti oscurati), eventi di sicurezza solo per l'IT, filtri del log attività (area, sede, periodo, ricerca) ed export |
 | `foto-profilo.test.js` | foto del profilo: cifrata su disco, 256×256 senza EXIF, solo dopo l'accesso, file non validi o enormi rifiutati, rimozione (utente e Mobility Manager), export dei dati personali, anonimizzazione |
 | `gamification.test.js` | gamification facoltativa: spenta sulle installazioni nuove (nessun punto, riscatto, classifica o contest), interruttore solo per il Mobility Manager, accesa sulle installazioni già in uso; azzeramento dei punteggi (conferma, premi tenuti o annullati, rimborsi, export Excel dei riscatti) |
