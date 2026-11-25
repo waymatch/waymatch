@@ -1,6 +1,7 @@
 const db = require('./db');
 const { notifica, creaNotificaInApp, inAppAttiva, consegnaEsterna } = require('./utils/notify');
 const { totaleGuadagnato } = require('./utils/points');
+const { gamificationAttiva } = require('./utils/gamification');
 const { logEvent } = require('./utils/structuredLog');
 const { pulisciSessioniScadute } = require('./utils/sessioni');
 
@@ -135,14 +136,15 @@ function archiviaDatiStorici() {
     // riga di consolidamento precedente che ricadesse nello stesso intervallo.
     const gruppi = new Map();
     for (const riga of vecchie) {
-      const chiave = `${riga.user_id}|${String(riga.created_at).slice(0, 7)}`;
+      // Anche per generazione: un mese a cavallo di un azzeramento dei punteggi dà due righe.
+      const chiave = `${riga.user_id}|${String(riga.created_at).slice(0, 7)}|${riga.generazione}`;
       if (!gruppi.has(chiave)) gruppi.set(chiave, []);
       gruppi.get(chiave).push(riga);
     }
     const eliminaRiga = db.prepare('DELETE FROM points_log WHERE id = ?');
     const inserisci = db.prepare(`
-      INSERT INTO points_log (user_id, tipo_evento, punti, note, created_at)
-      VALUES (?, 'consolidamento_storico', ?, ?, ?)
+      INSERT INTO points_log (user_id, tipo_evento, punti, note, created_at, generazione)
+      VALUES (?, 'consolidamento_storico', ?, ?, ?, ?)
     `);
     for (const righe of gruppi.values()) {
       for (const riga of righe) logEvent('points_log_archiviato', riga);
@@ -150,7 +152,7 @@ function archiviaDatiStorici() {
       const somma = righe.reduce((tot, r) => tot + r.punti, 0);
       const ultima = righe.reduce((max, r) => (r.created_at > max ? r.created_at : max), righe[0].created_at);
       if (somma !== 0) {
-        inserisci.run(righe[0].user_id, somma, `Somma di ${righe.length} eventi del mese, archiviati nel log esterno`, ultima);
+        inserisci.run(righe[0].user_id, somma, `Somma di ${righe.length} eventi del mese, archiviati nel log esterno`, ultima, righe[0].generazione);
       }
     }
     return vecchie.length;
@@ -194,7 +196,8 @@ async function inviaRiepilogoSettimanale() {
     if (giaInviato) continue;
     db.prepare('INSERT INTO weekly_summary_sent (user_id, settimana) VALUES (?, ?)').run(u.id, settimana);
 
-    const punti = totaleGuadagnato(u.id, 7);
+    const conPunti = gamificationAttiva();
+    const punti = conPunti ? totaleGuadagnato(u.id, 7) : 0;
     // Filtro sulla data del viaggio (quando è avvenuto), non su created_at (quando è
     // stato offerto/prenotato): un'offerta di giorni fa completata solo questa settimana
     // deve comunque contare in questo riepilogo.
@@ -210,7 +213,9 @@ async function inviaRiepilogoSettimanale() {
 
     await notifica(
       u.id, 'riepilogo_settimanale',
-      `Questa settimana: ${viaggi} viaggi completati e ${punti} punti guadagnati. Continua così!`
+      conPunti
+        ? `Questa settimana: ${viaggi} viaggi completati e ${punti} punti guadagnati. Continua così!`
+        : `Questa settimana: ${viaggi} viaggi completati in carpooling. Continua così!`
     );
   }
 }

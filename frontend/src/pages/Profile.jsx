@@ -38,6 +38,7 @@ const TABS = [
 
 export default function Profile() {
   const { user, refresh, punti } = useAuth();
+  const { branding: { gamification } } = useBranding();
   const [sedi, setSedi] = useState([]);
   const [form, setForm] = useState(null);
   const [saving, setSaving] = useState(false);
@@ -101,10 +102,14 @@ export default function Profile() {
       {tab === 'info' && (
         <div className="space-y-5">
           <div className="card flex items-center justify-between">
-            <div>
-              <p className="text-xs text-muted uppercase tracking-wide">Punti accumulati</p>
-              <p className="font-display font-bold text-2xl mt-0.5">{punti}</p>
-            </div>
+            {gamification ? (
+              <div>
+                <p className="text-xs text-muted uppercase tracking-wide">Punti accumulati</p>
+                <p className="font-display font-bold text-2xl mt-0.5">{punti}</p>
+              </div>
+            ) : (
+              <p className="font-display font-semibold">{user.nome} {user.cognome}</p>
+            )}
             <span className="badge-accent capitalize">{user.ruolo.replace('_', ' ')}</span>
           </div>
 
@@ -509,7 +514,7 @@ function PrivacyTab() {
         </div>
         <p className="text-xs text-muted">
           Scarica un file con tutti i dati che l'app conserva su di te: profilo, passaggi
-          offerti e prenotati, punti, riscatti premi, documenti accettati e log delle tue azioni.
+          offerti e prenotati, punti e riscatti premi (se ce ne sono), documenti accettati e log delle tue azioni.
         </p>
         <button className="btn-outline w-full" disabled={exporting} onClick={esporta}>
           {exporting ? 'Preparazione...' : <><Download size={15} /> Scarica i miei dati</>}

@@ -1,6 +1,7 @@
 const express = require('express');
 const db = require('../db');
 const { requireAuth } = require('../middleware/auth');
+const { gamificationAttiva } = require('../utils/gamification');
 const { CATEGORIE_INFO } = require('../utils/notify');
 
 const router = express.Router();
@@ -11,10 +12,16 @@ router.get('/', requireAuth, (req, res) => {
   `).all(req.user.id);
   const mappa = Object.fromEntries(righe.map((r) => [r.categoria, { inapp: !!r.inapp, push: !!r.push, email: !!r.email, minuti_anticipo: r.minuti_anticipo }]));
 
+  // Con la gamification spenta non ci sono premi da notificare, e il riepilogo parla solo di viaggi.
+  const conPunti = gamificationAttiva();
+  // Gli avvisi sui premi restano configurabili finché ci sono riscatti propri ancora da gestire.
+  const riscattiAperti = !conPunti && !!db.prepare("SELECT 1 FROM reward_redemptions WHERE user_id = ? AND stato IN ('in_attesa', 'approvato')").get(req.user.id);
   const categorie = CATEGORIE_INFO
     .filter((c) => !c.soloRuolo || c.soloRuolo === req.user.ruolo)
+    .filter((c) => conPunti || riscattiAperti || c.chiave !== 'premi')
     .map((c) => ({
       ...c,
+      ...(!conPunti && c.chiave === 'riepilogo_settimanale' ? { descrizione: 'Un breve riepilogo dei viaggi fatti nell\'ultima settimana.' } : {}),
       inapp: mappa[c.chiave] ? mappa[c.chiave].inapp : true,
       push: mappa[c.chiave] ? mappa[c.chiave].push : true,
       email: mappa[c.chiave] ? mappa[c.chiave].email : true,

@@ -62,6 +62,7 @@ try {
   const setup = await api('POST', '/setup', { body: { company_name: 'Acme Mobility', nome: 'Giulia', cognome: 'Rossi', email: 'giulia@acme.example', password: PW,
     sedi: [{ nome: 'Milano', indirizzo: 'Via Torino 10', lat: 45.46, lon: 9.18 }, { nome: 'Bergamo', indirizzo: 'Via Camozzi 5', lat: 45.69, lon: 9.67 }] } });
   const mm = setup.token;
+  await api('PUT', '/gamification', { token: mm, body: { attiva: true } }); // anche le pagine di punti e premi vanno controllate
   const sedi = (await api('GET', '/sedi', { token: mm })).sedi;
   for (const [n, c] of [['Marco', 'Bianchi'], ['Sara', 'Verdi']]) await api('POST', '/users', { token: mm, body: { nome: n, cognome: c, email: `${n.toLowerCase()}@acme.example`, password: PW, sede_id: sedi[0].id } });
   await api('POST', '/users', { token: mm, body: { nome: 'Nina', cognome: 'Nuova', email: 'nina@acme.example', password: PW } });
@@ -96,7 +97,8 @@ try {
   console.log('\n[Mobility manager: schermate]');
   await entra(mm);
   for (const u of ['/admin/utenti', '/admin/impostazioni', '/admin/sedi', '/admin/premi', '/report', '/admin/punteggio', '/admin/documenti', '/admin/log', '/admin/approvazioni', '/admin/contest', '/admin/cancellazioni', '/admin/reset-password']) { await vai(u, 2200); await analizza(u); }
-  for (const scheda of ['Validazione viaggi', 'Calendario', 'Costi e CO2', 'Email']) { await vai('/admin/impostazioni', 1800); await clicca(scheda); await attendi(700); await analizza(`/admin/impostazioni: ${scheda}`); }
+  for (const scheda of ['Validazione viaggi', 'Calendario', 'Costi e CO2', 'Gamification', 'Email']) { await vai('/admin/impostazioni', 1800); await clicca(scheda); await attendi(700); await analizza(`/admin/impostazioni: ${scheda}`); }
+  await vai('/admin/impostazioni', 1800); await clicca('Gamification'); await attendi(700); await clicca('Azzera i punteggi'); await attendi(500); await analizza('/admin/impostazioni: finestra di azzeramento dei punteggi');
   await vai('/informazioni', 1800); for (const t of ['Guida mobility manager', 'Sistema']) { await clicca(t); await attendi(700); await analizza(`/informazioni: ${t}`); }
 
   console.log('\n[Telefono]');

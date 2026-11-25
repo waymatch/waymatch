@@ -25,6 +25,7 @@ const SUITE = [
   { file: 'accessi-e-dati.test.js', cosa: 'sessioni oltre i limiti, cambio password, documenti per versione, CSV, anonimizzazione dei luoghi' },
   { file: 'regole-carpooling.test.js', cosa: 'prenotazioni, recapiti, turni fissi, premi e rimborsi, validazioni, endpoint push' },
   { file: 'ultimo-admin.test.js', cosa: 'ultimo mobility manager protetto' },
+  { file: 'gamification.test.js', cosa: 'gamification facoltativa: spenta sulle installazioni nuove, nessun punto né riscatto da spenta' },
   { file: 'aggiornamenti.test.js', cosa: 'avviso di nuova versione (release finta, nessuna chiamata a GitHub)' },
   { file: 'backup.test.js', cosa: 'backup del database cifrato (scripts/backup-db.js)' },
   { file: 'calendario.test.js', cosa: 'giorni lavorativi (domeniche e non solo)' },

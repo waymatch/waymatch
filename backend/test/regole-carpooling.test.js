@@ -67,6 +67,8 @@ async function main() {
   try {
     const mm = (await call('POST', '/setup', { body: { company_name: 'T', nome: 'Mo', cognome: 'Ma', email: 'mm@test.it', password: PW,
       sedi: [{ nome: 'Sede', indirizzo: 'Milano', lat: 45.46, lon: 9.18 }] } })).data.token;
+    // Punti e premi sono facoltativi (spenti sulle installazioni nuove): qui servono accesi.
+    await call('PUT', '/gamification', { token: mm, body: { attiva: true } });
     const sedeId = sql('SELECT id FROM sedi').id;
     for (const n of ['autista', 'anna', 'bruno', 'carla']) {
       await call('POST', '/users', { token: mm, body: { nome: n, cognome: 'Test', email: `${n}@test.it`, password: PW, sede_id: sedeId } });

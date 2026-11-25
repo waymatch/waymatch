@@ -18,7 +18,7 @@
 per aziende con una sola sede o con tante: la installate sul vostro server, con il vostro marchio.
 
 I colleghi che fanno la stessa strada si trovano e vanno al lavoro insieme: chi guida offre un
-passaggio, chi non guida lo chiede, e tutti guadagnano punti da cambiare in premi. L'azienda vede quanti chilometri, quanta CO2 e quanti costi
+passaggio, chi non guida lo chiede e, se l'azienda lo vuole, tutti guadagnano punti da cambiare in premi. L'azienda vede quanti chilometri, quanta CO2 e quanti costi
 risparmia. Si usa dal computer e sul telefono si installa come una normale app, ma senza passare
 dagli store.
 
@@ -50,10 +50,12 @@ dagli store.
 
 **Per chi viaggia.** Offri un passaggio in pochi tocchi, anche ogni giorno alla stessa ora con i turni
 fissi. Trovi i colleghi che passano vicino a casa tua, chiedi un posto e ricevi la conferma sul
-telefono. Ogni viaggio condiviso vale punti, che scalano la classifica e si cambiano in premi.
+telefono. Se l'azienda attiva la gamification, ogni viaggio condiviso vale punti, che scalano la
+classifica e si cambiano in premi.
 
 **Per il mobility manager.** Gestisci dipendenti (anche da un file), sedi e giorni lavorativi. Decidi
-le regole dei punti, i premi, i contest e i voucher, e pubblichi i documenti da accettare, come
+se usare la gamification (è facoltativa e si accende o spegne in ogni momento) e, se sì, le regole
+dei punti, i premi, i contest e i voucher. Pubblichi i documenti da accettare, come
 l'informativa privacy. I report ti dicono quanti chilometri, quanta CO2 e quanti costi avete
 risparmiato, e si esportano in Excel e PDF.
 

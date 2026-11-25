@@ -55,6 +55,7 @@ export default function OfferRide() {
 
 function SingleRideForm() {
   const { user } = useAuth();
+  const { branding: { gamification } } = useBranding();
   const navigate = useNavigate();
   const { sedi, erroreSedi, ricaricaSedi } = useSedi();
   const [tipo, setTipo] = useState('andata');
@@ -190,7 +191,7 @@ function SingleRideForm() {
         </div>
 
         {error && <div className="lg:col-span-2"><ErrorBanner message={error} /></div>}
-        {success && <div className="lg:col-span-2 rounded-xl bg-primary-light text-primary-dark text-sm px-3.5 py-2.5">Passaggio pubblicato! Hai guadagnato punti 🎉</div>}
+        {success && <div className="lg:col-span-2 rounded-xl bg-primary-light text-primary-dark text-sm px-3.5 py-2.5">{gamification ? 'Passaggio pubblicato! Hai guadagnato punti 🎉' : 'Passaggio pubblicato!'}</div>}
 
         <p className="text-xs text-muted lg:col-span-2">{AVVISO_ORARI}</p>
         <button type="submit" className="btn-primary w-full lg:col-span-2" disabled={saving || success}>

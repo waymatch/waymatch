@@ -1,7 +1,8 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { Upload, Palette, ClipboardCheck, CalendarDays, Mail, Send, CheckCircle2, XCircle, Leaf, RotateCcw, Pencil } from 'lucide-react';
+import { Upload, Palette, ClipboardCheck, CalendarDays, Mail, Send, CheckCircle2, XCircle, Leaf, RotateCcw, Pencil, Trophy } from 'lucide-react';
 import { Link } from 'react-router-dom';
-import { api } from '../../api.js';
+import { api, scaricaFile } from '../../api.js';
+import FinestraModale from '../../components/FinestraModale.jsx';
 import ErroreConRiprova from '../../components/ErroreConRiprova.jsx';
 import { useBranding } from '../../context/BrandingContext.jsx';
 import Schede from '../../components/Schede.jsx';
@@ -16,6 +17,7 @@ const TABS = [
   { id: 'validazione', label: 'Validazione viaggi', icon: ClipboardCheck },
   { id: 'calendario', label: 'Calendario', icon: CalendarDays },
   { id: 'costi-co2', label: 'Costi e CO2', icon: Leaf },
+  { id: 'gamification', label: 'Gamification', icon: Trophy },
   { id: 'email', label: 'Email', icon: Mail },
 ];
 
@@ -26,7 +28,7 @@ export default function AdminSettings() {
     <div className="space-y-6">
       <div>
         <h1 className="font-display font-bold text-2xl">Impostazioni generali</h1>
-        <p className="text-muted text-sm mt-0.5">Identità aziendale, workflow di completamento viaggi, notifiche via email.</p>
+        <p className="text-muted text-sm mt-0.5">Identità aziendale, convalida dei viaggi, calendario, costi e CO2, gamification, email.</p>
       </div>
 
       <Schede schede={TABS} attiva={tab} onChange={setTab}>
@@ -34,6 +36,7 @@ export default function AdminSettings() {
       {tab === 'validazione' && <ValidazioneTab />}
       {tab === 'calendario' && <CalendarioTab />}
       {tab === 'costi-co2' && <CostiCo2Tab />}
+      {tab === 'gamification' && <GamificationTab />}
       {tab === 'email' && <EmailTab />}
       </Schede>
     </div>
@@ -545,5 +548,175 @@ function Riga({ label, valore }) {
       <span className="text-muted">{label}</span>
       <span className="font-medium">{valore}</span>
     </div>
+  );
+}
+
+// Punti, premi, classifiche e contest: facoltativi, li accende o li spegne il mobility manager, che
+// può anche azzerare i punteggi (alla accensione, allo spegnimento o in qualsiasi momento).
+function GamificationTab() {
+  const { refresh } = useBranding();
+  const [stato, setStato] = useState(null);
+  const [erroreCarica, setErroreCarica] = useState('');
+  const [salvando, setSalvando] = useState(false);
+  const [msg, setMsg] = useState('');
+  const [proponiAzzeramento, setProponiAzzeramento] = useState(false);
+  const [azzeramento, setAzzeramento] = useState(false);
+
+  const carica = () => {
+    setErroreCarica('');
+    return api.get('/gamification').then((d) => { setStato(d); return d; }).catch((e) => setErroreCarica(e.message || 'Impossibile caricare le impostazioni.'));
+  };
+  useEffect(() => { carica(); }, []);
+
+  const cambia = async () => {
+    const attiva = !stato.attiva;
+    const domanda = attiva
+      ? 'Attivare la gamification?\n\nTutti vedranno punti, premi e classifiche; da ora i viaggi completati danno punti secondo le Regole punteggio.'
+      : 'Spegnere la gamification?\n\nNon si assegnano più punti e spariscono premi, classifiche e contest per tutti. Punti accumulati e storico restano: riaccendendola si riparte da lì.';
+    if (!confirm(domanda)) return;
+    setSalvando(true); setMsg(''); setProponiAzzeramento(false);
+    try {
+      const nuovo = await api.put('/gamification', { attiva });
+      setStato(nuovo);
+      setMsg((await refresh()) ? (attiva ? 'Gamification attivata.' : 'Gamification spenta.') : NON_RILETTO);
+      // Dopo ogni cambio si chiede se ripartire da zero, solo se c'è qualcosa da azzerare.
+      if (nuovo.utenti_con_punti > 0) setProponiAzzeramento(true);
+    } catch (e) {
+      setMsg(e.message);
+    } finally {
+      setSalvando(false);
+    }
+  };
+
+  if (!stato) return erroreCarica ? <ErroreConRiprova messaggio={erroreCarica} onRiprova={carica} /> : <div className="card animate-pulse h-40" />;
+  const daGestire = stato.riscatti_in_attesa + stato.riscatti_approvati;
+
+  return (
+    <div className="space-y-5">
+      <div className="card space-y-4">
+        <div>
+          <h2 className="font-display font-semibold text-sm">Gamification</h2>
+          <p className="text-xs text-muted mt-1">
+            Punti per i viaggi fatti, premi da riscattare, classifiche e contest. Sono facoltativi: c'è chi usa
+            WayMatch solo per mettere in contatto i colleghi. Spenta, i viaggi continuano a contare per i report.
+          </p>
+        </div>
+        <label className="flex items-start gap-3 cursor-pointer">
+          <input type="checkbox" className="mt-1" checked={stato.attiva} disabled={salvando} onChange={cambia} />
+          <span className="text-sm">
+            <span className="font-medium">{stato.attiva ? 'Attiva' : 'Spenta'}</span>
+            <span className="block text-muted">
+              {stato.attiva
+                ? 'Gli utenti vedono punti, premi e classifiche. Le regole e i premi si gestiscono dal menu Gamification.'
+                : 'Nessun punto viene assegnato e le pagine di punti, premi e contest non si vedono.'}
+            </span>
+          </span>
+        </label>
+        {!stato.attiva && daGestire > 0 && (
+          <p role="status" className="rounded-xl border border-accent bg-accent-light text-accent-dark px-3.5 py-3 text-sm">
+            Ci sono ancora {daGestire === 1 ? 'una richiesta di premio' : `${daGestire} richieste di premio`} da approvare o
+            consegnare: puoi gestirle da <Link to="/admin/premi" className="underline font-medium">Gestione premi</Link>.
+          </p>
+        )}
+        {msg && <p className="text-sm text-muted" role="status">{msg}</p>}
+        {proponiAzzeramento && (
+          <div role="status" className="rounded-xl border border-border px-3.5 py-3 text-sm space-y-2">
+            <p>Vuoi anche azzerare i punteggi, per ripartire da zero?</p>
+            <div className="flex flex-wrap gap-2">
+              <button type="button" className="btn-outline !py-1.5 !text-sm" onClick={() => { setProponiAzzeramento(false); setAzzeramento(true); }}>Sì, vedi cosa comporta</button>
+              <button type="button" className="btn-outline !py-1.5 !text-sm" onClick={() => setProponiAzzeramento(false)}>No, tieni i punti</button>
+            </div>
+          </div>
+        )}
+      </div>
+
+      <div className="card space-y-3">
+        <h2 className="font-display font-semibold text-sm">Azzeramento dei punteggi</h2>
+        <p className="text-xs text-muted">
+          Riporta a zero i punti di tutti, per esempio a inizio anno o quando cambiano le regole. Lo storico resta
+          (per i report e per l'export dei dati personali); i premi già consegnati non cambiano.
+          {stato.punti_azzerati_il && ` Ultimo azzeramento: ${new Date(stato.punti_azzerati_il.replace(' ', 'T') + 'Z').toLocaleString('it-IT')}.`}
+        </p>
+        <button type="button" className="btn-outline !py-1.5 !text-sm" onClick={() => setAzzeramento(true)}>
+          <RotateCcw size={14} className="inline -mt-0.5 mr-1" /> Azzera i punteggi…
+        </button>
+      </div>
+
+      {azzeramento && (
+        <FinestraAzzeramento
+          stato={stato}
+          onClose={() => setAzzeramento(false)}
+          onFatto={(esito) => { setAzzeramento(false); setStato(esito); setMsg(esito.annullati ? `Punteggi azzerati; ${esito.annullati} premi non consegnati annullati.` : 'Punteggi azzerati.'); }}
+        />
+      )}
+    </div>
+  );
+}
+
+// Conferma dell'azzeramento: riepilogo dei premi, export per consegnarli a mano, scelta su quelli non
+// ancora consegnati e conferma esplicita.
+function FinestraAzzeramento({ stato, onClose, onFatto }) {
+  const [premi, setPremi] = useState('tieni');
+  const [capito, setCapito] = useState(false);
+  const [inCorso, setInCorso] = useState(false);
+  const [errore, setErrore] = useState('');
+  const daConsegnare = stato.riscatti_in_attesa + stato.riscatti_approvati;
+
+  const scarica = async () => {
+    setErrore('');
+    try { await scaricaFile('/gamification/riscatti.xlsx', 'riscatti-premi.xlsx'); } catch (e) { setErrore(e.message); }
+  };
+  const conferma = async () => {
+    setInCorso(true); setErrore('');
+    try {
+      onFatto(await api.post('/gamification/azzera', { premi, conferma: true }));
+    } catch (e) {
+      setErrore(e.message);
+      setInCorso(false);
+    }
+  };
+
+  return (
+    <FinestraModale titoloId="azzeramento-titolo" onClose={inCorso ? null : onClose} className="fixed inset-0 z-50 bg-black/40 flex items-end sm:items-center justify-center p-0 sm:p-4">
+      <div className="bg-surface w-full sm:max-w-lg sm:rounded-2xl rounded-t-2xl max-h-[90vh] overflow-y-auto p-5 space-y-4">
+        <h2 id="azzeramento-titolo" className="font-display font-semibold text-base">Azzerare i punteggi?</h2>
+        <ul className="text-sm space-y-1.5 list-disc pl-5">
+          <li>I punti di <strong>{stato.utenti_con_punti === 1 ? '1 persona' : `${stato.utenti_con_punti} persone`}</strong> tornano a zero: saldi, classifiche e contest ripartono da adesso.</li>
+          <li>Lo storico resta, per i report e per l'export dei dati personali.</li>
+          <li><strong>L'operazione non si annulla.</strong></li>
+        </ul>
+        <div className="rounded-xl border border-border p-3.5 text-sm space-y-2">
+          <p className="font-medium">Premi</p>
+          <p className="text-muted">
+            Consegnati: {stato.riscatti_consegnati} · approvati da consegnare: {stato.riscatti_approvati} · in attesa di approvazione: {stato.riscatti_in_attesa}
+          </p>
+          <button type="button" className="underline text-primary text-sm" onClick={scarica}>Scarica l'elenco dei riscatti (Excel)</button>
+          {daConsegnare > 0 && (
+            <fieldset className="space-y-2 pt-1">
+              <legend className="text-sm">Che cosa fare dei {daConsegnare === 1 ? 'premio non ancora consegnato' : `${daConsegnare} premi non ancora consegnati`}?</legend>
+              <label className="flex items-start gap-2">
+                <input type="radio" name="premi-azzeramento" className="mt-1" checked={premi === 'tieni'} onChange={() => setPremi('tieni')} />
+                <span><span className="font-medium">Tenerli</span> <span className="text-muted">— restano da consegnare: l'azienda si impegna a darli.</span></span>
+              </label>
+              <label className="flex items-start gap-2">
+                <input type="radio" name="premi-azzeramento" className="mt-1" checked={premi === 'annulla'} onChange={() => setPremi('annulla')} />
+                <span><span className="font-medium">Annullarli</span> <span className="text-muted">— chi li aveva chiesti riceve un avviso; i punti non tornano.</span></span>
+              </label>
+            </fieldset>
+          )}
+        </div>
+        <label className="flex items-start gap-2 text-sm">
+          <input type="checkbox" className="mt-1" checked={capito} onChange={(e) => setCapito(e.target.checked)} />
+          <span>Ho capito: i punteggi di tutti tornano a zero e non si possono recuperare.</span>
+        </label>
+        {errore && <p className="text-sm text-danger" role="alert">{errore}</p>}
+        <div className="flex flex-wrap gap-2 justify-end">
+          <button type="button" className="btn-outline" onClick={onClose} disabled={inCorso}>Annulla</button>
+          <button type="button" className="btn-primary !bg-danger" onClick={conferma} disabled={!capito || inCorso}>
+            {inCorso ? 'Azzeramento…' : 'Azzera i punteggi'}
+          </button>
+        </div>
+      </div>
+    </FinestraModale>
   );
 }

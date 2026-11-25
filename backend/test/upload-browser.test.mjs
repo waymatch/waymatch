@@ -96,6 +96,7 @@ async function main() {
     // --- Scenario ---
     const mm = (await api('POST', '/setup', { body: { company_name: 'Prova', nome: 'Admin', cognome: 'MM', email: 'mm@test.it', password: PW } })).token;
     await api('PUT', '/auth/me', { token: mm, body: {} });
+    await api('PUT', '/gamification', { token: mm, body: { attiva: true } }); // premi e voucher: servono accesi
     const sede = await api('POST', '/sedi', { token: mm, body: { nome: 'Sede', indirizzo: 'Via Roma 1' } }).catch(() => null);
     await api('POST', '/users', { token: mm, body: { nome: 'Ugo', cognome: 'Utente', email: 'ugo@test.it', password: PW } });
     const logo = await api('POST', '/branding/logo', { token: mm, form: conFile('logo', await png(0x0e7c66ff, 200, 80), 'logo.png', 'image/png') });

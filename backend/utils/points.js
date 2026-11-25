@@ -36,22 +36,36 @@ function getRule(chiave) {
   return rule.punti;
 }
 
+// Generazione attuale dei punti: sale di uno a ogni azzeramento dei punteggi deciso dal mobility
+// manager (Impostazioni generali → Gamification). Saldi, classifiche e contest contano solo i
+// movimenti della generazione attuale; quelli precedenti restano nello storico.
+function generazionePunti() {
+  return db.prepare('SELECT generazione_punti FROM system_settings WHERE id = 1').get()?.generazione_punti || 0;
+}
+// Da usare negli INSERT: la generazione si legge nella stessa istruzione, così un movimento non può
+// finire in una generazione già chiusa.
+const GENERAZIONE_ATTUALE = '(SELECT generazione_punti FROM system_settings WHERE id = 1)';
+
 function assegnaPunti(userId, tipoEvento, punti, rideId = null, note = null) {
   if (!punti) return;
+  // Gamification spenta: i viaggi contano per i report, ma non danno punti.
+  if (!require('./gamification').gamificationAttiva()) return;
   db.prepare(
-    `INSERT INTO points_log (user_id, tipo_evento, punti, ride_id, note) VALUES (?, ?, ?, ?, ?)`
+    `INSERT INTO points_log (user_id, tipo_evento, punti, ride_id, note, created_at, generazione)
+     VALUES (?, ?, ?, ?, ?, strftime('%Y-%m-%d %H:%M:%f', 'now'), ${GENERAZIONE_ATTUALE})`
   ).run(userId, tipoEvento, punti, rideId, note);
 }
 
 // Saldo attuale (spendibile): tutto ciò che è stato guadagnato, meno i punti usati per
 // riscattare premi (e più eventuali rimborsi se un riscatto viene rifiutato).
 function totalePunti(userId) {
+  const gen = generazionePunti();
   const daEventi = db
-    .prepare(`SELECT COALESCE(SUM(punti), 0) as tot FROM points_log WHERE user_id = ?`)
-    .get(userId).tot;
+    .prepare(`SELECT COALESCE(SUM(punti), 0) as tot FROM points_log WHERE user_id = ? AND generazione = ?`)
+    .get(userId, gen).tot;
   const daManuali = db
-    .prepare(`SELECT COALESCE(SUM(punti), 0) as tot FROM manual_point_awards WHERE user_id = ?`)
-    .get(userId).tot;
+    .prepare(`SELECT COALESCE(SUM(punti), 0) as tot FROM manual_point_awards WHERE user_id = ? AND generazione = ?`)
+    .get(userId, gen).tot;
   return daEventi + daManuali;
 }
 
@@ -61,12 +75,13 @@ function totalePunti(userId) {
 // viaggi e bonus manuali del mobility manager.
 function totaleGuadagnato(userId, periodoGiorni = null) {
   const filtroData = periodoGiorni ? `AND created_at >= datetime('now', '-${Number(periodoGiorni)} days')` : '';
+  const gen = generazionePunti();
   const daEventi = db
-    .prepare(`SELECT COALESCE(SUM(punti), 0) as tot FROM points_log WHERE user_id = ? ${filtroData}`)
-    .get(userId).tot;
+    .prepare(`SELECT COALESCE(SUM(punti), 0) as tot FROM points_log WHERE user_id = ? AND generazione = ? ${filtroData}`)
+    .get(userId, gen).tot;
   const daManuali = db
-    .prepare(`SELECT COALESCE(SUM(punti), 0) as tot FROM manual_point_awards WHERE user_id = ? AND redemption_id IS NULL ${filtroData}`)
-    .get(userId).tot;
+    .prepare(`SELECT COALESCE(SUM(punti), 0) as tot FROM manual_point_awards WHERE user_id = ? AND redemption_id IS NULL AND generazione = ? ${filtroData}`)
+    .get(userId, gen).tot;
   return daEventi + daManuali;
 }
 
@@ -77,4 +92,4 @@ function calcolaBonusKm(km, numPasseggeri) {
   return Math.min(cap, Math.round(km * numPasseggeri * perKm));
 }
 
-module.exports = { getRule, assegnaPunti, totalePunti, totaleGuadagnato, calcolaBonusKm, kmDalServer, kmAffidabili };
+module.exports = { generazionePunti, GENERAZIONE_ATTUALE, getRule, assegnaPunti, totalePunti, totaleGuadagnato, calcolaBonusKm, kmDalServer, kmAffidabili };

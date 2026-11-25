@@ -3,8 +3,10 @@ import ErrorBanner from '../components/ErrorBanner.jsx';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
 import { Leaf, Route, Wallet, Users, FileDown, FileSpreadsheet } from 'lucide-react';
 import { api, scaricaFile } from '../api.js';
+import { useBranding } from '../context/BrandingContext.jsx';
 
 export default function Reports() {
+  const { branding: { gamification } } = useBranding();
   const [sedi, setSedi] = useState([]);
   const [sedeId, setSedeId] = useState('');
   const [dal, setDal] = useState('');
@@ -171,7 +173,7 @@ export default function Reports() {
                 <div key={u.id} className="flex items-center gap-3 py-2.5 first:pt-0 last:pb-0">
                   <span className="w-6 text-center text-sm text-muted">{i + 1}</span>
                   <span className="flex-1 text-sm truncate">{u.nome} {u.cognome}</span>
-                  <span className="text-sm text-primary">{u.punti} pt</span>
+                  <span className="text-sm text-primary">{gamification ? `${u.punti} pt` : `${u.viaggi} viaggi`}</span>
                 </div>
               ))}
             </div>

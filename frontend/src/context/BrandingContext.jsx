@@ -12,6 +12,7 @@ const DEFAULTS = {
   giorni_lavorativi: [1, 2, 3, 4, 5, 6], // 1 = lunedì ... 7 = domenica
   email_attive: false, // il server dice se SMTP è configurato
   mappa: null, // arriva dal server (TILE_URL); finché non c'è non si disegnano tile
+  gamification: false, // punti, premi, classifiche e contest: li attiva il mobility manager
 };
 
 const rgbStr = ([r, g, b]) => `${r} ${g} ${b}`;
@@ -19,6 +20,7 @@ const valido = (hex, predefinito) => hexToRgb(hex) || hexToRgb(predefinito);
 
 export function BrandingProvider({ children }) {
   const [branding, setBranding] = useState(DEFAULTS);
+  const [caricato, setCaricato] = useState(false); // prima lettura riuscita
 
   // true se la lettura è riuscita: chi ha appena salvato può dire se l'app mostra i valori nuovi.
   const refresh = useCallback(async () => {
@@ -31,7 +33,19 @@ export function BrandingProvider({ children }) {
     }
   }, []);
 
-  useEffect(() => { refresh(); }, [refresh]);
+  // Finché la prima lettura non riesce, le parti che dipendono dal branding (per esempio la
+  // gamification) restano in sospeso invece di apparire spente; si riprova ogni 5 secondi.
+  useEffect(() => {
+    let timer = null;
+    let attivo = true;
+    const prova = () => refresh().then((ok) => {
+      if (!attivo) return;
+      if (ok) setCaricato(true);
+      else timer = setTimeout(prova, 5000);
+    });
+    prova();
+    return () => { attivo = false; clearTimeout(timer); };
+  }, [refresh]);
 
   useEffect(() => {
     const root = document.documentElement.style;
@@ -62,7 +76,7 @@ export function BrandingProvider({ children }) {
   }, [branding]);
 
   return (
-    <BrandingContext.Provider value={{ branding, refresh }}>
+    <BrandingContext.Provider value={{ branding, refresh, caricato }}>
       {children}
     </BrandingContext.Provider>
   );
