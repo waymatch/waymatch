@@ -1,7 +1,7 @@
 const express = require('express');
 const db = require('../db');
 const { requireAuth, requireRole } = require('../middleware/auth');
-const { inizioPunti } = require('../utils/points');
+const { generazionePunti } = require('../utils/points');
 const { richiediGamification } = require('../utils/gamification');
 const { registraAzione } = require('../utils/audit');
 
@@ -64,17 +64,17 @@ router.get('/:id/classifica', requireAuth, richiediGamification, (req, res) => {
     // Metrica "punti": include anche i bonus manuali del mobility manager (non i riscatti premi)
     query = `
       SELECT u.id, u.nome, u.cognome, u.sede_id,
-        COALESCE((SELECT SUM(p.punti) FROM points_log p WHERE p.user_id = u.id AND p.created_at >= ? AND p.created_at < ? AND p.created_at >= ?), 0)
+        COALESCE((SELECT SUM(p.punti) FROM points_log p WHERE p.user_id = u.id AND p.created_at >= ? AND p.created_at < ? AND p.generazione = ?), 0)
         +
-        COALESCE((SELECT SUM(m.punti) FROM manual_point_awards m WHERE m.user_id = u.id AND m.redemption_id IS NULL AND m.created_at >= ? AND m.created_at < ? AND m.created_at >= ?), 0)
+        COALESCE((SELECT SUM(m.punti) FROM manual_point_awards m WHERE m.user_id = u.id AND m.redemption_id IS NULL AND m.created_at >= ? AND m.created_at < ? AND m.generazione = ?), 0)
         as punteggio,
         0 as eventi
       FROM users u
       WHERE 1=1
     `;
     // Un azzeramento dei punteggi durante il contest vale anche per la sua classifica.
-    const azzerati = inizioPunti();
-    params.push(inizio, fineEsclusa, azzerati, inizio, fineEsclusa, azzerati);
+    const gen = generazionePunti();
+    params.push(inizio, fineEsclusa, gen, inizio, fineEsclusa, gen);
   }
   if (contest.sede_id) { query += ' AND u.sede_id = ?'; params.push(contest.sede_id); }
   query += ' ORDER BY punteggio DESC LIMIT 50';

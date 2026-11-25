@@ -85,7 +85,7 @@ punteggi** (per esempio a inizio anno): i punti di tutti tornano a zero e la cla
 
 Ogni viaggio condiviso ti fa guadagnare punti (le regole le decide l'azienda). In **Premi** vedi la
 classifica, i contest in corso e il catalogo premi. Il riscatto toglie subito i punti; se il premio
-viene rifiutato i punti ti tornano. Alcuni premi sono **voucher digitali** con un codice.
+viene rifiutato i punti ti tornano (non se nel frattempo i punteggi sono stati azzerati). Alcuni premi sono **voucher digitali** con un codice.
 
 ## Profilo
 

@@ -1,6 +1,7 @@
 const express = require('express');
 const db = require('../db');
 const { requireAuth, requireRole } = require('../middleware/auth');
+const { GENERAZIONE_ATTUALE } = require('../utils/points');
 const { richiediGamification } = require('../utils/gamification');
 const { registraAzione } = require('../utils/audit');
 
@@ -49,7 +50,8 @@ router.post('/manual-award', requireAuth, requireRole('mobility_manager'), richi
   // invio non raddoppia i punti.
   db.transaction(() => {
     db.prepare(`
-      INSERT INTO manual_point_awards (user_id, assegnato_da, punti, motivo, created_at) VALUES (?, ?, ?, ?, strftime('%Y-%m-%d %H:%M:%f', 'now'))
+      INSERT INTO manual_point_awards (user_id, assegnato_da, punti, motivo, created_at, generazione)
+      VALUES (?, ?, ?, ?, strftime('%Y-%m-%d %H:%M:%f', 'now'), ${GENERAZIONE_ATTUALE})
     `).run(user_id, req.user.id, punti, motivo.trim());
     registraAzione(req.user.id, 'punti_manuali_assegnati', `${punti} pt a utente #${user_id}: ${motivo.trim()}`);
   })();

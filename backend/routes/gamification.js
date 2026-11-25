@@ -6,7 +6,7 @@ const { requireAuth, requireRole } = require('../middleware/auth');
 const { registraAzione } = require('../utils/audit');
 const { asyncHandler } = require('../utils/asyncHandler');
 const { gamificationAttiva } = require('../utils/gamification');
-const { inizioPunti } = require('../utils/points');
+const { generazionePunti } = require('../utils/points');
 const { notificaMassiva } = require('../utils/notify');
 const { rigaSicura } = require('../utils/export');
 
@@ -17,16 +17,17 @@ function stato() {
   const riscatti = Object.fromEntries(
     db.prepare('SELECT stato, COUNT(*) AS n FROM reward_redemptions GROUP BY stato').all().map((r) => [r.stato, r.n]),
   );
-  const inizio = inizioPunti();
+  const gen = generazionePunti();
   // Chi ha un saldo diverso da zero dall'ultimo azzeramento: è chi perderebbe dei punti azzerando.
   const conPunti = db.prepare(`
     SELECT COUNT(*) AS n FROM (
       SELECT user_id, SUM(punti) AS s FROM (
-        SELECT user_id, punti FROM points_log WHERE created_at >= ?
-        UNION ALL SELECT user_id, punti FROM manual_point_awards WHERE created_at >= ?
+        SELECT user_id, punti FROM points_log WHERE generazione = ?
+        UNION ALL SELECT user_id, punti FROM manual_point_awards WHERE generazione = ?
       ) GROUP BY user_id HAVING s != 0
     )
-  `).get(inizio, inizio).n;
+  `).get(gen, gen).n;
+  const azzeratiIl = db.prepare('SELECT punti_azzerati_il FROM system_settings WHERE id = 1').get().punti_azzerati_il;
   return {
     attiva: gamificationAttiva(),
     // Riscatti ancora da gestire: restano da approvare o consegnare anche con la gamification spenta.
@@ -34,7 +35,7 @@ function stato() {
     riscatti_approvati: riscatti.approvato || 0,
     riscatti_consegnati: riscatti.consegnato || 0,
     utenti_con_punti: conPunti,
-    punti_azzerati_il: inizio || null,
+    punti_azzerati_il: azzeratiIl || null,
   };
 }
 
@@ -57,7 +58,9 @@ router.post('/azzera', ...soloMm, asyncHandler(async (req, res) => {
   if (!['tieni', 'annulla'].includes(premi)) return res.status(400).json({ error: 'Indica cosa fare dei premi non ancora consegnati (tieni o annulla).' });
   const prima = stato();
   const annullati = db.transaction(() => {
-    db.prepare("UPDATE system_settings SET punti_azzerati_il = strftime('%Y-%m-%d %H:%M:%f', 'now') WHERE id = 1").run();
+    db.prepare(`
+      UPDATE system_settings SET generazione_punti = generazione_punti + 1, punti_azzerati_il = strftime('%Y-%m-%d %H:%M:%f', 'now') WHERE id = 1
+    `).run();
     let righe = [];
     if (premi === 'annulla') {
       righe = db.prepare(`
@@ -72,11 +75,11 @@ router.post('/azzera', ...soloMm, asyncHandler(async (req, res) => {
       `${prima.utenti_con_punti} utenti con punti; premi non consegnati: ${premi === 'annulla' ? `${righe.length} annullati` : `${daConsegnare} tenuti`}`);
     return righe;
   })();
-  // Avvisi dopo il commit: uno per premio annullato.
-  for (const r of annullati) {
-    await notificaMassiva([r.user_id], 'riscatto_annullato', `La richiesta per "${r.nome}" è stata annullata con l'azzeramento dei punteggi.`);
-  }
+  // Prima la risposta (l'azzeramento è già confermato), poi un avviso per ogni premio annullato,
+  // in parallelo: push ed email lenti non fanno aspettare il mobility manager.
   res.json({ ...stato(), annullati: annullati.length });
+  await Promise.all(annullati.map((r) =>
+    notificaMassiva([r.user_id], 'riscatto_annullato', `La richiesta per "${r.nome}" è stata annullata con l'azzeramento dei punteggi.`)));
 }));
 
 // Tutti i riscatti, per consegnare a mano i premi rimasti o tenerne traccia prima di un azzeramento.

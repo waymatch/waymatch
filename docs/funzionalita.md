@@ -42,7 +42,8 @@ L'elenco completo di cosa fa WayMatch, per chi vuole i dettagli. Per una panoram
   (punti per offerta, per viaggio completato come autista/passeggero, bonus km, bonus
   "macchina piena" separato per autista e passeggeri), assegnazione punti manuale con
   storico, classifica generale e per sede, contest a tempo, catalogo premi con
-  **decurtazione punti immediata al riscatto e riaccredito automatico se rifiutato**.
+  **decurtazione punti immediata al riscatto e riaccredito automatico se rifiutato** (salvo
+  che i punteggi siano stati azzerati dopo la richiesta).
 - **Dati auto nel profilo** (marca a tendina, modello, anno, cilindrata, colore,
   alimentazione) usati per stimare **CO2 e costo risparmiati** nei viaggi condivisi e per
   riconoscere l'auto al punto di ritrovo.

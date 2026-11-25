@@ -5,7 +5,7 @@ const db = require('../db');
 const { percorsoSicuro } = require('../utils/safePath');
 const { requireAuth, requireRole } = require('../middleware/auth');
 const { richiediGamification } = require('../utils/gamification');
-const { totalePunti, inizioPunti } = require('../utils/points');
+const { totalePunti, generazionePunti, GENERAZIONE_ATTUALE } = require('../utils/points');
 const { notifica } = require('../utils/notify');
 const { registraAzione } = require('../utils/audit');
 const { asyncHandler } = require('../utils/asyncHandler');
@@ -83,8 +83,8 @@ router.post('/:id/redeem', requireAuth, richiediGamification, (req, res) => {
       INSERT INTO reward_redemptions (user_id, reward_id, stato, created_at) VALUES (?, ?, 'in_attesa', strftime('%Y-%m-%d %H:%M:%f', 'now'))
     `).run(req.user.id, reward.id);
     db.prepare(`
-      INSERT INTO manual_point_awards (user_id, assegnato_da, punti, motivo, redemption_id, created_at)
-      VALUES (?, ?, ?, ?, ?, strftime('%Y-%m-%d %H:%M:%f', 'now'))
+      INSERT INTO manual_point_awards (user_id, assegnato_da, punti, motivo, redemption_id, created_at, generazione)
+      VALUES (?, ?, ?, ?, ?, strftime('%Y-%m-%d %H:%M:%f', 'now'), ${GENERAZIONE_ATTUALE})
     `).run(req.user.id, req.user.id, -reward.punti_richiesti, `Riscatto premio: ${reward.nome}`, info.lastInsertRowid);
     return info.lastInsertRowid;
   });
@@ -159,14 +159,16 @@ router.put('/redemptions/:id', requireAuth, requireRole('mobility_manager'), asy
     if (stato === 'rifiutato') {
       // Si rimborsa quanto addebitato davvero, non il prezzo attuale del premio. Un riscatto chiesto
       // prima di un azzeramento dei punteggi non si rimborsa: quei punti non esistono più.
-      const addebitati = db.prepare(`
-        SELECT -COALESCE(SUM(punti), 0) AS n FROM manual_point_awards WHERE redemption_id = ? AND punti < 0
-      `).get(redemption.id).n;
-      dopoAzzeramento = redemption.created_at >= inizioPunti();
+      const addebito = db.prepare(`
+        SELECT -COALESCE(SUM(punti), 0) AS n, MAX(generazione) AS gen FROM manual_point_awards WHERE redemption_id = ? AND punti < 0
+      `).get(redemption.id);
+      const addebitati = addebito.n;
+      // Addebitato in una generazione precedente: c'è stato un azzeramento in mezzo.
+      dopoAzzeramento = addebito.gen === null || addebito.gen === generazionePunti();
       if (addebitati > 0 && dopoAzzeramento) {
         db.prepare(`
-          INSERT INTO manual_point_awards (user_id, assegnato_da, punti, motivo, redemption_id, created_at)
-          VALUES (?, ?, ?, ?, ?, strftime('%Y-%m-%d %H:%M:%f', 'now'))
+          INSERT INTO manual_point_awards (user_id, assegnato_da, punti, motivo, redemption_id, created_at, generazione)
+          VALUES (?, ?, ?, ?, ?, strftime('%Y-%m-%d %H:%M:%f', 'now'), ${GENERAZIONE_ATTUALE})
         `).run(redemption.user_id, req.user.id, addebitati, `Rimborso riscatto rifiutato: ${redemption.reward_nome}`, redemption.id);
       }
     }

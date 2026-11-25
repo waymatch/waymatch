@@ -92,6 +92,8 @@ async function main() {
     r = await call('PUT', '/gamification', { token: mm, body: { attiva: false } });
     check('spenta di nuovo, il riscatto in attesa resta da gestire', r.status === 200 && r.data.attiva === false && r.data.riscatti_in_attesa === 1, JSON.stringify(r.data));
     check('i punti già accumulati restano nello storico', punti() === 5);
+    r = await call('GET', '/notification-prefs', { token: ugo });
+    check('con un riscatto ancora aperto gli avvisi sui premi restano configurabili', (r.data.categorie || []).some((c) => c.chiave === 'premi'));
     r = await offri('10:00');
     check('e i nuovi passaggi non ne danno', r.status === 200 && punti() === 5, `${r.status}, ${punti()}`);
     check('l\'azione è nel log attività', sql("SELECT COUNT(*) n FROM audit_log WHERE azione IN ('gamification_attivata', 'gamification_disattivata')")[0].n === 2);
@@ -113,6 +115,11 @@ async function main() {
     check('azzerati: il saldo torna a zero', r.status === 200 && await saldo() === 0 && r.data.utenti_con_punti === 0, JSON.stringify(r.data));
     check('il premio chiesto prima resta da consegnare', sql('SELECT stato FROM reward_redemptions WHERE id = ?', riscatto1)[0].stato === 'in_attesa');
     check('lo storico resta', sql('SELECT COUNT(*) n FROM points_log WHERE user_id = ?', ugoId)[0].n === 1);
+    // Un movimento della generazione precedente con la stessa data dell'azzeramento (stesso millisecondo).
+    const az = sql('SELECT punti_azzerati_il d, generazione_punti g FROM system_settings')[0];
+    sql("INSERT INTO points_log (user_id, tipo_evento, punti, created_at, generazione) VALUES (?, 'prova', 7, ?, ?)", ugoId, az.d, az.g - 1);
+    check('un movimento di prima dell\'azzeramento non conta, anche con la stessa data', await saldo() === 0, String(await saldo()));
+    sql("DELETE FROM points_log WHERE tipo_evento = 'prova'");
     r = await call('GET', '/points/classifica', { token: ugo });
     check('la classifica riparte da zero', r.data.classifica.every((u) => u.punti === 0), JSON.stringify(r.data.classifica.map((u) => u.punti)));
     await call('PUT', `/rewards/redemptions/${riscatto1}`, { token: mm, body: { stato: 'rifiutato' } });

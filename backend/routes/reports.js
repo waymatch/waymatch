@@ -5,7 +5,7 @@ const { requireAuth, requireRole } = require('../middleware/auth');
 const { gamificationAttiva } = require('../utils/gamification');
 const { registraAzione } = require('../utils/audit');
 const { asyncHandler } = require('../utils/asyncHandler');
-const { kmAffidabili, inizioPunti } = require('../utils/points');
+const { kmAffidabili, generazionePunti } = require('../utils/points');
 const {
   co2GramsForTrip, kmRisparmiati, costoRisparmiato, costoKmPerAlimentazione,
   getAllClusters, setClusterOverride, resetClusterOverride, clusterEsistente,
@@ -96,14 +96,14 @@ router.get('/summary', requireAuth, requireRole('mobility_manager', 'supervisor'
   // riscatti, coerente con la classifica di /api/points/classifica e la lista utenti).
   const topUtenti = db.prepare(`
     SELECT u.id, u.nome, u.cognome, u.sede_id,
-      COALESCE((SELECT SUM(p.punti) FROM points_log p WHERE p.user_id = u.id AND p.created_at >= @inizio), 0)
-      + COALESCE((SELECT SUM(m.punti) FROM manual_point_awards m WHERE m.user_id = u.id AND m.redemption_id IS NULL AND m.created_at >= @inizio), 0)
+      COALESCE((SELECT SUM(p.punti) FROM points_log p WHERE p.user_id = u.id AND p.generazione = @gen), 0)
+      + COALESCE((SELECT SUM(m.punti) FROM manual_point_awards m WHERE m.user_id = u.id AND m.redemption_id IS NULL AND m.generazione = @gen), 0)
       as punti,
       (SELECT COUNT(*) FROM rides r WHERE r.driver_id = u.id AND r.stato = 'completato')
       + (SELECT COUNT(*) FROM bookings b WHERE b.passenger_id = u.id AND b.stato = 'completato') as viaggi
     FROM users u
     ORDER BY ${gamificationAttiva() ? 'punti' : 'viaggi'} DESC LIMIT 10
-  `).all({ inizio: inizioPunti() });
+  `).all({ gen: generazionePunti() });
 
   res.set('Cache-Control', 'private, no-store');
   res.json({ ...report, top_utenti: topUtenti });

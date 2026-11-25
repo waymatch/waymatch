@@ -14,9 +14,11 @@ router.get('/', requireAuth, (req, res) => {
 
   // Con la gamification spenta non ci sono premi da notificare, e il riepilogo parla solo di viaggi.
   const conPunti = gamificationAttiva();
+  // Gli avvisi sui premi restano configurabili finché ci sono riscatti propri ancora da gestire.
+  const riscattiAperti = !conPunti && !!db.prepare("SELECT 1 FROM reward_redemptions WHERE user_id = ? AND stato IN ('in_attesa', 'approvato')").get(req.user.id);
   const categorie = CATEGORIE_INFO
     .filter((c) => !c.soloRuolo || c.soloRuolo === req.user.ruolo)
-    .filter((c) => conPunti || c.chiave !== 'premi')
+    .filter((c) => conPunti || riscattiAperti || c.chiave !== 'premi')
     .map((c) => ({
       ...c,
       ...(!conPunti && c.chiave === 'riepilogo_settimanale' ? { descrizione: 'Un breve riepilogo dei viaggi fatti nell\'ultima settimana.' } : {}),

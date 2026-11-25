@@ -36,34 +36,36 @@ function getRule(chiave) {
   return rule.punti;
 }
 
-// Momento dell'ultimo azzeramento dei punteggi deciso dal mobility manager (Impostazioni generali →
-// Gamification): saldi, classifiche e contest contano solo da lì, lo storico resta. Stringa vuota se
-// non c'è mai stato, così "created_at >= ?" vale sempre: si può usare in ogni query senza casi a parte.
-function inizioPunti() {
-  return db.prepare('SELECT punti_azzerati_il FROM system_settings WHERE id = 1').get()?.punti_azzerati_il || '';
+// Generazione attuale dei punti: sale di uno a ogni azzeramento dei punteggi deciso dal mobility
+// manager (Impostazioni generali → Gamification). Saldi, classifiche e contest contano solo i
+// movimenti della generazione attuale; quelli precedenti restano nello storico.
+function generazionePunti() {
+  return db.prepare('SELECT generazione_punti FROM system_settings WHERE id = 1').get()?.generazione_punti || 0;
 }
+// Da usare negli INSERT: la generazione si legge nella stessa istruzione, così un movimento non può
+// finire in una generazione già chiusa.
+const GENERAZIONE_ATTUALE = '(SELECT generazione_punti FROM system_settings WHERE id = 1)';
 
 function assegnaPunti(userId, tipoEvento, punti, rideId = null, note = null) {
   if (!punti) return;
   // Gamification spenta: i viaggi contano per i report, ma non danno punti.
   if (!require('./gamification').gamificationAttiva()) return;
   db.prepare(
-    // Al millisecondo, come l'azzeramento dei punteggi: un punto assegnato subito dopo un azzeramento,
-    // nello stesso secondo, deve contare.
-    `INSERT INTO points_log (user_id, tipo_evento, punti, ride_id, note, created_at) VALUES (?, ?, ?, ?, ?, strftime('%Y-%m-%d %H:%M:%f', 'now'))`
+    `INSERT INTO points_log (user_id, tipo_evento, punti, ride_id, note, created_at, generazione)
+     VALUES (?, ?, ?, ?, ?, strftime('%Y-%m-%d %H:%M:%f', 'now'), ${GENERAZIONE_ATTUALE})`
   ).run(userId, tipoEvento, punti, rideId, note);
 }
 
 // Saldo attuale (spendibile): tutto ciò che è stato guadagnato, meno i punti usati per
 // riscattare premi (e più eventuali rimborsi se un riscatto viene rifiutato).
 function totalePunti(userId) {
-  const inizio = inizioPunti();
+  const gen = generazionePunti();
   const daEventi = db
-    .prepare(`SELECT COALESCE(SUM(punti), 0) as tot FROM points_log WHERE user_id = ? AND created_at >= ?`)
-    .get(userId, inizio).tot;
+    .prepare(`SELECT COALESCE(SUM(punti), 0) as tot FROM points_log WHERE user_id = ? AND generazione = ?`)
+    .get(userId, gen).tot;
   const daManuali = db
-    .prepare(`SELECT COALESCE(SUM(punti), 0) as tot FROM manual_point_awards WHERE user_id = ? AND created_at >= ?`)
-    .get(userId, inizio).tot;
+    .prepare(`SELECT COALESCE(SUM(punti), 0) as tot FROM manual_point_awards WHERE user_id = ? AND generazione = ?`)
+    .get(userId, gen).tot;
   return daEventi + daManuali;
 }
 
@@ -73,13 +75,13 @@ function totalePunti(userId) {
 // viaggi e bonus manuali del mobility manager.
 function totaleGuadagnato(userId, periodoGiorni = null) {
   const filtroData = periodoGiorni ? `AND created_at >= datetime('now', '-${Number(periodoGiorni)} days')` : '';
-  const inizio = inizioPunti();
+  const gen = generazionePunti();
   const daEventi = db
-    .prepare(`SELECT COALESCE(SUM(punti), 0) as tot FROM points_log WHERE user_id = ? AND created_at >= ? ${filtroData}`)
-    .get(userId, inizio).tot;
+    .prepare(`SELECT COALESCE(SUM(punti), 0) as tot FROM points_log WHERE user_id = ? AND generazione = ? ${filtroData}`)
+    .get(userId, gen).tot;
   const daManuali = db
-    .prepare(`SELECT COALESCE(SUM(punti), 0) as tot FROM manual_point_awards WHERE user_id = ? AND redemption_id IS NULL AND created_at >= ? ${filtroData}`)
-    .get(userId, inizio).tot;
+    .prepare(`SELECT COALESCE(SUM(punti), 0) as tot FROM manual_point_awards WHERE user_id = ? AND redemption_id IS NULL AND generazione = ? ${filtroData}`)
+    .get(userId, gen).tot;
   return daEventi + daManuali;
 }
 
@@ -90,4 +92,4 @@ function calcolaBonusKm(km, numPasseggeri) {
   return Math.min(cap, Math.round(km * numPasseggeri * perKm));
 }
 
-module.exports = { inizioPunti, getRule, assegnaPunti, totalePunti, totaleGuadagnato, calcolaBonusKm, kmDalServer, kmAffidabili };
+module.exports = { generazionePunti, GENERAZIONE_ATTUALE, getRule, assegnaPunti, totalePunti, totaleGuadagnato, calcolaBonusKm, kmDalServer, kmAffidabili };

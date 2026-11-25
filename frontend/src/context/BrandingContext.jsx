@@ -20,7 +20,7 @@ const valido = (hex, predefinito) => hexToRgb(hex) || hexToRgb(predefinito);
 
 export function BrandingProvider({ children }) {
   const [branding, setBranding] = useState(DEFAULTS);
-  const [caricato, setCaricato] = useState(false); // prima lettura conclusa (riuscita o no)
+  const [caricato, setCaricato] = useState(false); // prima lettura riuscita
 
   // true se la lettura è riuscita: chi ha appena salvato può dire se l'app mostra i valori nuovi.
   const refresh = useCallback(async () => {
@@ -33,7 +33,19 @@ export function BrandingProvider({ children }) {
     }
   }, []);
 
-  useEffect(() => { refresh().finally(() => setCaricato(true)); }, [refresh]);
+  // Finché la prima lettura non riesce, le parti che dipendono dal branding (per esempio la
+  // gamification) restano in sospeso invece di apparire spente; si riprova ogni 5 secondi.
+  useEffect(() => {
+    let timer = null;
+    let attivo = true;
+    const prova = () => refresh().then((ok) => {
+      if (!attivo) return;
+      if (ok) setCaricato(true);
+      else timer = setTimeout(prova, 5000);
+    });
+    prova();
+    return () => { attivo = false; clearTimeout(timer); };
+  }, [refresh]);
 
   useEffect(() => {
     const root = document.documentElement.style;

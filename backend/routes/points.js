@@ -2,19 +2,19 @@ const express = require('express');
 const db = require('../db');
 const { requireAuth } = require('../middleware/auth');
 const { richiediGamification } = require('../utils/gamification');
-const { totalePunti, totaleGuadagnato, inizioPunti } = require('../utils/points');
+const { totalePunti, totaleGuadagnato, generazionePunti } = require('../utils/points');
 
 const router = express.Router();
 
 router.get('/me', requireAuth, (req, res) => {
   const eventi = db.prepare(`
-    SELECT tipo_evento as tipo, punti, note, created_at FROM points_log WHERE user_id = ? AND created_at >= ?
-  `).all(req.user.id, inizioPunti());
+    SELECT tipo_evento as tipo, punti, note, created_at FROM points_log WHERE user_id = ? AND generazione = ?
+  `).all(req.user.id, generazionePunti());
   const manuali = db.prepare(`
     SELECT CASE WHEN redemption_id IS NOT NULL THEN 'riscatto_premio' ELSE 'bonus_manuale' END as tipo,
            punti, motivo as note, created_at
-    FROM manual_point_awards WHERE user_id = ? AND created_at >= ?
-  `).all(req.user.id, inizioPunti());
+    FROM manual_point_awards WHERE user_id = ? AND generazione = ?
+  `).all(req.user.id, generazionePunti());
   const log = [...eventi, ...manuali].sort((a, b) => b.created_at.localeCompare(a.created_at)).slice(0, 50);
   res.json({ punti: totalePunti(req.user.id), punti_guadagnati: totaleGuadagnato(req.user.id), log });
 });
@@ -28,16 +28,16 @@ router.get('/classifica', requireAuth, richiediGamification, (req, res) => {
 
   let query = `
     SELECT u.id, u.nome, u.cognome, u.sede_id, s.nome as sede_nome,
-      COALESCE((SELECT SUM(p.punti) FROM points_log p WHERE p.user_id = u.id AND p.created_at >= ? ${filtroData}), 0)
+      COALESCE((SELECT SUM(p.punti) FROM points_log p WHERE p.user_id = u.id AND p.generazione = ? ${filtroData}), 0)
       +
-      COALESCE((SELECT SUM(m.punti) FROM manual_point_awards m WHERE m.user_id = u.id AND m.redemption_id IS NULL AND m.created_at >= ? ${filtroDataM}), 0)
+      COALESCE((SELECT SUM(m.punti) FROM manual_point_awards m WHERE m.user_id = u.id AND m.redemption_id IS NULL AND m.generazione = ? ${filtroDataM}), 0)
       as punti
     FROM users u
     LEFT JOIN sedi s ON s.id = u.sede_id
     WHERE u.attivo = 1
   `;
-  const inizio = inizioPunti();
-  const params = [inizio, inizio];
+  const gen = generazionePunti();
+  const params = [gen, gen];
   if (sede_id) { query += ' AND u.sede_id = ?'; params.push(sede_id); }
   query += ' ORDER BY punti DESC LIMIT 100';
 

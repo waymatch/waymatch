@@ -4,6 +4,10 @@ import React, { useEffect, useRef } from 'react';
 // resta al suo interno, Esc la chiude (se è chiudibile) e alla chiusura il focus torna dove era.
 export default function FinestraModale({ titoloId, onClose, className, children }) {
   const ref = useRef(null);
+  // Il listener è registrato una volta sola: legge onClose da qui, così vale sempre quello attuale
+  // (per esempio null mentre un invio è in corso, quando Esc non deve chiudere).
+  const chiudi = useRef(onClose);
+  chiudi.current = onClose;
   useEffect(() => {
     const el = ref.current;
     const precedente = document.activeElement;
@@ -12,7 +16,7 @@ export default function FinestraModale({ titoloId, onClose, className, children 
       .filter((e) => e.offsetParent !== null);
     (focusabili()[0] || el).focus();
     const onKey = (e) => {
-      if (e.key === 'Escape' && onClose) { e.stopPropagation(); onClose(); return; }
+      if (e.key === 'Escape' && chiudi.current) { e.stopPropagation(); chiudi.current(); return; }
       if (e.key !== 'Tab') return;
       const f = focusabili();
       if (!f.length) { e.preventDefault(); return; }
