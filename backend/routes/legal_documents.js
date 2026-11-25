@@ -9,6 +9,7 @@ const { registraAzione } = require('../utils/audit');
 const { documentiPendenti } = require('../utils/documentiLegali');
 const { percorsoSicuro } = require('../utils/safePath');
 const { nomeCasuale, inviaFileCaricato } = require('../utils/fileCaricati');
+const { log } = require('../utils/structuredLog');
 
 const router = express.Router();
 
@@ -146,7 +147,7 @@ router.post('/:id/accept', requireAuth, (req, res) => {
         generaOccorrenzePerTemplate(t.id, 14);
       }
     } catch (e) {
-      console.error('[documenti] ripresa dei turni fissi dopo l\'accettazione:', e.message); // ci pensa lo scheduler
+      log.warn('turni_ripresa_dopo_accettazione_non_riuscita', { errore: e, user_id: req.user.id }); // ci pensa lo scheduler
     }
   }
   res.json({ ok: true });

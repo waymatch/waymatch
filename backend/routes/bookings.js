@@ -6,6 +6,7 @@ const { registraAzione } = require('../utils/audit');
 const { confrontoSicuro } = require('../utils/compare');
 const { promuoviListaAttesa, notificaPromossi } = require('../utils/waitlist');
 const { asyncHandler } = require('../utils/asyncHandler');
+const { log } = require('../utils/structuredLog');
 
 const router = express.Router();
 
@@ -81,7 +82,7 @@ router.post('/rides/:rideId/book', requireAuth, asyncHandler(async (req, res) =>
     res.json({ booking_id: bookingId, lista_attesa: listaAttesa });
   } catch (e) {
     if (String(e.message).includes('UNIQUE')) return res.status(400).json({ error: 'Hai già richiesto questo passaggio' });
-    console.error(e);
+    log.error('prenotazione_errore', { errore: e });
     res.status(500).json({ error: 'Errore nella richiesta' });
   }
 }));

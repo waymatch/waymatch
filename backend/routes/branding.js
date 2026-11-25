@@ -38,6 +38,7 @@ const upload = multer({
 
 const { leggi: leggiTiles } = require('../utils/tiles');
 const { smtpAttivo } = require('../utils/mailer');
+const { log } = require('../utils/structuredLog');
 const { giorniLavorativi } = require('../utils/calendario');
 const iconaApp = require('../utils/icona');
 const MAPPA = (({ url, attribuzione, maxZoom }) => ({ url, attribuzione, maxZoom }))(leggiTiles());
@@ -112,7 +113,7 @@ router.delete('/logo', requireAuth, requireRole('mobility_manager'), (req, res) 
         fs.unlinkSync(vecchio);
       } catch (e) {
         if (e.code !== 'ENOENT') {
-          console.error('[logo] file non cancellato:', e.message);
+          log.error('logo_non_cancellato', { errore: e });
           return res.status(500).json({ error: 'Non riesco a cancellare il file del logo: riprova o avvisa l\'IT.' });
         }
       }

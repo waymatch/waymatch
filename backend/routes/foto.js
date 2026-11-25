@@ -8,6 +8,7 @@ const { requireAuth, requireRole } = require('../middleware/auth');
 const { registraAzione } = require('../utils/audit');
 const { asyncHandler } = require('../utils/asyncHandler');
 const foto = require('../utils/fotoProfilo');
+const { log } = require('../utils/structuredLog');
 
 const router = express.Router();
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 5 * 1024 * 1024, files: 1 } });
@@ -80,7 +81,7 @@ router.get('/:userId', requireAuth, (req, res) => {
   try {
     jpeg = foto.leggi(u.foto_path);
   } catch (e) {
-    console.error(`[foto profilo] utente ${req.params.userId}: ${e.message}`);
+    log.error('foto_profilo_non_leggibile', { errore: e, user_id: req.params.userId });
     return res.status(404).json({ error: 'Nessuna foto' });
   }
   res.set({ 'Content-Type': 'image/jpeg', 'X-Content-Type-Options': 'nosniff' });

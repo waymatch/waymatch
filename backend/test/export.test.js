@@ -80,7 +80,7 @@ const MALEVOLI = ['=HYPERLINK("http://evil.example","clic")', '+1+1', '-2+3', '@
     const conNome = celle.filter((c) => String(c.v).includes('HYPERLINK'));
     check('il nome malevolo compare solo neutralizzato o dentro un testo innocuo', conNome.length > 0 && conNome.every((c) => !/^[=+\-@]/.test(c.v)), JSON.stringify(conNome.map((c) => c.v)));
     check('nessuna cella inizia con un carattere di formula', celle.every((c) => typeof c.v !== 'string' || !/^[=+\-@\t\r]/.test(c.v)));
-    check('intestazione invariata', JSON.stringify(log['Log attività'][0].map((c) => c.v)) === JSON.stringify(['Data e ora', 'Categoria', 'Azione', 'Utente', 'Dettagli']));
+    check('intestazione attesa (con la sede di chi ha agito)', JSON.stringify(log['Log attività'][0].map((c) => c.v)) === JSON.stringify(['Data e ora (UTC)', 'Categoria', 'Azione', 'Utente', 'Sede', 'Dettagli']));
 
     console.log('\n[Export del report]');
     const rep = await leggiXlsx(await api('GET', '/reports/export/xlsx', { token: mm }));

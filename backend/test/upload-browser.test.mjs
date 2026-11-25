@@ -448,7 +448,7 @@ async function main() {
     chrome.kill(); server.kill();
     console.log(`\nRisultato: ${esito.ok} OK, ${esito.ko} FAIL`);
     if (esito.ko) process.exitCode = 1; // anche in esecuzione diretta, fuori da esegui.js
-    const errLog = log.split('\n').filter((l) => l && !l.startsWith('{"@timestamp') && !l.includes('in ascolto'));
+    const errLog = log.split('\n').filter((l) => l && (!l.startsWith('{"@timestamp') || /"livello":"(error|warn)"/.test(l)));
     if (errLog.length) console.log('--- log server ---\n' + errLog.slice(-20).join('\n'));
   }
 }

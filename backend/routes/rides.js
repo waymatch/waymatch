@@ -10,6 +10,7 @@ const { promuoviListaAttesa, notificaPromossi } = require('../utils/waitlist');
 const { distanzaPuntoDaPercorso, geometriaValida, sosteValide } = require('../utils/geoDistance');
 const { asyncHandler } = require('../utils/asyncHandler');
 const { richiediDocumentiConducente, documentiPendenti } = require('../utils/documentiLegali');
+const { log } = require('../utils/structuredLog');
 
 const router = express.Router();
 
@@ -201,8 +202,8 @@ router.post('/', requireAuth, richiediDocumentiConducente, asyncHandler(async (r
 
   for (const rideId of created) {
     const rideAppenaCreato = db.prepare('SELECT * FROM rides WHERE id = ?').get(rideId);
-    notificaMatchProattivo(rideAppenaCreato).catch((e) => console.error('Errore matching proattivo:', e.message));
-    notificaPreferiti(rideAppenaCreato).catch((e) => console.error('Errore notifica preferiti:', e.message));
+    notificaMatchProattivo(rideAppenaCreato).catch((e) => log.warn('matching_proattivo_non_riuscito', { errore: e }));
+    notificaPreferiti(rideAppenaCreato).catch((e) => log.warn('notifica_preferiti_non_riuscita', { errore: e }));
   }
   res.json({ ride_ids: created });
 }));

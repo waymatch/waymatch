@@ -9,6 +9,7 @@ const path = require('path');
 const fs = require('fs');
 const db = require('./db');
 const { percorsoSicuro } = require('./utils/safePath');
+const { log, sicurezza } = require('./utils/structuredLog');
 
 const app = express();
 const PORT = process.env.PORT || 4000;
@@ -63,6 +64,15 @@ app.use(compression());
 const ALLOWED_ORIGIN = process.env.ALLOWED_ORIGIN;
 app.use(cors(ALLOWED_ORIGIN ? { origin: ALLOWED_ORIGIN } : { origin: false }));
 app.use(express.json());
+
+// Ogni richiesta respinta da un limite di frequenza (globale o di un endpoint) finisce nel log di
+// sicurezza: tentativi ripetuti di accesso o traffico anomalo li vede l'IT.
+app.use('/api', (req, res, next) => {
+  res.on('finish', () => {
+    if (res.statusCode === 429) sicurezza('warn', 'limite_richieste_superato', req, { metodo: req.method, percorso: req.originalUrl.split('?')[0] });
+  });
+  next();
+});
 
 // Backstop generico contro traffico anomalo (script impazzito, account compromesso...).
 // Volutamente alto: molti dipendenti di un ufficio possono condividere lo stesso IP
@@ -141,7 +151,7 @@ app.use((err, req, res, next) => {
   // Il dettaglio (stack, messaggi di driver/librerie) va solo nei log del server: al
   // client arriva sempre un messaggio generico, per non rivelare dettagli interni
   // (schema del DB, percorsi, versioni di librerie...) a chi riceve una risposta 500.
-  console.error(err);
+  log.error('errore_richiesta', { errore: err, metodo: req.method, percorso: req.path, user_id: req.user?.id });
   res.status(500).json({ error: 'Errore interno del server' });
 });
 
@@ -149,12 +159,12 @@ app.use((err, req, res, next) => {
 // background) viene registrata invece di terminare il processo. Le route async usano
 // asyncHandler; un test controlla che nessuna lo dimentichi.
 process.on('unhandledRejection', (motivo) => {
-  console.error('[unhandledRejection]', motivo);
+  log.error('unhandledRejection', { errore: motivo instanceof Error ? motivo : String(motivo) });
 });
 
 app.listen(PORT, () => {
-  console.log(`Carpooling backend in ascolto sulla porta ${PORT}`);
+  log.info('avvio', { messaggio: `WayMatch in ascolto sulla porta ${PORT}`, versione: require('./package.json').version });
   require('./scheduler').avviaScheduler();
   require('./utils/backfillCitta').backfillCittaMancanti()
-    .catch((e) => console.error('Recupero città non riuscito:', e.message));
+    .catch((e) => log.warn('citta_recupero_non_riuscito', { errore: e }));
 });

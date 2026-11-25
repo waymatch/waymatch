@@ -6,6 +6,7 @@
 const db = require('../db');
 const { version: INSTALLATA } = require('../package.json');
 const { creaNotificaInApp, inAppAttiva, consegnaEsterna } = require('./notify');
+const { log } = require('./structuredLog');
 
 const URL_RELEASE = process.env.AGGIORNAMENTI_URL || 'https://api.github.com/repos/waymatch/waymatch/releases/latest';
 const TIMEOUT_MS = 10000;
@@ -72,7 +73,7 @@ async function avvisaMobilityManager() {
         return { inApp: inAppAttiva(id, 'nuova_versione') ? creaNotificaInApp(id, 'nuova_versione', messaggio) : null };
       })();
     } catch (e) {
-      console.error(`[aggiornamenti] avviso al Mobility Manager ${id} non salvato:`, e.message);
+      log.error('nuova_versione_avviso_non_salvato', { errore: e, user_id: id });
       continue;
     }
     if (!esito) continue;

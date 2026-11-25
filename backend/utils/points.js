@@ -1,6 +1,7 @@
 const db = require('../db');
 const { distanzaKm } = require('./geoDistance');
 const { calcRouteMultiPoint } = require('./geocode');
+const { log } = require('./structuredLog');
 
 // Km del percorso calcolati dal server con OSRM: partenza, soste con coordinate, arrivo. Null
 // se mancano le coordinate o il servizio non risponde (la pubblicazione non si blocca).
@@ -14,7 +15,7 @@ async function kmDalServer(pLat, pLon, aLat, aLon, soste = []) {
     const r = await calcRouteMultiPoint(punti);
     return Number.isFinite(r.km) ? r.km : null;
   } catch (e) {
-    console.error('[km] percorso non calcolato dal server:', e.message);
+    log.warn('km_non_calcolati_dal_server', { errore: e });
     return null;
   }
 }

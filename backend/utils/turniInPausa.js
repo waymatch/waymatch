@@ -1,6 +1,7 @@
 const db = require('../db');
 const { creaNotificaInApp, inAppAttiva, consegnaEsterna } = require('./notify');
 const { documentiPendenti } = require('./documentiLegali');
+const { log } = require('./structuredLog');
 
 const MESSAGGIO = 'I tuoi turni fissi sono in pausa: le corse già in calendario restano, ma per generarne di nuove devi accettare i documenti del conducente aggiornati.';
 
@@ -27,7 +28,7 @@ async function avvisaTurniInPausa() {
         return { inApp: inAppAttiva(id, 'turni_in_pausa') ? creaNotificaInApp(id, 'turni_in_pausa', MESSAGGIO) : null };
       })();
     } catch (e) {
-      console.error(`[turni in pausa] avviso al conducente ${id} non salvato:`, e.message);
+      log.error('turni_in_pausa_avviso_non_salvato', { errore: e, user_id: id });
       continue;
     }
     if (!esito) continue;

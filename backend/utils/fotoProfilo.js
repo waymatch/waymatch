@@ -9,6 +9,7 @@ const { Jimp } = require('jimp');
 const { readSecret } = require('./secrets');
 const { UPLOAD_DIR, nomeCasuale } = require('./fileCaricati');
 const { percorsoSicuro } = require('./safePath');
+const { log } = require('./structuredLog');
 
 const LATO = 256;
 const MAX_LATO_ORIGINALE = 4096; // oltre, la decodifica occuperebbe troppa memoria
@@ -97,7 +98,7 @@ const leggi = (rel) => decifra(fs.readFileSync(percorso(rel)));
 
 function elimina(rel) {
   if (!rel) return;
-  try { fs.unlinkSync(percorso(rel)); } catch (e) { if (e.code !== 'ENOENT') console.error('[foto profilo] file non eliminato:', e.message); }
+  try { fs.unlinkSync(percorso(rel)); } catch (e) { if (e.code !== 'ENOENT') log.warn('foto_profilo_file_non_eliminato', { errore: e }); }
 }
 
 module.exports = { prepara, salva, leggi, elimina, cifra, decifra, dimensioni, FotoNonValida, LATO };
