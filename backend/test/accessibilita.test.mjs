@@ -42,7 +42,15 @@ try {
   for (let i = 0; i < 100; i++) { try { if ((await fetch(ORIGINE + '/api/health')).ok) break; } catch {} await attendi(100); }
   let ws;
   for (let tentativo = 1; tentativo <= 3 && !ws; tentativo++) {
-    if (chrome) chrome.kill();
+    if (chrome) {
+      // Si aspetta che il browser precedente sia davvero uscito (al massimo 5 s, poi SIGKILL):
+      // altrimenti la porta 9335 potrebbe rispondere ancora con il suo WebSocket.
+      const vecchio = chrome;
+      const uscito = new Promise((r) => { if (vecchio.exitCode !== null || vecchio.signalCode !== null) r(); else vecchio.once('exit', r); });
+      vecchio.kill();
+      await Promise.race([uscito, attendi(5000)]);
+      if (vecchio.exitCode === null && vecchio.signalCode === null) { vecchio.kill('SIGKILL'); await Promise.race([uscito, attendi(2000)]); }
+    }
     avviaChrome(tentativo);
     for (let i = 0; i < 100 && !ws; i++) { try { ws = (await (await fetch('http://127.0.0.1:9335/json/version')).json()).webSocketDebuggerUrl; } catch { await attendi(200); } }
   }
