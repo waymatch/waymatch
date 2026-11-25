@@ -6,6 +6,7 @@ const db = require('../db');
 const jwt = require('jsonwebtoken');
 const { requireAuth, requireRole, JWT_SECRET } = require('../middleware/auth');
 const { registraAzione } = require('../utils/audit');
+const { documentiPendenti } = require('../utils/documentiLegali');
 const { percorsoSicuro } = require('../utils/safePath');
 const { nomeCasuale, inviaFileCaricato } = require('../utils/fileCaricati');
 
@@ -136,6 +137,18 @@ router.post('/:id/accept', requireAuth, (req, res) => {
     ON CONFLICT(user_id, document_id) DO UPDATE SET versione_accettata = excluded.versione_accettata, accettato_at = datetime('now')
   `).run(req.user.id, doc.id, doc.versione);
   registraAzione(req.user.id, 'documento_accettato', `${doc.titolo} (v${doc.versione})`, 'utente');
+  // Con l'ultimo documento del conducente accettato i turni fissi in pausa riprendono subito,
+  // senza aspettare il giro orario dello scheduler: nessuna corsa vicina resta scoperta.
+  if (doc.tipo === 'conducente' && documentiPendenti(req.user.id, 'conducente').length === 0) {
+    try {
+      const { generaOccorrenzePerTemplate } = require('./recurring_rides');
+      for (const t of db.prepare('SELECT id FROM recurring_rides WHERE driver_id = ? AND attivo = 1').all(req.user.id)) {
+        generaOccorrenzePerTemplate(t.id, 14);
+      }
+    } catch (e) {
+      console.error('[documenti] ripresa dei turni fissi dopo l\'accettazione:', e.message); // ci pensa lo scheduler
+    }
+  }
   res.json({ ok: true });
 });
 

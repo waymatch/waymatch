@@ -40,6 +40,7 @@ const CATEGORIE = {
   richiesta_cancellazione_rifiutata: 'variazioni_viaggio',
   richiesta_reset_password_ricevuta: 'approvazioni_mm',
   password_reset_completata: 'variazioni_viaggio',
+  turni_in_pausa: 'variazioni_viaggio',
 };
 
 const CATEGORIE_INFO = [
@@ -95,6 +96,8 @@ function destinazionePer(tipo) {
       return '/profilo';
     case 'promemoria_partenza':
       return '/i-miei-viaggi';
+    case 'turni_in_pausa':
+      return '/offri'; // la pagina chiede di accettare i documenti del conducente
     case 'matching_proattivo':
     case 'passaggio_preferito_pubblicato':
       return '/cerca';

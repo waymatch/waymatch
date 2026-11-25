@@ -86,7 +86,8 @@ router.get('/mie', requireAuth, (req, res) => {
     SELECT r.*, s.nome as sede_nome FROM recurring_rides r LEFT JOIN sedi s ON s.id = r.sede_id
     WHERE r.driver_id = ? ORDER BY r.attivo DESC, r.created_at DESC
   `).all(req.user.id);
-  res.json({ turni });
+  // Con documenti del conducente da accettare i turni attivi sono in pausa: non generano nuove corse.
+  res.json({ turni, documenti_da_accettare: documentiPendenti(req.user.id, 'conducente').length > 0 });
 });
 
 const FUTURO = `(data > date('now','localtime') OR (data = date('now','localtime') AND ora >= strftime('%H:%M','now','localtime')))`;
@@ -138,6 +139,16 @@ router.put('/:id/attivo', requireAuth, asyncHandler(async (req, res) => {
   if (!turno) return res.status(404).json({ error: 'Non trovato' });
   if (turno.driver_id !== req.user.id && req.user.ruolo !== 'mobility_manager') {
     return res.status(403).json({ error: 'Non autorizzato' });
+  }
+  // Riattivare è un'offerta nuova: servono i documenti del conducente accettati, anche se a
+  // riattivare è il mobility manager.
+  if (attivo && documentiPendenti(turno.driver_id, 'conducente').length > 0) {
+    return res.status(403).json({
+      error: turno.driver_id === req.user.id
+        ? 'Prima di riattivare il turno devi accettare i documenti del conducente.'
+        : 'Il conducente deve prima accettare i documenti del conducente.',
+      codice: 'DOCUMENTI_DA_ACCETTARE',
+    });
   }
   const avvisi = db.transaction(() => {
     const a = attivo ? (riattivaTurno(turno), []) : sospendiTurno(turno);
@@ -222,6 +233,16 @@ router.post('/:id/eccezioni', requireAuth, asyncHandler(async (req, res) => {
 router.delete('/:id/eccezioni/:data', requireAuth, (req, res) => {
   const turno = trovaTurnoAutorizzato(req, res);
   if (!turno) return;
+  // Rimettere una data in calendario è offrire di nuovo quella corsa: come per la riattivazione,
+  // servono i documenti del conducente accettati.
+  if (documentiPendenti(turno.driver_id, 'conducente').length > 0) {
+    return res.status(403).json({
+      error: turno.driver_id === req.user.id
+        ? 'Prima di ripristinare la data devi accettare i documenti del conducente.'
+        : 'Il conducente deve prima accettare i documenti del conducente.',
+      codice: 'DOCUMENTI_DA_ACCETTARE',
+    });
+  }
   db.prepare('DELETE FROM recurring_ride_exceptions WHERE recurring_ride_id = ? AND data = ?').run(turno.id, req.params.data);
 
   // Solo occorrenze non ancora partite: una data già trascorsa non torna disponibile.
@@ -250,6 +271,10 @@ router.delete('/:id/eccezioni/:data', requireAuth, (req, res) => {
 function generaOccorrenzePerTemplate(recurringId, giorni) {
   const t = db.prepare('SELECT * FROM recurring_rides WHERE id = ? AND attivo = 1').get(recurringId);
   if (!t) return 0;
+  // Turno in pausa finché il conducente non accetta i documenti in vigore: le corse già generate
+  // restano (offerte con le condizioni di allora), di nuove non se ne creano. All'accettazione il
+  // giro successivo dello scheduler riempie di nuovo i giorni mancanti.
+  if (documentiPendenti(t.driver_id, 'conducente').length > 0) return 0;
   // I giorni del turno e quelli lavorativi dell'azienda: se il mobility manager ne toglie uno
   // dopo la creazione del turno, non si generano più passaggi in quel giorno.
   const lavorativi = giorniLavorativi();

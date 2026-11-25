@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useCallback, useId } from 'react';
 import ErrorBanner from '../components/ErrorBanner.jsx';
-import { useSearchParams } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { Car, Check, X, Trash2, Flag, Phone, UserCheck, Pencil, Clock, Timer, Repeat, PauseCircle, PlayCircle } from 'lucide-react';
 import { api } from '../api.js';
 import EditRideModal from '../components/EditRideModal.jsx';
@@ -377,10 +377,11 @@ const GIORNI_LABEL = { 1: 'Lun', 2: 'Mar', 3: 'Mer', 4: 'Gio', 5: 'Ven', 6: 'Sab
 
 function RecurringRides() {
   const [turni, setTurni] = useState(null);
+  const [inPausa, setInPausa] = useState(false); // documenti del conducente da accettare
   const [error, setError] = useState('');
 
   const load = useCallback(() => {
-    api.get('/recurring-rides/mie').then((d) => setTurni(d.turni)).catch((e) => setError(e.message));
+    api.get('/recurring-rides/mie').then((d) => { setTurni(d.turni); setInPausa(!!d.documenti_da_accettare); }).catch((e) => setError(e.message));
   }, []);
   useEffect(() => { load(); }, [load]);
 
@@ -409,6 +410,16 @@ function RecurringRides() {
 
   return (
     <div className="space-y-3">
+      {inPausa && turni.some((t) => t.attivo) && (
+        <div role="status" className="rounded-xl border border-accent bg-accent-light text-accent-dark px-3.5 py-3 text-sm">
+          <p className="font-semibold">I tuoi turni fissi sono in pausa</p>
+          <p className="mt-1">
+            Le corse già in calendario restano valide, ma non se ne generano di nuove finché non accetti i
+            documenti del conducente aggiornati. Dopo l'accettazione i turni riprendono da soli.
+          </p>
+          <Link to="/offri" className="btn-primary !py-1.5 !text-sm inline-block mt-2">Leggi e accetta i documenti</Link>
+        </div>
+      )}
       {turni.map((t) => (
         <div key={t.id} className={`card ${!t.attivo ? 'opacity-60' : ''}`}>
           <div className="flex items-start justify-between gap-3">
@@ -418,6 +429,7 @@ function RecurringRides() {
                 <span className="font-display font-semibold text-sm">{t.ora}</span>
                 <span className="badge-primary">{t.tipo === 'andata' ? 'Andata' : 'Ritorno'}</span>
                 {!t.attivo && <span className="badge bg-border text-muted">Sospeso</span>}
+                {!!t.attivo && inPausa && <span className="badge bg-border text-muted">In pausa</span>}
               </div>
               <p className="text-sm text-muted mt-1">{t.punto_partenza} → {t.punto_arrivo}</p>
               <p className="text-xs text-muted mt-1">
