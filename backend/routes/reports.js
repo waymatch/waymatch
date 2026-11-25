@@ -5,29 +5,39 @@ const { requireAuth, requireRole } = require('../middleware/auth');
 const { gamificationAttiva } = require('../utils/gamification');
 const { registraAzione } = require('../utils/audit');
 const { asyncHandler } = require('../utils/asyncHandler');
-const { kmAffidabili, generazionePunti } = require('../utils/points');
-const {
-  co2GramsForTrip, kmRisparmiati, costoRisparmiato, costoKmPerAlimentazione,
-  getAllClusters, setClusterOverride, resetClusterOverride, clusterEsistente,
-} = require('../utils/co2');
+const { generazionePunti } = require('../utils/points');
+const { getAllClusters, setClusterOverride, resetClusterOverride, clusterEsistente } = require('../utils/co2');
+const { nuovaQualita, calcolaViaggio, descrizioneMetodo } = require('../utils/metodoCo2');
 
 const router = express.Router();
 
-// Calcola, per ogni viaggio completato, km/CO2/costo risparmiati grazie ai passeggeri trasportati.
-// Costo e CO2 per km dipendono dal cluster di alimentazione dell'auto dell'autista (vedi
-// utils/co2.js): un'utilitaria elettrica e un SUV diesel non "risparmiano" la stessa cosa.
+// Calcola, per ogni viaggio completato, km/CO2/costo evitati grazie ai passeggeri con check-in,
+// con il metodo WayMatch v1 (utils/metodoCo2.js, docs/metodo-calcolo.md): conta chi avrebbe usato la
+// propria auto, con il fattore della SUA auto, al netto della deviazione dell'autista.
 function computeSavings(where = '', params = []) {
   const rides = db.prepare(`
-    SELECT r.id, r.km_stimati, r.km_verificati, r.partenza_lat, r.partenza_lon, r.arrivo_lat, r.arrivo_lon,
+    SELECT r.id, r.km_stimati, r.km_verificati, r.km_diretti, r.partenza_lat, r.partenza_lon, r.arrivo_lat, r.arrivo_lon,
            r.data, r.sede_id, s.nome as sede_nome,
-           u.auto_alimentazione,
-           (SELECT COUNT(*) FROM bookings b WHERE b.ride_id = r.id AND b.stato = 'completato') as passeggeri
+           u.auto_alimentazione, u.auto_segmento, u.auto_anno,
+           (SELECT COUNT(*) FROM ride_stops rs WHERE rs.ride_id = r.id) as soste
     FROM rides r
     JOIN users u ON u.id = r.driver_id
     LEFT JOIN sedi s ON s.id = r.sede_id
     WHERE r.stato = 'completato' ${where}
   `).all(...params);
+  // Passeggeri con check-in (prenotazione "completato") di quei viaggi, con i dati del profilo che
+  // servono al calcolo.
+  const passeggeriPerViaggio = new Map();
+  for (const b of db.prepare(`
+    SELECT b.ride_id, u.auto_alimentazione, u.auto_segmento, u.auto_anno, u.auto_marca, u.auto_modello, u.senza_passaggio
+    FROM bookings b JOIN users u ON u.id = b.passenger_id
+    WHERE b.stato = 'completato' AND b.ride_id IN (SELECT r.id FROM rides r WHERE r.stato = 'completato' ${where})
+  `).all(...params)) {
+    if (!passeggeriPerViaggio.has(b.ride_id)) passeggeriPerViaggio.set(b.ride_id, []);
+    passeggeriPerViaggio.get(b.ride_id).push(b);
+  }
 
+  const qualita = nuovaQualita();
   let totKm = 0, totCo2g = 0, totCosto = 0, totPassaggi = rides.length, totPasseggeriTrasportati = 0;
   // Le sedi si raggruppano per id (due sedi possono avere lo stesso nome); i viaggi senza sede
   // hanno un gruppo a parte. Le mappe evitano chiavi come "__proto__".
@@ -43,20 +53,14 @@ function computeSavings(where = '', params = []) {
     const nome = r.sede_nome || 'Sede';
     return conteggioNomi.get(nome) > 1 || nome === 'Senza sede' ? `${nome} (#${r.sede_id})` : nome;
   };
-
   for (const r of rides) {
     // Anche un viaggio senza passeggeri conta tra i viaggi completati, senza risparmi.
-    const conPasseggeri = r.passeggeri > 0;
-    // Stessi km dei punti: quelli dichiarati, entro il percorso verificato dal server.
-    const km = conPasseggeri ? kmRisparmiati(kmAffidabili(r), r.passeggeri) : 0;
-    const co2g = conPasseggeri ? co2GramsForTrip(km, r.auto_alimentazione) : 0;
-    const costo = conPasseggeri ? costoRisparmiato(km, costoKmPerAlimentazione(r.auto_alimentazione)) : 0;
-
+    const passeggeri = passeggeriPerViaggio.get(r.id) || [];
+    const { km, co2_g: co2g, costo } = calcolaViaggio(r, passeggeri, qualita);
     totKm += km;
     totCo2g += co2g;
     totCosto += costo;
-    totPasseggeriTrasportati += Math.max(0, r.passeggeri);
-
+    totPasseggeriTrasportati += passeggeri.length;
     for (const [gruppi, chiave] of [[gruppiSede, etichettaSede(r)], [gruppiMese, r.data.slice(0, 7)]]) {
       if (!gruppi.has(chiave)) gruppi.set(chiave, vuoto());
       const g = gruppi.get(chiave);
@@ -68,7 +72,6 @@ function computeSavings(where = '', params = []) {
   }
   const perSede = Object.fromEntries(gruppiSede);
   const perMese = Object.fromEntries(gruppiMese);
-
   return {
     totali: {
       km_risparmiati: Math.round(totKm),
@@ -79,6 +82,8 @@ function computeSavings(where = '', params = []) {
     },
     per_sede: perSede,
     per_mese: perMese,
+    metodo: descrizioneMetodo(),
+    qualita,
   };
 }
 
@@ -109,8 +114,9 @@ router.get('/summary', requireAuth, requireRole('mobility_manager', 'supervisor'
   res.json({ ...report, top_utenti: topUtenti });
 });
 
-// Cluster costo/km e CO2/km per tipo di alimentazione: valori predefiniti (stime di
-// settore) personalizzabili dal Mobility Manager, con possibilità di tornare al default.
+// Costo al km per tipo di alimentazione: valori predefiniti (stime generiche) personalizzabili dal
+// Mobility Manager, con possibilità di tornare al predefinito. La CO2 al km (media ISPRA) si vede ma
+// non si modifica: segue il metodo di calcolo, uguale per tutti.
 router.get('/cost-co2-clusters', requireAuth, requireRole('mobility_manager'), (req, res) => {
   res.json({ clusters: getAllClusters() });
 });
@@ -118,12 +124,11 @@ router.get('/cost-co2-clusters', requireAuth, requireRole('mobility_manager'), (
 router.put('/cost-co2-clusters/:alimentazione', requireAuth, requireRole('mobility_manager'), (req, res) => {
   if (!clusterEsistente(req.params.alimentazione)) return res.status(400).json({ error: 'Alimentazione sconosciuta' });
   const costo = Number(req.body.costo_km_eur);
-  const co2 = Number(req.body.co2_g_km);
-  if (!Number.isFinite(costo) || costo < 0 || !Number.isFinite(co2) || co2 < 0) {
-    return res.status(400).json({ error: 'Valori non validi' });
+  if (req.body.costo_km_eur === '' || req.body.costo_km_eur == null || !Number.isFinite(costo) || costo < 0 || costo > 100) {
+    return res.status(400).json({ error: 'Valore non valido' });
   }
-  setClusterOverride(req.params.alimentazione, { costo_km_eur: costo, co2_g_km: co2 });
-  registraAzione(req.user.id, 'cluster_costo_co2_modificato', `${req.params.alimentazione}: €${costo}/km, ${co2} g/km`);
+  setClusterOverride(req.params.alimentazione, { costo_km_eur: costo });
+  registraAzione(req.user.id, 'cluster_costo_co2_modificato', `${req.params.alimentazione}: €${costo}/km`);
   res.json({ clusters: getAllClusters() });
 });
 

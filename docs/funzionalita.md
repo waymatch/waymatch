@@ -114,10 +114,13 @@ L'elenco completo di cosa fa WayMatch, per chi vuole i dettagli. Per una panoram
 
 I km utilizzati nei report sono quelli calcolati automaticamente da OSRM al momento della
 creazione del passaggio (percorso stradale reale tra indirizzo e sede), oppure inseriti
-manualmente se la geocodifica non è disponibile. I fattori di emissione (g CO2/km) usati
-sono medie indicative per tipo di alimentazione (`backend/utils/co2.js`) e il costo/km è
-configurabile in Impostazioni generali → Costi e CO2. Sono stime utili per il monitoraggio interno, non un
-calcolo di bilancio ambientale certificato.
+manualmente se la geocodifica non è disponibile. La CO2 evitata segue il **metodo WayMatch**
+([metodo-calcolo.md](metodo-calcolo.md), uguale per tutte le installazioni): conta i passeggeri che
+senza il passaggio avrebbero usato la propria auto, con il fattore di emissione ISPRA della loro
+auto (per segmento e classe Euro, altrimenti per alimentazione), al netto della deviazione
+dell'autista; solo CO2 allo scarico. I fattori non si modificano; il **costo al km** invece è
+configurabile in Impostazioni generali → Costi e CO2. Sono stime utili per il monitoraggio interno,
+non un calcolo di bilancio ambientale certificato.
 
 
 ## Note sul database veicoli
