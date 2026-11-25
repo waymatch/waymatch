@@ -35,7 +35,8 @@ docker compose stop waymatch
 # 3 fallito e dati precedenti NON rimessi a posto (l'app resta ferma).
 # Il segnaposto data/.ripristino-in-corso esiste da prima di toccare i dati finché il ripristino o
 # il rollback non sono conclusi: se il container viene ucciso (kill -9, memoria esaurita) il trap
-# non parte, ma il segnaposto resta e l'app non viene riavviata su dati a metà.
+# non parte, ma il segnaposto resta e l'app non viene riavviata su dati a metà. Contiene la riga
+# "copia completa" solo da quando i dati precedenti sono interi nella copia di sicurezza.
 SEGNAPOSTO=/app/data/.ripristino-in-corso
 set +e
 docker compose run --rm --no-deps -T --entrypoint sh waymatch -c '
@@ -43,6 +44,11 @@ docker compose run --rm --no-deps -T --entrypoint sh waymatch -c '
   SEGNAPOSTO='"$SEGNAPOSTO"'
   # 0 solo se il segnaposto manca di sicuro (ENOENT); 2 se esiste; 4 se non si riesce a verificarlo.
   c=0; node -e "try { require(\"fs\").lstatSync(process.argv[1]); process.exit(2) } catch (e) { process.exit(e.code === \"ENOENT\" ? 0 : 4) }" "$SEGNAPOSTO" || c=$?
+  if [ "$c" = 2 ]; then
+    # Senza la riga "copia completa" quel ripristino si è fermato prima di toccare i dati.
+    g=0; grep -qx "copia completa" "$SEGNAPOSTO" || g=$?
+    if [ "$g" = 1 ]; then rm -f "$SEGNAPOSTO"; c=0; fi
+  fi
   if [ "$c" = 2 ]; then
     echo "Un ripristino precedente si è interrotto: recupera i dati come indicato in data/.ripristino-in-corso, poi cancellalo e riprova." >&2
     cat "$SEGNAPOSTO" >&2 || true
@@ -64,22 +70,36 @@ docker compose run --rm --no-deps -T --entrypoint sh waymatch -c '
     console.log(\"Backup leggibile con la chiave attuale: \" + n + \" utenti\");
   " || { echo "Il backup non si apre con la DB_ENCRYPTION_KEY attuale: ripristino annullato, nulla è stato modificato." >&2; exit 1; }
   SALVA=/app/data/prima-ripristino-$(date +%Y%m%d-%H%M%S)
-  mkdir -p "$SALVA"
-  # Il segnaposto annota anche fin dove si è arrivati, per il recupero a mano (docs/installazione.md).
+  # Prima si COPIA tutto in $SALVA, senza toccare i dati attuali; solo quando la copia è completa
+  # (riga "copia completa" nel segnaposto) si sostituiscono. $SALVA non viene più modificata, nemmeno
+  # dal rollback: in ogni momento i dati precedenti sono intatti in data/ oppure completi in $SALVA.
   echo "copia di sicurezza: data/${SALVA##*/}" > "$SEGNAPOSTO"
   FATTO=0
-  SPOSTATI=""        # file del database messi da parte con successo
-  COPIA_UPLOADS=0    # 1 solo quando la copia degli upload in $SALVA è completa
-  NUOVO_DB=0         # 1 da quando si tocca il database nuovo
-  MODIFICA_UPLOADS=0 # 1 da quando si toccano gli upload attuali
+  TOCCATI=0 # 1 da quando la copia è completa e si cominciano a sostituire i dati
+  # Errore durante la copia (per esempio disco pieno): i dati non sono stati toccati, si toglie
+  # solo la copia incompleta.
+  # La copia si fa in una cartella "-incompleta", rinominata solo quando è intera: una copia
+  # interrotta non si confonde con una buona.
+  PARZIALE="$SALVA-incompleta"
+  togli_copia() { [ "$TOCCATI" = 1 ] || { rm -rf "$PARZIALE"; rm -f "$SEGNAPOSTO"; }; }
+  trap togli_copia EXIT
+  mkdir -p "$PARZIALE"
+  for n in carpooling.db carpooling.db-wal carpooling.db-shm; do
+    if [ -e "/app/data/$n" ]; then cp -a "/app/data/$n" "$PARZIALE/"; fi
+  done
+  if [ -d /app/uploads ]; then cp -a /app/uploads "$PARZIALE/uploads"; fi
+  sync
+  mv "$PARZIALE" "$SALVA"
+  echo "copia completa" >> "$SEGNAPOSTO"
+  TOCCATI=1
   rimetti_a_posto() {
-    # Si recupera solo ciò che è stato davvero salvato: gli originali rimasti al loro posto non si toccano.
-    if [ "$NUOVO_DB" = 1 ]; then rm -f /app/data/carpooling.db || return 1; fi
-    for n in $SPOSTATI; do mv "$SALVA/$n" /app/data/ || return 1; done
-    if [ "$MODIFICA_UPLOADS" = 1 ] && [ "$COPIA_UPLOADS" = 1 ]; then
-      find /app/uploads -mindepth 1 -delete || return 1
-      cp -a "$SALVA/uploads/." /app/uploads/ || return 1
-    fi
+    rm -f /app/data/carpooling.db /app/data/carpooling.db-wal /app/data/carpooling.db-shm || return 1
+    for n in carpooling.db carpooling.db-wal carpooling.db-shm; do
+      if [ -e "$SALVA/$n" ]; then cp -a "$SALVA/$n" /app/data/ || return 1; fi
+    done
+    mkdir -p /app/uploads || return 1
+    find /app/uploads -mindepth 1 -delete || return 1
+    if [ -d "$SALVA/uploads" ]; then cp -a "$SALVA/uploads/." /app/uploads/ || return 1; fi
     chown -R node:node /app/data /app/uploads || return 1
     rm -f "$SEGNAPOSTO" || return 1
   }
@@ -91,23 +111,9 @@ docker compose run --rm --no-deps -T --entrypoint sh waymatch -c '
   }
   # Da qui in poi, se qualcosa non va, i dati precedenti tornano al loro posto.
   trap alla_fine EXIT
-  for n in carpooling.db carpooling.db-wal carpooling.db-shm; do
-    if [ -e "/app/data/$n" ]; then
-      mv "/app/data/$n" "$SALVA/" || exit 1
-      SPOSTATI="$SPOSTATI $n"
-      echo "spostato nella copia: $n" >> "$SEGNAPOSTO"
-    fi
-  done
-  if [ -d /app/uploads ]; then
-    cp -a /app/uploads "$SALVA/uploads" || exit 1
-    COPIA_UPLOADS=1
-    echo "copia degli upload completa" >> "$SEGNAPOSTO"
-  fi
-  echo "database del backup in scrittura" >> "$SEGNAPOSTO"
-  NUOVO_DB=1
+  # Il WAL del database precedente non deve finire applicato a quello del backup.
+  rm -f /app/data/carpooling.db-wal /app/data/carpooling.db-shm
   mv /tmp/ripr/db.bak /app/data/carpooling.db
-  echo "upload in sostituzione" >> "$SEGNAPOSTO"
-  MODIFICA_UPLOADS=1
   mkdir -p /app/uploads
   find /app/uploads -mindepth 1 -delete
   if [ -d /tmp/ripr/uploads ]; then cp -a /tmp/ripr/uploads/. /app/uploads/; fi
@@ -123,10 +129,14 @@ if [ "$esito" -ne 0 ]; then
   # stesso non riesce, l'app resta ferma (meglio ferma che su un database vuoto).
   set +e
   # Esito 0 solo se il segnaposto manca di sicuro (ENOENT): un errore di lettura non autorizza il riavvio.
+  # Un segnaposto senza la riga "copia completa" (ripristino fermato prima di toccare i dati) si toglie.
   RIMASTO="$(docker compose run --rm --no-deps -T --entrypoint node waymatch -e '
-    const fs = require("fs");
-    try { fs.lstatSync(process.argv[1]); } catch (e) { process.exit(e.code === "ENOENT" ? 0 : 4); }
-    try { process.stdout.write(fs.readFileSync(process.argv[1], "utf8")); } catch {}
+    const fs = require("fs"), p = process.argv[1];
+    try { fs.lstatSync(p); } catch (e) { process.exit(e.code === "ENOENT" ? 0 : 4); }
+    let t;
+    try { t = fs.readFileSync(p, "utf8"); } catch { process.exit(4); }
+    if (!/^copia completa$/m.test(t)) { try { fs.unlinkSync(p); process.exit(0); } catch { process.exit(4); } }
+    process.stdout.write(t);
     process.exit(2);' "$SEGNAPOSTO")"
   controllo=$?
   set -e
@@ -137,7 +147,7 @@ if [ "$esito" -ne 0 ]; then
   fi
   if [ "$esito" -ne 3 ] && [ "$controllo" -ne 2 ]; then
     echo "ERRORE: non riesco a verificare se il ripristino ha lasciato i dati a metà (data/.ripristino-in-corso)." >&2
-    echo "L'app resta ferma: controlla la cartella data/ del server e avviala a mano (docker compose up -d waymatch)." >&2
+    echo "L'app resta ferma: controlla la cartella data/ del server e avviala a mano con gli stessi file Compose dell'installazione." >&2
     exit 1
   fi
   echo "ERRORE GRAVE: il ripristino si è interrotto e non risulta che i dati precedenti siano stati rimessi a posto." >&2

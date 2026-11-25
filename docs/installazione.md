@@ -143,21 +143,22 @@ macchina di prova** prima di averne bisogno davvero.
 
 ### Ripristino interrotto
 
-Se il rollback non riesce, o se il ripristino viene interrotto a metà (per esempio il container
-viene ucciso), lo script lascia l'app ferma. Il file `data/.ripristino-in-corso` dice dove è la
-copia di sicurezza e fin dove si è arrivati. Con l'app ferma, controlla le righe presenti:
+Lo script prima **copia** database e upload in `data/prima-ripristino-<data>/` e solo dopo, a copia
+completa, sostituisce i dati attuali; la copia non viene più toccata, nemmeno dal rollback. Se il
+rollback non riesce, o se il ripristino viene interrotto a metà (per esempio il container viene
+ucciso), l'app resta ferma e il file `data/.ripristino-in-corso` indica la cartella della copia.
+Un ripristino fermato prima della riga `copia completa` non ha toccato nulla: lo script stesso
+toglie il segnaposto e riavvia l'app. Una cartella `prima-ripristino-<data>-incompleta` rimasta è una
+copia interrotta e si può cancellare.
 
-| Ultima riga presente | Stato dei dati | Cosa fare |
-|---|---|---|
-| `copia di sicurezza: …` | Nulla è stato toccato | Niente da recuperare |
-| `spostato nella copia: …` | Il database (o parte dei suoi file) è nella copia | Rimetti in `data/` i file `carpooling.db*` presenti nella copia |
-| `copia degli upload completa` | Come sopra; gli upload attuali sono intatti | Come sopra |
-| `database del backup in scrittura` | In `data/` può esserci il database del backup | Cancella `data/carpooling.db*`, poi rimetti quelli della copia |
-| `upload in sostituzione` | Anche gli upload possono essere a metà | Come sopra, e sostituisci il contenuto di `uploads/` con `uploads/` della copia |
+Con la riga `copia completa`, la copia contiene i dati precedenti per intero. Con l'app ferma:
 
-Se nella copia non c'è la cartella `uploads/`, prima del ripristino gli upload non c'erano: svuota
-`uploads/`. Poi cancella `data/.ripristino-in-corso` e avvia l'app (`docker compose up -d waymatch`).
-Puoi rilanciare il ripristino solo dopo aver cancellato quel file.
+1. cancella `data/carpooling.db`, `data/carpooling.db-wal` e `data/carpooling.db-shm`;
+2. copia in `data/` i file `carpooling.db*` presenti nella cartella della copia;
+3. svuota `uploads/` e copiaci il contenuto di `uploads/` della copia (se la copia non ha
+   `uploads/`, prima del ripristino non c'erano file caricati: lascia `uploads/` vuota);
+4. cancella `data/.ripristino-in-corso` e avvia l'app con gli stessi file Compose
+   dell'installazione (per esempio `docker compose -f docker-compose.produzione.yml up -d`).
 
 ## Aggiornare
 
