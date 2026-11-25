@@ -62,11 +62,14 @@ export default function Avatar({ id, nome, cognome, versione, dimensione = 'sm',
     if (!id || !versione) return undefined;
     let attivo = true;
     let tenuta = null; // la voce che questo avatar tiene (quella mostrata o in arrivo)
+    let ultima = 0; // numero dell'ultima richiesta: le risposte di quelle superate si scartano
     const aggiorna = () => {
       const voce = prendi(id, versione);
       if (voce === tenuta) { lascia(voce); return; }
+      const numero = ++ultima;
       voce.promessa.then((u) => {
-        if (!attivo) { lascia(voce); return; } // arrivata dopo lo smontaggio
+        // Arrivata dopo lo smontaggio, o superata da una richiesta più recente: si lascia e basta.
+        if (!attivo || numero !== ultima) { lascia(voce); return; }
         lascia(tenuta);
         tenuta = voce;
         setSrc(u);
