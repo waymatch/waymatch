@@ -86,9 +86,10 @@ router.post('/', setupLimiter, asyncHandler(async (req, res) => {
 }));
 
 function sanitizeUser(u) {
-  // foto_path è un percorso interno: fuori resta solo foto_versione (c'è una foto, e quale).
+  // foto_path è un percorso interno: fuori resta solo foto_versione, e solo se la foto c'è
+  // (il contatore resta anche dopo una rimozione).
   const { password_hash, foto_path, ...rest } = u;
-  return rest;
+  return { ...rest, foto_versione: foto_path ? rest.foto_versione : null };
 }
 
 module.exports = router;

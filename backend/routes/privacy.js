@@ -242,7 +242,7 @@ router.post('/cancellazioni/:id/completa', requireAuth, requireRole('mobility_ma
         nome = 'Utente', cognome = 'cancellato', email = ?, password_hash = ?,
         telefono = NULL, indirizzo_casa = NULL, casa_lat = NULL, casa_lon = NULL, citta_casa = NULL,
         auto_marca = NULL, auto_modello = NULL, auto_anno = NULL, auto_cilindrata = NULL,
-        auto_colore = NULL, auto_alimentazione = NULL, foto_path = NULL, foto_versione = NULL,
+        auto_colore = NULL, auto_alimentazione = NULL, foto_path = NULL,
         attivo = 0, token_version = token_version + 1
       WHERE id = ?
     `).run(emailAnonima, hashInutilizzabile, utente.id);

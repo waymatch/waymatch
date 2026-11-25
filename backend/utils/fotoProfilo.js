@@ -58,7 +58,11 @@ async function prepara(buf) {
   }
   let img;
   try { img = await Jimp.read(buf); } catch { throw new FotoNonValida('Non riesco a leggere l\'immagine.'); }
-  img.cover({ w: LATO, h: LATO });
+  // Prima il quadrato centrale, poi il ridimensionamento: "cover" ingrandirebbe prima l'immagine
+  // intera (un PNG 4096x1 diventerebbe 1048576x256, oltre 1 GB in memoria).
+  const lato = Math.min(img.width, img.height);
+  img.crop({ x: Math.floor((img.width - lato) / 2), y: Math.floor((img.height - lato) / 2), w: lato, h: lato });
+  img.resize({ w: LATO, h: LATO });
   return img.getBuffer('image/jpeg', { quality: 85 });
 }
 

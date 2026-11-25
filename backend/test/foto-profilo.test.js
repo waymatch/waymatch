@@ -81,7 +81,12 @@ async function main() {
     const img = r.status === 200 ? await Jimp.read(r.buf) : null;
     check('un collega la vede, come JPEG 256x256', r.status === 200 && r.tipo === 'image/jpeg' && img?.width === 256 && img?.height === 256, `${r.status} ${r.tipo}`);
     check('senza i metadati dello scatto', !r.buf.includes('GPS-POSIZIONE') && !r.buf.includes('Exif'));
-    check('e solo nella cache del suo browser', /private/.test(r.cache || ''), r.cache);
+    check('in cache solo nel suo browser, e riconvalidata a ogni uso', /private/.test(r.cache || '') && /no-cache/.test(r.cache || ''), r.cache);
+    {
+      const r1 = await fetch(`${API}/foto/${ugoId}`, { headers: { Authorization: `Bearer ${eva}`, 'X-Forwarded-For': '10.32.1.1' } });
+      const r2 = await fetch(`${API}/foto/${ugoId}`, { headers: { Authorization: `Bearer ${eva}`, 'X-Forwarded-For': '10.32.1.2', 'If-None-Match': r1.headers.get('etag') } });
+      check('se non è cambiata la riconvalida risponde 304', r2.status === 304, String(r2.status));
+    }
     r = await call('GET', `/foto/${ugoId}`, { grezzo: true });
     check('senza accesso non si vede', r.status === 401, String(r.status));
     r = await call('GET', '/auth/me', { token: ugo });
@@ -97,7 +102,13 @@ async function main() {
     check('un\'immagine dichiarata enorme è rifiutata prima di decodificarla', r.status === 400 && /troppo grande/.test(r.data?.error || ''), r.data?.error);
     r = await call('PUT', '/foto', { token: ugo, form: conFoto(Buffer.alloc(6 * 1024 * 1024, 1)) });
     check('oltre 5 MB è rifiutata', r.status === 400, String(r.status));
-    check('e la foto di prima resta', riga().foto_versione === 2);
+    {
+      // Molto larga e bassa: si ritaglia il quadrato prima di ridimensionare (niente gigabyte in memoria).
+      const t0 = Date.now();
+      r = await call('PUT', '/foto', { token: ugo, form: conFoto(await new Jimp({ width: 4096, height: 1, color: 0xff0000ff }).getBuffer('image/png'), 's.png', 'image/png') });
+      check('un\'immagine 4096x1 si elabora in fretta', r.status === 200 && Date.now() - t0 < 5000, `${r.status} in ${Date.now() - t0} ms`);
+    }
+    check('e la foto valida resta', riga().foto_path !== null && riga().foto_versione === 3, JSON.stringify(riga()));
 
     console.log('\n[Dati personali]');
     r = await call('GET', '/privacy/export', { token: ugo });
@@ -105,14 +116,18 @@ async function main() {
 
     console.log('\n[Rimozione]');
     r = await call('DELETE', `/foto/${ugoId}`, { token: eva });
-    check('un collega non può togliere la foto di un altro', r.status === 403 && riga().foto_versione === 2, String(r.status));
+    check('un collega non può togliere la foto di un altro', r.status === 403 && riga().foto_path !== null, String(r.status));
     const daTogliere = riga().foto_path;
     r = await call('DELETE', `/foto/${ugoId}`, { token: mm });
     check('il mobility manager la toglie (file compreso)', r.status === 200 && riga().foto_path === null && !fs.existsSync(path.join(DIR, 'uploads', daTogliere)));
     check('e resta nel log attività', sql("SELECT COUNT(*) n FROM audit_log WHERE azione = 'foto_profilo_rimossa_mm'")[0].n === 1);
     await call('PUT', '/foto', { token: ugo, form: conFoto(await jpegConExif()) });
+    const versionePrima = riga().foto_versione;
     r = await call('DELETE', '/foto', { token: ugo });
-    check('l\'utente la toglie da sé', r.status === 200 && riga().foto_versione === null);
+    check('l\'utente la rimuove da sé', r.status === 200 && riga().foto_path === null && (await call('GET', '/auth/me', { token: ugo })).data.user.foto_versione === null);
+    await call('PUT', '/foto', { token: ugo, form: conFoto(await jpegConExif()) });
+    check('una foto caricata dopo una rimozione ha un numero di versione nuovo', riga().foto_versione > versionePrima, `${versionePrima} → ${riga().foto_versione}`);
+    await call('DELETE', '/foto', { token: ugo });
     check('poi non si vede più', (await call('GET', `/foto/${ugoId}`, { token: eva, grezzo: true })).status === 404);
 
     console.log('\n[Anonimizzazione]');
@@ -122,6 +137,16 @@ async function main() {
     const richiesta = sql("SELECT id FROM account_deletion_requests WHERE stato = 'in_attesa'")[0]?.id;
     r = await call('POST', `/privacy/cancellazioni/${richiesta}/completa`, { token: mm, body: {} });
     check('l\'anonimizzazione cancella la foto', r.status === 200 && riga().foto_path === null && !fs.existsSync(fileUgo), `${r.status} ${JSON.stringify(r.data)}`);
+    {
+      // Un caricamento che arriva quando l'account è già disattivato non lascia né file né riferimenti.
+      const evaId = sql("SELECT id FROM users WHERE email = 'eva@test.it'")[0].id;
+      const fileFoto = () => fs.readdirSync(path.join(DIR, 'uploads', 'foto-profilo')).length;
+      const quanti = fileFoto();
+      sql('UPDATE users SET attivo = 0 WHERE id = ?', evaId);
+      r = await call('PUT', '/foto', { token: eva, form: conFoto(await jpegConExif()) });
+      check('un account disattivato non carica foto', r.status === 401 || r.status === 403, String(r.status));
+      check('e non resta nessun file', fileFoto() === quanti && sql('SELECT foto_path FROM users WHERE id = ?', evaId)[0].foto_path === null);
+    }
   } finally {
     server.kill();
     if (esito.ko) console.log(log.slice(-2000));

@@ -15,7 +15,8 @@ const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 5 *
 function togli(userId) {
   const u = db.prepare('SELECT foto_path FROM users WHERE id = ?').get(userId);
   if (!u) return false;
-  db.prepare('UPDATE users SET foto_path = NULL, foto_versione = NULL WHERE id = ?').run(userId);
+  // foto_versione resta: una foto caricata dopo avrà comunque un numero nuovo (vedi sotto).
+  db.prepare('UPDATE users SET foto_path = NULL WHERE id = ?').run(userId);
   foto.elimina(u.foto_path); // dopo l'aggiornamento: al massimo resta un file orfano, mai un riferimento a un file assente
   return true;
 }
@@ -35,12 +36,19 @@ router.put('/', requireAuth, (req, res, next) => {
     throw e;
   }
   const rel = foto.salva(jpeg);
-  const prima = db.transaction(() => {
-    const u = db.prepare('SELECT foto_path FROM users WHERE id = ?').get(req.user.id);
-    db.prepare('UPDATE users SET foto_path = ?, foto_versione = COALESCE(foto_versione, 0) + 1 WHERE id = ?').run(rel, req.user.id);
-    return u?.foto_path;
+  const esito = db.transaction(() => {
+    const u = db.prepare('SELECT foto_path FROM users WHERE id = ? AND attivo = 1').get(req.user.id);
+    if (!u) return null; // account disattivato o anonimizzato mentre la foto si caricava
+    // La versione cresce sempre, anche dopo una rimozione: un indirizzo già visto non torna mai a
+    // indicare una foto diversa (cache del browser).
+    db.prepare('UPDATE users SET foto_path = ?, foto_versione = COALESCE(foto_versione, 0) + 1 WHERE id = ? AND attivo = 1').run(rel, req.user.id);
+    return { prima: u.foto_path };
   })();
-  foto.elimina(prima);
+  if (!esito) {
+    foto.elimina(rel);
+    return res.status(403).json({ error: 'Account non attivo.' });
+  }
+  foto.elimina(esito.prima);
   registraAzione(req.user.id, 'foto_profilo_caricata', '', 'utente');
   res.json({ foto_versione: db.prepare('SELECT foto_versione FROM users WHERE id = ?').get(req.user.id).foto_versione });
 }));
@@ -63,6 +71,11 @@ router.delete('/:userId', requireAuth, requireRole('mobility_manager'), (req, re
 router.get('/:userId', requireAuth, (req, res) => {
   const u = db.prepare('SELECT foto_path, foto_versione FROM users WHERE id = ? AND attivo = 1').get(req.params.userId);
   if (!u?.foto_path) return res.status(404).json({ error: 'Nessuna foto' });
+  // Il browser la tiene ma la riconvalida ogni volta: una foto rimossa o di un account disattivato
+  // non resta visibile dalla cache; se non è cambiata la risposta è un 304, senza decifrarla.
+  const etag = `"foto-${req.params.userId}-${u.foto_versione}"`;
+  res.set({ 'Cache-Control': 'private, no-cache', ETag: etag });
+  if (req.get('If-None-Match') === etag) return res.status(304).end();
   let jpeg;
   try {
     jpeg = foto.leggi(u.foto_path);
@@ -70,8 +83,7 @@ router.get('/:userId', requireAuth, (req, res) => {
     console.error(`[foto profilo] utente ${req.params.userId}: ${e.message}`);
     return res.status(404).json({ error: 'Nessuna foto' });
   }
-  // Cache solo nel browser di chi è autenticato; il numero di versione nell'indirizzo cambia a ogni nuova foto.
-  res.set({ 'Content-Type': 'image/jpeg', 'Cache-Control': 'private, max-age=86400', 'X-Content-Type-Options': 'nosniff' });
+  res.set({ 'Content-Type': 'image/jpeg', 'X-Content-Type-Options': 'nosniff' });
   res.send(jpeg);
 });
 

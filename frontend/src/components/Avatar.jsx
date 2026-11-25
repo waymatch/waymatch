@@ -19,13 +19,19 @@ const LATI = { xs: 'w-6 h-6 text-[10px]', sm: 'w-9 h-9 text-sm', lg: 'w-16 h-16 
 
 export default function Avatar({ id, nome, cognome, versione, dimensione = 'sm', className = '' }) {
   const [src, setSrc] = useState(null);
+  const [giro, setGiro] = useState(0); // cresce quando la foto di questo utente cambia altrove nell'app
+  useEffect(() => {
+    const cambiata = (e) => { if (String(e.detail) === String(id)) setGiro((g) => g + 1); };
+    window.addEventListener(EVENTO, cambiata);
+    return () => window.removeEventListener(EVENTO, cambiata);
+  }, [id]);
   useEffect(() => {
     setSrc(null);
     if (!id || !versione) return undefined;
     let attivo = true;
     urlFoto(id, versione).then((u) => { if (attivo) setSrc(u); });
     return () => { attivo = false; };
-  }, [id, versione]);
+  }, [id, versione, giro]);
 
   const lato = LATI[dimensione] || LATI.sm;
   // Il nome è sempre scritto accanto: la foto è decorativa per chi usa un lettore di schermo.
@@ -37,7 +43,10 @@ export default function Avatar({ id, nome, cognome, versione, dimensione = 'sm',
   );
 }
 
-// Dopo un nuovo caricamento o una rimozione: le versioni già scaricate di quell'utente non servono più.
+// Dopo un nuovo caricamento o una rimozione: le versioni già scaricate di quell'utente non servono più,
+// e gli avatar già mostrati (per esempio quello nel menu) si aggiornano.
+const EVENTO = 'waymatch:foto-cambiata';
 export function dimenticaFoto(id) {
   for (const k of cache.keys()) if (k.startsWith(`${id}:`)) cache.delete(k);
+  window.dispatchEvent(new CustomEvent(EVENTO, { detail: id }));
 }

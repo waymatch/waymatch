@@ -54,9 +54,9 @@ export default function Profile() {
   }, []);
   useEffect(() => { caricaSedi(); }, [caricaSedi]);
 
-  useEffect(() => {
-    if (user) {
-      setForm({
+  // Il modulo si riallinea solo quando cambiano i dati salvati che contiene: un'operazione sulla foto
+  // (che rilegge l'utente) non deve cancellare le modifiche non ancora salvate.
+  const salvati = user ? JSON.stringify({
         sede_id: user.sede_id || '',
         telefono: user.telefono || '',
         indirizzo_casa: user.indirizzo_casa || '',
@@ -71,9 +71,10 @@ export default function Profile() {
         auto_alimentazione: user.auto_alimentazione || '',
         auto_posti: user.auto_posti || 3,
         auto_targa: user.auto_targa || '',
-      });
-    }
-  }, [user]);
+  }) : null;
+  useEffect(() => {
+    if (salvati) setForm(JSON.parse(salvati));
+  }, [salvati]);
 
   if (!form) return <div className="card animate-pulse h-40" />;
 
