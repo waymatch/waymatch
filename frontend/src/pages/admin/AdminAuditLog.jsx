@@ -154,7 +154,10 @@ export default function AdminAuditLog() {
     setEsportando(true);
     setErroreExport('');
     try {
-      await scaricaFile(`/audit-log/export/xlsx?${filtriAttuali().toString()}`, 'log-attivita.xlsx');
+      // La ricerca com'è scritta adesso, anche se l'attesa della digitazione non è ancora finita.
+      const params = filtriAttuali();
+      if (testo.trim()) params.set('q', testo.trim()); else params.delete('q');
+      await scaricaFile(`/audit-log/export/xlsx?${params.toString()}`, 'log-attivita.xlsx');
     } catch (e) {
       setErroreExport(e.message);
     } finally {
