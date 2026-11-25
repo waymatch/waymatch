@@ -181,11 +181,7 @@ export default function Reports() {
             </div>
           </div>
 
-          <p className="text-xs text-muted">
-            Stime calcolate su fattori di emissione CO2 e costo/km medi per tipo di alimentazione
-            (personalizzabili dal Mobility Manager in Impostazioni). Valori indicativi, utili per
-            il monitoraggio interno.
-          </p>
+          {report.metodo && report.qualita && <MetodoEQualita metodo={report.metodo} q={report.qualita} />}
         </>
       )}
     </div>
@@ -198,6 +194,27 @@ function Kpi({ icon: Icon, label, value }) {
       <Icon size={18} className="text-primary mb-2" />
       <p className="font-display font-bold text-xl leading-none">{value}</p>
       <p className="text-xs text-muted mt-1.5">{label}</p>
+    </div>
+  );
+}
+
+// Come sono stati calcolati i numeri e quanto sono solidi i dati: lo stesso che sta nell'export.
+function MetodoEQualita({ metodo, q }) {
+  const quota = (a, b) => (b > 0 ? `${Math.round((a / b) * 100)}%` : 'n.d.');
+  return (
+    <div className="card space-y-2 text-sm">
+      <h2 className="font-display font-semibold text-sm">Metodo e qualità dei dati</h2>
+      <p className="text-xs text-muted">
+        {metodo.nome}: conta la CO2 che i passeggeri con check-in non hanno emesso lasciando a casa la
+        propria auto, al netto della deviazione dell'autista; solo CO2 allo scarico. Fattori: {metodo.fonte_fattori},
+        valori {metodo.fonte_anno} ({metodo.fonte_licenza}). Stime per il monitoraggio interno, non una certificazione.
+        Il testo completo è in Informazioni → Metodo di calcolo.
+      </p>
+      <ul className="text-xs text-muted space-y-0.5 list-disc pl-5">
+        <li>{q.viaggi_con_km_verificati} viaggi su {q.viaggi_completati} ({quota(q.viaggi_con_km_verificati, q.viaggi_completati)}) hanno i chilometri verificati dal server{q.viaggi_con_deviazione_non_calcolabile > 0 ? `; per ${q.viaggi_con_deviazione_non_calcolabile} la deviazione dell'autista non è calcolabile` : ''}.</li>
+        <li>{q.passeggeri_conteggiati} passeggeri su {q.passeggeri_completati} contano nel calcolo{q.esclusi_scenario + q.esclusi_senza_auto > 0 ? ` (${q.esclusi_scenario} non avrebbero usato l'auto, ${q.esclusi_senza_auto} senza auto indicata)` : ''}.</li>
+        <li>Fattore di emissione: {q.fattori.segmento_euro} per segmento e classe Euro, {q.fattori.alimentazione} per alimentazione, {q.fattori.media} auto media.</li>
+      </ul>
     </div>
   );
 }
