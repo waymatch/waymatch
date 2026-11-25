@@ -332,6 +332,10 @@ function addColumnIfMissing(table, column, definition) {
   }
 }
 addColumnIfMissing('sedi', 'lat', 'REAL');
+// Ultima versione pubblicata di WayMatch vista dal controllo giornaliero (utils/aggiornamenti.js).
+addColumnIfMissing('system_settings', 'ultima_versione', 'TEXT');
+addColumnIfMissing('system_settings', 'ultima_versione_url', 'TEXT');
+addColumnIfMissing('system_settings', 'aggiornamenti_controllati_il', 'TEXT');
 addColumnIfMissing('sedi', 'lon', 'REAL');
 addColumnIfMissing('rides', 'partenza_lat', 'REAL');
 addColumnIfMissing('rides', 'partenza_lon', 'REAL');
@@ -459,6 +463,15 @@ db.exec(`
     settimana TEXT NOT NULL,
     created_at TEXT DEFAULT (datetime('now')),
     PRIMARY KEY (user_id, settimana)
+  );
+`);
+// Avvisi "nuova versione disponibile" già mandati: uno per mobility manager e per versione.
+db.exec(`
+  CREATE TABLE IF NOT EXISTS avvisi_nuova_versione (
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    versione TEXT NOT NULL,
+    created_at TEXT DEFAULT (datetime('now')),
+    PRIMARY KEY (user_id, versione)
   );
 `);
 // Ultimo avviso "turni fissi in pausa" mandato a ogni conducente, con le versioni dei documenti

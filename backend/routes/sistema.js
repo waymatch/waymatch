@@ -9,6 +9,7 @@ const { smtpAttivo } = require('../utils/mailer');
 const { giorniLavorativi, NOMI } = require('../utils/calendario');
 const { leggi: leggiTiles } = require('../utils/tiles');
 const { version } = require('../package.json');
+const aggiornamenti = require('../utils/aggiornamenti');
 
 const router = express.Router();
 const RITENZIONE_MESI = Number(process.env.RITENZIONE_STORICO_MESI) || 24;
@@ -19,6 +20,7 @@ router.get('/', requireAuth, requireRole('mobility_manager'), (req, res) => {
   const tile = leggiTiles();
   res.json({
     versione: version,
+    aggiornamenti: aggiornamenti.stato(),
     ambiente: { node: process.version, sistema: `${os.type()} ${os.arch()}`, attivo_da_secondi: Math.floor(process.uptime()) },
     database: { cifrato: true },
     integrazioni: {

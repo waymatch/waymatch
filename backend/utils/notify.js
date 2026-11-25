@@ -41,6 +41,7 @@ const CATEGORIE = {
   richiesta_reset_password_ricevuta: 'approvazioni_mm',
   password_reset_completata: 'variazioni_viaggio',
   turni_in_pausa: 'variazioni_viaggio',
+  nuova_versione: 'nuove_versioni',
 };
 
 const CATEGORIE_INFO = [
@@ -54,6 +55,7 @@ const CATEGORIE_INFO = [
   { chiave: 'riepilogo_settimanale', nome: 'Riepilogo settimanale', descrizione: 'Un breve riepilogo dei punti guadagnati e dei viaggi fatti nell\'ultima settimana.' },
   { chiave: 'ritardo_passeggero', nome: 'Ritardo di un passeggero', descrizione: 'Quando un passeggero confermato ti segnala di essere in ritardo al punto di ritrovo.' },
   { chiave: 'approvazioni_mm', nome: 'Approvazioni da validare', descrizione: 'Nuovi viaggi in attesa di approvazione (solo Mobility Manager).', soloRuolo: 'mobility_manager' },
+  { chiave: 'nuove_versioni', nome: 'Nuove versioni di WayMatch', descrizione: 'Quando è disponibile una nuova versione della piattaforma, da far installare all\'IT (solo Mobility Manager).', soloRuolo: 'mobility_manager' },
 ];
 
 function getCategoria(tipo) {
@@ -65,6 +67,13 @@ function preferenza(userId, categoria) {
     SELECT inapp, push, email FROM notification_preferences WHERE user_id = ? AND categoria = ?
   `).get(userId, categoria);
   return row || { inapp: 1, push: 1, email: 1 }; // predefinito: tutti i canali attivi
+}
+
+// Aggiunge ?nid= (la notifica da segnare come letta all'apertura) prima dell'eventuale frammento:
+// "/informazioni#sistema" diventa "/informazioni?nid=42#sistema", non "/informazioni#sistema?nid=42".
+function conNid(url, nid) {
+  const [percorso, frammento] = url.split('#');
+  return `${percorso}${percorso.includes('?') ? '&' : '?'}nid=${nid}${frammento !== undefined ? `#${frammento}` : ''}`;
 }
 
 function destinazionePer(tipo) {
@@ -96,6 +105,8 @@ function destinazionePer(tipo) {
       return '/profilo';
     case 'promemoria_partenza':
       return '/i-miei-viaggi';
+    case 'nuova_versione':
+      return '/informazioni#sistema';
     case 'turni_in_pausa':
       return '/offri'; // la pagina chiede di accettare i documenti del conducente
     case 'matching_proattivo':
@@ -155,7 +166,7 @@ async function consegnaEsterna(userId, tipo, messaggio, inApp) {
         body: messaggio,
         icon: iconaPush(),
         // Con la notifica nella campanella, aprire il push la segna come letta.
-        url: inApp ? `${url}${url.includes('?') ? '&' : '?'}nid=${inApp.id}` : url,
+        url: inApp ? conNid(url, inApp.id) : url,
       });
       for (const sub of subs) {
         try {

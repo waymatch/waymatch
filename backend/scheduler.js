@@ -25,6 +25,16 @@ function avviaScheduler() {
   eseguiGenerazioneTurni();
   setInterval(eseguiGenerazioneTurni, 60 * 60 * 1000);
 
+  // Controlla una volta al giorno se c'è una nuova versione di WayMatch (disattivabile con
+  // CONTROLLO_AGGIORNAMENTI=0). Il primo controllo poco dopo l'avvio, per non rallentarlo.
+  const eseguiControlloAggiornamenti = () => {
+    const { controlla, attivo } = require('./utils/aggiornamenti');
+    if (!attivo()) return;
+    controlla().catch((e) => console.error('[scheduler] Controllo nuove versioni non riuscito:', e.message));
+  };
+  setTimeout(eseguiControlloAggiornamenti, 60 * 1000).unref();
+  setInterval(eseguiControlloAggiornamenti, 24 * 60 * 60 * 1000);
+
   // Invia i promemoria di partenza, controllando ogni 5 minuti i viaggi imminenti.
   const eseguiPromemoria = async () => {
     try {
