@@ -7,19 +7,38 @@ import { caricaImmagineAutenticata } from '../api.js';
 // cambiata), così una foto rimossa o di un account disattivato da un'altra sessione non resta
 // visibile a lungo in una scheda aperta.
 const DURATA_CACHE_MS = 5 * 60 * 1000;
-const cache = new Map();
+const cache = new Map(); // "id:versione" -> { promessa, alle }
+// Quanti avatar mostrano ogni object URL: lo si revoca (liberando l'immagine) quando nessuno lo
+// usa più e non è più quello in cache.
+const inUso = new Map();
+const correnti = () => new Set([...cache.values()].map((v) => v.url).filter(Boolean));
+function forseRevoca(url) {
+  if (url && !inUso.get(url) && !correnti().has(url)) URL.revokeObjectURL(url);
+}
 function urlFoto(id, versione) {
   const chiave = `${id}:${versione}`;
   const voce = cache.get(chiave);
   if (!voce || Date.now() - voce.alle > DURATA_CACHE_MS) {
-    const promessa = caricaImmagineAutenticata(`/foto/${id}?v=${versione}`).catch(() => {
-      cache.delete(chiave); // un errore temporaneo (o una foto non più disponibile) non resta per sempre
+    const nuova = { alle: Date.now(), url: null };
+    nuova.promessa = caricaImmagineAutenticata(`/foto/${id}?v=${versione}`).then((url) => {
+      nuova.url = url;
+      return url;
+    }).catch(() => {
+      if (cache.get(chiave) === nuova) cache.delete(chiave); // un errore (o una foto non più disponibile) non resta per sempre
       return null;
     });
-    cache.set(chiave, { promessa, alle: Date.now() });
-    return promessa;
+    cache.set(chiave, nuova);
+    if (voce) voce.promessa.then(forseRevoca); // la copia sostituita, se nessuno la mostra
+    return nuova.promessa;
   }
   return voce.promessa;
+}
+function usa(url) { if (url) inUso.set(url, (inUso.get(url) || 0) + 1); }
+function rilascia(url) {
+  if (!url) return;
+  const n = (inUso.get(url) || 1) - 1;
+  if (n > 0) inUso.set(url, n); else inUso.delete(url);
+  forseRevoca(url);
 }
 
 const LATI = { xs: 'w-6 h-6 text-[10px]', sm: 'w-9 h-9 text-sm', lg: 'w-16 h-16 text-xl' };
@@ -36,11 +55,18 @@ export default function Avatar({ id, nome, cognome, versione, dimensione = 'sm',
     setSrc(null);
     if (!id || !versione) return undefined;
     let attivo = true;
-    const aggiorna = () => urlFoto(id, versione).then((u) => { if (attivo) setSrc(u); });
+    let mostrato = null; // l'object URL che questo avatar sta usando
+    const aggiorna = () => urlFoto(id, versione).then((u) => {
+      if (!attivo || u === mostrato) return;
+      usa(u);
+      rilascia(mostrato);
+      mostrato = u;
+      setSrc(u);
+    });
     aggiorna();
     // Anche un avatar che resta a lungo sullo schermo (per esempio nel menu) si riallinea.
     const timer = setInterval(aggiorna, DURATA_CACHE_MS + 1000);
-    return () => { attivo = false; clearInterval(timer); };
+    return () => { attivo = false; clearInterval(timer); rilascia(mostrato); };
   }, [id, versione, giro]);
 
   const lato = LATI[dimensione] || LATI.sm;
@@ -57,6 +83,8 @@ export default function Avatar({ id, nome, cognome, versione, dimensione = 'sm',
 // e gli avatar già mostrati (per esempio quello nel menu) si aggiornano.
 const EVENTO = 'waymatch:foto-cambiata';
 export function dimenticaFoto(id) {
-  for (const k of cache.keys()) if (k.startsWith(`${id}:`)) cache.delete(k);
+  for (const [k, v] of [...cache.entries()]) {
+    if (k.startsWith(`${id}:`)) { cache.delete(k); forseRevoca(v.url); }
+  }
   window.dispatchEvent(new CustomEvent(EVENTO, { detail: id }));
 }
