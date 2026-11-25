@@ -41,8 +41,14 @@ set +e
 docker compose run --rm --no-deps -T --entrypoint sh waymatch -c '
   set -e
   SEGNAPOSTO='"$SEGNAPOSTO"'
-  if [ -e "$SEGNAPOSTO" ]; then
-    echo "Un ripristino precedente si è interrotto (dati di prima in $(cat "$SEGNAPOSTO")): recupera quei dati e cancella data/.ripristino-in-corso prima di riprovare." >&2
+  # 0 solo se il segnaposto manca di sicuro (ENOENT); 2 se esiste; 4 se non si riesce a verificarlo.
+  c=0; node -e "try { require(\"fs\").lstatSync(process.argv[1]); process.exit(2) } catch (e) { process.exit(e.code === \"ENOENT\" ? 0 : 4) }" "$SEGNAPOSTO" || c=$?
+  if [ "$c" = 2 ]; then
+    echo "Un ripristino precedente si è interrotto: recupera i dati come indicato in data/.ripristino-in-corso, poi cancellalo e riprova." >&2
+    cat "$SEGNAPOSTO" >&2 || true
+    exit 1
+  elif [ "$c" != 0 ]; then
+    echo "Non riesco a verificare data/.ripristino-in-corso: ripristino annullato, nulla è stato modificato." >&2
     exit 1
   fi
   mkdir -p /tmp/ripr && tar -xzf - -C /tmp/ripr
@@ -59,7 +65,8 @@ docker compose run --rm --no-deps -T --entrypoint sh waymatch -c '
   " || { echo "Il backup non si apre con la DB_ENCRYPTION_KEY attuale: ripristino annullato, nulla è stato modificato." >&2; exit 1; }
   SALVA=/app/data/prima-ripristino-$(date +%Y%m%d-%H%M%S)
   mkdir -p "$SALVA"
-  echo "data/${SALVA##*/}" > "$SEGNAPOSTO"
+  # Il segnaposto annota anche fin dove si è arrivati, per il recupero a mano (docs/installazione.md).
+  echo "copia di sicurezza: data/${SALVA##*/}" > "$SEGNAPOSTO"
   FATTO=0
   SPOSTATI=""        # file del database messi da parte con successo
   COPIA_UPLOADS=0    # 1 solo quando la copia degli upload in $SALVA è completa
@@ -73,7 +80,7 @@ docker compose run --rm --no-deps -T --entrypoint sh waymatch -c '
       find /app/uploads -mindepth 1 -delete || return 1
       cp -a "$SALVA/uploads/." /app/uploads/ || return 1
     fi
-    chown -R node:node /app/data /app/uploads
+    chown -R node:node /app/data /app/uploads || return 1
     rm -f "$SEGNAPOSTO" || return 1
   }
   alla_fine() {
@@ -88,14 +95,18 @@ docker compose run --rm --no-deps -T --entrypoint sh waymatch -c '
     if [ -e "/app/data/$n" ]; then
       mv "/app/data/$n" "$SALVA/" || exit 1
       SPOSTATI="$SPOSTATI $n"
+      echo "spostato nella copia: $n" >> "$SEGNAPOSTO"
     fi
   done
   if [ -d /app/uploads ]; then
     cp -a /app/uploads "$SALVA/uploads" || exit 1
     COPIA_UPLOADS=1
+    echo "copia degli upload completa" >> "$SEGNAPOSTO"
   fi
+  echo "database del backup in scrittura" >> "$SEGNAPOSTO"
   NUOVO_DB=1
   mv /tmp/ripr/db.bak /app/data/carpooling.db
+  echo "upload in sostituzione" >> "$SEGNAPOSTO"
   MODIFICA_UPLOADS=1
   mkdir -p /app/uploads
   find /app/uploads -mindepth 1 -delete
@@ -111,8 +122,12 @@ if [ "$esito" -ne 0 ]; then
   # Si riavvia solo se il segnaposto non c'è: dati mai toccati o rimessi a posto. Se il controllo
   # stesso non riesce, l'app resta ferma (meglio ferma che su un database vuoto).
   set +e
-  RIMASTO="$(docker compose run --rm --no-deps -T --entrypoint sh waymatch -c \
-    'if [ -e "$1" ]; then cat "$1"; exit 2; fi' sh "$SEGNAPOSTO")"
+  # Esito 0 solo se il segnaposto manca di sicuro (ENOENT): un errore di lettura non autorizza il riavvio.
+  RIMASTO="$(docker compose run --rm --no-deps -T --entrypoint node waymatch -e '
+    const fs = require("fs");
+    try { fs.lstatSync(process.argv[1]); } catch (e) { process.exit(e.code === "ENOENT" ? 0 : 4); }
+    try { process.stdout.write(fs.readFileSync(process.argv[1], "utf8")); } catch {}
+    process.exit(2);' "$SEGNAPOSTO")"
   controllo=$?
   set -e
   if [ "$esito" -ne 3 ] && [ "$controllo" -eq 0 ]; then
@@ -120,8 +135,14 @@ if [ "$esito" -ne 0 ]; then
     docker compose up -d waymatch
     exit 1
   fi
+  if [ "$esito" -ne 3 ] && [ "$controllo" -ne 2 ]; then
+    echo "ERRORE: non riesco a verificare se il ripristino ha lasciato i dati a metà (data/.ripristino-in-corso)." >&2
+    echo "L'app resta ferma: controlla la cartella data/ del server e avviala a mano (docker compose up -d waymatch)." >&2
+    exit 1
+  fi
   echo "ERRORE GRAVE: il ripristino si è interrotto e non risulta che i dati precedenti siano stati rimessi a posto." >&2
-  echo "L'app resta ferma. I dati precedenti sono in ${RIMASTO:-data/prima-ripristino-*} sul server: recuperali, poi cancella data/.ripristino-in-corso e avvia l'app." >&2
+  echo "L'app resta ferma. Recupera i dati precedenti come spiegato in docs/installazione.md (\"Ripristino interrotto\"), poi cancella data/.ripristino-in-corso e avvia l'app." >&2
+  [ -n "$RIMASTO" ] && printf 'Contenuto di data/.ripristino-in-corso:\n%s\n' "$RIMASTO" >&2
   exit 1
 fi
 

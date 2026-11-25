@@ -138,10 +138,26 @@ scripts/ripristina.sh /percorso/waymatch-20261123-020000.tar.gz
 
 Lo script verifica che il backup si apra con la `DB_ENCRYPTION_KEY` attuale **prima** di toccare
 qualcosa, ferma l'app, mette da parte i dati attuali in `data/prima-ripristino-<data>/`, ripristina
-e riavvia. Se qualcosa va storto rimette a posto i dati precedenti; se non ci riesce, o se il
-ripristino viene interrotto a metà (per esempio il container viene ucciso), lascia l'app ferma e il
-file `data/.ripristino-in-corso` indica dove sono i dati precedenti: recuperali, cancella quel file
-e avvia l'app. **Prova il ripristino su una macchina di prova** prima di averne bisogno davvero.
+e riavvia. Se qualcosa va storto rimette a posto i dati precedenti. **Prova il ripristino su una
+macchina di prova** prima di averne bisogno davvero.
+
+### Ripristino interrotto
+
+Se il rollback non riesce, o se il ripristino viene interrotto a metà (per esempio il container
+viene ucciso), lo script lascia l'app ferma. Il file `data/.ripristino-in-corso` dice dove è la
+copia di sicurezza e fin dove si è arrivati. Con l'app ferma, controlla le righe presenti:
+
+| Ultima riga presente | Stato dei dati | Cosa fare |
+|---|---|---|
+| `copia di sicurezza: …` | Nulla è stato toccato | Niente da recuperare |
+| `spostato nella copia: …` | Il database (o parte dei suoi file) è nella copia | Rimetti in `data/` i file `carpooling.db*` presenti nella copia |
+| `copia degli upload completa` | Come sopra; gli upload attuali sono intatti | Come sopra |
+| `database del backup in scrittura` | In `data/` può esserci il database del backup | Cancella `data/carpooling.db*`, poi rimetti quelli della copia |
+| `upload in sostituzione` | Anche gli upload possono essere a metà | Come sopra, e sostituisci il contenuto di `uploads/` con `uploads/` della copia |
+
+Se nella copia non c'è la cartella `uploads/`, prima del ripristino gli upload non c'erano: svuota
+`uploads/`. Poi cancella `data/.ripristino-in-corso` e avvia l'app (`docker compose up -d waymatch`).
+Puoi rilanciare il ripristino solo dopo aver cancellato quel file.
 
 ## Aggiornare
 
