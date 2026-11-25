@@ -48,7 +48,7 @@ intermedie** (per esempio una pausa) e delle note.
   successive. Puoi saltare una data (ferie, malattia) senza sospendere tutto il turno.
   Se l'azienda pubblica una nuova versione dei documenti del conducente, i turni vanno **in
   pausa** finché non la accetti: le corse già in calendario restano, ma non se ne creano di
-  nuove (e un turno sospeso non si riattiva). Dopo l'accettazione riprendono da soli.
+  nuove (un turno sospeso non si riattiva e una data saltata non si ripristina). Dopo l'accettazione riprendono da soli.
 - Puoi modificare un passaggio ancora attivo: chi aveva già chiesto un posto viene avvisato.
 
 ## Cercare e prenotare

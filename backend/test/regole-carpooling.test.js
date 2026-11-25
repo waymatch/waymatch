@@ -281,6 +281,12 @@ async function main() {
     check('il conducente riceve un avviso', avvisiPausa() === 1, String(avvisiPausa()));
     await giroScheduler();
     check('l\'avviso non si ripete a ogni giro', avvisiPausa() === 1, String(avvisiPausa()));
+    const dataSaltata = sql(`SELECT data FROM rides WHERE recurring_ride_id = ? AND stato = 'attivo' AND data > date('now','localtime') ORDER BY data LIMIT 1`, turnoD).data;
+    await call('POST', `/recurring-rides/${turnoD}/eccezioni`, { token: autista, body: { data: dataSaltata } });
+    r = await call('DELETE', `/recurring-rides/${turnoD}/eccezioni/${dataSaltata}`, { token: autista });
+    check('in pausa una data saltata non si rimette in calendario', r.status === 403 && r.data.codice === 'DOCUMENTI_DA_ACCETTARE'
+      && sql('SELECT stato FROM rides WHERE recurring_ride_id = ? AND data = ?', turnoD, dataSaltata).stato === 'annullato', String(r.status));
+    sql('DELETE FROM recurring_ride_exceptions WHERE recurring_ride_id = ?', turnoD); // per i controlli che seguono
     await call('PUT', `/recurring-rides/${turnoD}/attivo`, { token: autista, body: { attivo: false } });
     r = await call('PUT', `/recurring-rides/${turnoD}/attivo`, { token: autista, body: { attivo: true } });
     check('un turno sospeso non si riattiva senza accettare i documenti', r.status === 403 && r.data.codice === 'DOCUMENTI_DA_ACCETTARE'

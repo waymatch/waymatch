@@ -233,6 +233,16 @@ router.post('/:id/eccezioni', requireAuth, asyncHandler(async (req, res) => {
 router.delete('/:id/eccezioni/:data', requireAuth, (req, res) => {
   const turno = trovaTurnoAutorizzato(req, res);
   if (!turno) return;
+  // Rimettere una data in calendario è offrire di nuovo quella corsa: come per la riattivazione,
+  // servono i documenti del conducente accettati.
+  if (documentiPendenti(turno.driver_id, 'conducente').length > 0) {
+    return res.status(403).json({
+      error: turno.driver_id === req.user.id
+        ? 'Prima di ripristinare la data devi accettare i documenti del conducente.'
+        : 'Il conducente deve prima accettare i documenti del conducente.',
+      codice: 'DOCUMENTI_DA_ACCETTARE',
+    });
+  }
   db.prepare('DELETE FROM recurring_ride_exceptions WHERE recurring_ride_id = ? AND data = ?').run(turno.id, req.params.data);
 
   // Solo occorrenze non ancora partite: una data già trascorsa non torna disponibile.
