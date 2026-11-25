@@ -66,7 +66,9 @@ L'elenco completo di cosa fa WayMatch, per chi vuole i dettagli. Per una panoram
 - **Turni fissi / percorsi ricorrenti**: puoi impostare un tragitto abituale (giorni della
   settimana, orario, indirizzo) e il sistema genera automaticamente i passaggi per le
   prossime due settimane, senza doverli ricreare ogni giorno. Sospendere un turno annulla
-  le occorrenze future non ancora svolte.
+  le occorrenze future non ancora svolte. Con documenti del conducente da accettare (per
+  esempio una nuova versione) i turni vanno in pausa: restano le corse già generate, non se
+  ne generano di nuove e la riattivazione è bloccata; all'accettazione riprendono da soli.
 - **Promemoria di partenza e matching proattivo**: due nuove categorie di notifica
   configurabili (con anticipo personalizzabile per il promemoria) — un avviso prima della
   partenza di un tuo viaggio, e un avviso quando viene pubblicato un passaggio compatibile

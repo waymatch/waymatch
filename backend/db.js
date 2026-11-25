@@ -461,6 +461,15 @@ db.exec(`
     PRIMARY KEY (user_id, settimana)
   );
 `);
+// Ultimo avviso "turni fissi in pausa" mandato a ogni conducente, con le versioni dei documenti
+// da accettare in quel momento: evita di ripeterlo a ogni giro dello scheduler.
+db.exec(`
+  CREATE TABLE IF NOT EXISTS avvisi_turni_in_pausa (
+    user_id INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+    firma TEXT NOT NULL,
+    created_at TEXT DEFAULT (datetime('now'))
+  );
+`);
 // Una riga per ogni login: permette logout lato server, revoca per dispositivo e rinnovo
 // del token di accesso (8 ore) finché la sessione è in uso. Del segreto di rinnovo, che
 // sta nel cookie httpOnly del browser, qui c'è solo l'hash.

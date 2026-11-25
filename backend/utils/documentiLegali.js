@@ -5,7 +5,7 @@ const db = require('../db');
 // prima di offrire un passaggio).
 function documentiPendenti(userId, tipo) {
   return db.prepare(`
-    SELECT d.id, d.titolo FROM legal_documents d
+    SELECT d.id, d.titolo, d.versione FROM legal_documents d
     LEFT JOIN document_acceptances a ON a.document_id = d.id AND a.user_id = ?
     WHERE d.attivo = 1 AND d.tipo = ? AND (a.versione_accettata IS NULL OR a.versione_accettata < d.versione)
     ORDER BY d.id

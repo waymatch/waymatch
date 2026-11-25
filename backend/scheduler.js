@@ -14,8 +14,10 @@ function avviaScheduler() {
   const eseguiGenerazioneTurni = () => {
     try {
       const { generaTutteLeOccorrenze } = require('./routes/recurring_rides');
+      const { avvisaTurniInPausa } = require('./utils/turniInPausa');
       const n = generaTutteLeOccorrenze(14);
       if (n > 0) console.log(`[scheduler] Generate ${n} occorrenze da turni fissi`);
+      avvisaTurniInPausa().catch((e) => console.error('[scheduler] Errore avviso turni in pausa:', e.message));
     } catch (e) {
       console.error('[scheduler] Errore generazione turni fissi:', e.message);
     }

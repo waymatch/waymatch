@@ -127,6 +127,13 @@ documento può essere **generale** (chiesto a tutti al primo accesso) o **per ch
 passaggio** (chiesto la prima volta che si pubblica un'offerta). Le accettazioni sono registrate
 con data e ora.
 
+Una nuova versione di un documento per chi offre un passaggio mette **in pausa** i turni fissi di
+chi non l'ha ancora accettata: le corse già generate restano (sono state offerte con le condizioni
+di allora), ma non se ne generano di nuove e un turno sospeso non si riattiva, nemmeno da parte
+tua. Il conducente riceve un avviso; quando accetta, i turni riprendono da soli. Dato che i turni
+generano le corse con due settimane di anticipo, chi accetta entro quel tempo non lascia buchi in
+calendario.
+
 ## Cancellazioni (privacy)
 
 Da **Cancellazioni** gestisci le richieste degli utenti di cancellare i propri dati (GDPR). Se

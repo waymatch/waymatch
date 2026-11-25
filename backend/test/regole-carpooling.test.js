@@ -50,11 +50,16 @@ const osrm = http.createServer(async (req, res) => {
 
 async function main() {
   await new Promise((r) => osrm.listen(PORTA_OSRM, '127.0.0.1', r));
-  const server = spawn('node', ['server.js'], {
-    cwd: BACKEND,
-    env: { ...process.env, OSRM_URL: `http://127.0.0.1:${PORTA_OSRM}`, PORT: String(PORT), DATA_DIR: path.join(DIR, 'data'), UPLOAD_DIR: path.join(DIR, 'uploads'),
-      JWT_SECRET: crypto.randomBytes(32).toString('hex'), DB_ENCRYPTION_KEY: DB_KEY, SMTP_HOST: '' },
-    stdio: ['ignore', 'pipe', 'pipe'],
+  const ENV = { ...process.env, OSRM_URL: `http://127.0.0.1:${PORTA_OSRM}`, PORT: String(PORT), DATA_DIR: path.join(DIR, 'data'), UPLOAD_DIR: path.join(DIR, 'uploads'),
+    JWT_SECRET: crypto.randomBytes(32).toString('hex'), DB_ENCRYPTION_KEY: DB_KEY, SMTP_HOST: '' };
+  const server = spawn('node', ['server.js'], { cwd: BACKEND, env: ENV, stdio: ['ignore', 'pipe', 'pipe'] });
+  // Un giro dello scheduler dei turni fissi (generazione e avvisi), sullo stesso database del server.
+  const giroScheduler = () => new Promise((ok, ko) => {
+    const p = spawn('node', ['-e', `const r = require('./routes/recurring_rides');
+      const n = r.generaTutteLeOccorrenze(14);
+      require('./utils/turniInPausa').avvisaTurniInPausa().then((a) => { console.log(JSON.stringify({ n, a })); process.exit(0); });`], { cwd: BACKEND, env: ENV });
+    let out = ''; p.stdout.on('data', (d) => { out += d; }); p.stderr.on('data', (d) => { out += d; });
+    p.on('exit', (c) => { try { ok(JSON.parse(out.trim().split('\n').pop())); } catch { ko(new Error(`scheduler (${c}): ${out}`)); } });
   });
   let log = ''; server.stdout.on('data', (d) => { log += d; }); server.stderr.on('data', (d) => { log += d; });
   for (let i = 0; i < 100; i++) { try { if ((await fetch(API + '/health')).ok) break; } catch {} await new Promise((r) => setTimeout(r, 100)); }
@@ -252,6 +257,42 @@ async function main() {
     await call('POST', `/legal-documents/${docC.id}/accept`, { token: autista, body: { versione: docC.versione } });
     r = await call('POST', '/rides', { token: autista, body: nuova });
     check('dopo l\'accettazione si pubblica', r.status === 200, `${r.status}`);
+
+    console.log('\n[Turni fissi e documenti del conducente aggiornati]');
+    r = await call('POST', '/recurring-rides', { token: autista, body: { tipo: 'ritorno', giorni_settimana: [1, 2, 3, 4, 5, 6], ora: '23:59',
+      punto_partenza: 'Sede', punto_arrivo: 'Via Roma 1', data_inizio: new Date().toISOString().slice(0, 10) } });
+    const turnoD = r.data.recurring_ride?.id;
+    const futureD = () => sql(`SELECT COUNT(*) n FROM rides WHERE recurring_ride_id = ? AND stato = 'attivo'
+      AND (data > date('now','localtime') OR (data = date('now','localtime') AND ora >= strftime('%H:%M','now','localtime')))`, turnoD).n;
+    const primaD = futureD();
+    check('con i documenti accettati il turno genera le corse', primaD > 1, String(primaD));
+    const fd2 = new FormData(); fd2.append('titolo', 'Responsabilità del conducente'); fd2.append('contenuto', 'Testo aggiornato');
+    fd2.append('formato', 'testo'); fd2.append('tipo', 'conducente'); fd2.append('incrementaVersione', 'true');
+    await call('PUT', `/legal-documents/${docC.id}`, { token: mm, form: fd2 });
+    const versione2 = sql('SELECT versione FROM legal_documents WHERE id = ?', docC.id).versione;
+    r = await call('GET', '/recurring-rides/mie', { token: autista });
+    check('con una nuova versione da accettare i turni risultano in pausa', versione2 === docC.versione + 1 && r.data.documenti_da_accettare === true);
+    check('le corse già create restano', futureD() === primaD);
+    // Si toglie l'ultima occorrenza: un giro dello scheduler in pausa non deve ricrearla.
+    sql('DELETE FROM rides WHERE id = (SELECT MAX(id) FROM rides WHERE recurring_ride_id = ?)', turnoD);
+    const avvisiPausa = () => sql("SELECT COUNT(*) n FROM notifications WHERE user_id = ? AND tipo = 'turni_in_pausa'", id('autista@test.it')).n;
+    let giro = await giroScheduler();
+    check('in pausa lo scheduler non genera nuove corse', giro.n === 0 && futureD() === primaD - 1, `${giro.n}, ${futureD()} su ${primaD - 1}`);
+    check('il conducente riceve un avviso', avvisiPausa() === 1, String(avvisiPausa()));
+    await giroScheduler();
+    check('l\'avviso non si ripete a ogni giro', avvisiPausa() === 1, String(avvisiPausa()));
+    await call('PUT', `/recurring-rides/${turnoD}/attivo`, { token: autista, body: { attivo: false } });
+    r = await call('PUT', `/recurring-rides/${turnoD}/attivo`, { token: autista, body: { attivo: true } });
+    check('un turno sospeso non si riattiva senza accettare i documenti', r.status === 403 && r.data.codice === 'DOCUMENTI_DA_ACCETTARE'
+      && sql('SELECT attivo FROM recurring_rides WHERE id = ?', turnoD).attivo === 0, String(r.status));
+    r = await call('PUT', `/recurring-rides/${turnoD}/attivo`, { token: mm, body: { attivo: true } });
+    check('nemmeno se a riattivarlo è il mobility manager', r.status === 403, String(r.status));
+    await call('POST', `/legal-documents/${docC.id}/accept`, { token: autista, body: { versione: versione2 } });
+    r = await call('PUT', `/recurring-rides/${turnoD}/attivo`, { token: autista, body: { attivo: true } });
+    check('dopo l\'accettazione si riattiva e le corse mancanti tornano', r.status === 200 && futureD() === primaD, `${r.status}, ${futureD()} su ${primaD}`);
+    await giroScheduler();
+    check('chi ha accettato esce dall\'elenco degli avvisi', sql('SELECT COUNT(*) n FROM avvisi_turni_in_pausa').n === 0);
+    await call('DELETE', `/recurring-rides/${turnoD}`, { token: autista });
 
     console.log('\n[Notifiche push]');
     const chiavi = { p256dh: 'x', auth: 'y' };
