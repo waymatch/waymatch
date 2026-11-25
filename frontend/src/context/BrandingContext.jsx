@@ -20,11 +20,15 @@ const valido = (hex, predefinito) => hexToRgb(hex) || hexToRgb(predefinito);
 export function BrandingProvider({ children }) {
   const [branding, setBranding] = useState(DEFAULTS);
 
+  // true se la lettura è riuscita: chi ha appena salvato può dire se l'app mostra i valori nuovi.
   const refresh = useCallback(async () => {
     try {
       const data = await api.get('/branding');
       setBranding({ ...DEFAULTS, ...data.branding });
-    } catch (e) { /* usa i default se non raggiungibile */ }
+      return true;
+    } catch {
+      return false; // restano i valori di prima (o i default se non raggiungibile)
+    }
   }, []);
 
   useEffect(() => { refresh(); }, [refresh]);
