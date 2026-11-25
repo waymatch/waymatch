@@ -214,7 +214,7 @@ function BrandingTab() {
         <p className="text-sm text-muted">
           Il logo e i colori dell'azienda si usano nell'app. Lo sfondo e i testi restano quelli di WayMatch; il colore accento si adatta da solo perché i testi restino leggibili.
         </p>
-        {msg && <p className="text-sm text-muted">{msg}</p>}
+        <p className="text-sm text-muted empty:hidden" role="status">{msg}</p>
         <button className="btn-primary w-full" disabled={saving}>{saving ? 'Salvataggio...' : 'Salva impostazioni'}</button>
       </form>
     </div>

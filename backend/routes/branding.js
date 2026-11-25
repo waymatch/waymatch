@@ -94,7 +94,7 @@ router.post('/logo', requireAuth, requireRole('mobility_manager'), upload.single
   }
   if (precedente && precedente !== relPath && precedente.startsWith('/uploads/')) {
     const vecchio = path.normalize(percorsoSicuro(UPLOAD_DIR, precedente.replace('/uploads/', '')));
-    if (vecchio.startsWith(path.normalize(UPLOAD_DIR) + path.sep)) fs.unlink(vecchio, () => {});
+    if (vecchio.startsWith(path.resolve(UPLOAD_DIR) + path.sep)) fs.unlink(vecchio, () => {});
   }
   res.json({ logo_path: relPath });
 }));
@@ -109,7 +109,7 @@ router.delete('/logo', requireAuth, requireRole('mobility_manager'), (req, res) 
   })();
   if (precedente && precedente.startsWith('/uploads/')) {
     const vecchio = path.normalize(percorsoSicuro(UPLOAD_DIR, precedente.replace('/uploads/', '')));
-    if (vecchio.startsWith(path.normalize(UPLOAD_DIR) + path.sep)) fs.unlink(vecchio, () => {});
+    if (vecchio.startsWith(path.resolve(UPLOAD_DIR) + path.sep)) fs.unlink(vecchio, () => {});
   }
   res.json({ ok: true });
 });
