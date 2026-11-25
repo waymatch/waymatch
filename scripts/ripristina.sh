@@ -33,9 +33,18 @@ docker compose stop waymatch
 # Si lavora in un container usa e getta con gli stessi volumi, così i permessi sono quelli giusti.
 # Esiti del container: 0 fatto; 1 fallito prima di toccare i dati o con i dati rimessi a posto;
 # 3 fallito e dati precedenti NON rimessi a posto (l'app resta ferma).
+# Il segnaposto data/.ripristino-in-corso esiste da prima di toccare i dati finché il ripristino o
+# il rollback non sono conclusi: se il container viene ucciso (kill -9, memoria esaurita) il trap
+# non parte, ma il segnaposto resta e l'app non viene riavviata su dati a metà.
+SEGNAPOSTO=/app/data/.ripristino-in-corso
 set +e
 docker compose run --rm --no-deps -T --entrypoint sh waymatch -c '
   set -e
+  SEGNAPOSTO='"$SEGNAPOSTO"'
+  if [ -e "$SEGNAPOSTO" ]; then
+    echo "Un ripristino precedente si è interrotto (dati di prima in $(cat "$SEGNAPOSTO")): recupera quei dati e cancella data/.ripristino-in-corso prima di riprovare." >&2
+    exit 1
+  fi
   mkdir -p /tmp/ripr && tar -xzf - -C /tmp/ripr
   [ -f /tmp/ripr/db.bak ] || { echo "db.bak mancante" >&2; exit 1; }
   # Prima di toccare nulla: il database del backup deve aprirsi con la chiave attuale.
@@ -50,6 +59,7 @@ docker compose run --rm --no-deps -T --entrypoint sh waymatch -c '
   " || { echo "Il backup non si apre con la DB_ENCRYPTION_KEY attuale: ripristino annullato, nulla è stato modificato." >&2; exit 1; }
   SALVA=/app/data/prima-ripristino-$(date +%Y%m%d-%H%M%S)
   mkdir -p "$SALVA"
+  echo "data/${SALVA##*/}" > "$SEGNAPOSTO"
   FATTO=0
   SPOSTATI=""        # file del database messi da parte con successo
   COPIA_UPLOADS=0    # 1 solo quando la copia degli upload in $SALVA è completa
@@ -64,6 +74,7 @@ docker compose run --rm --no-deps -T --entrypoint sh waymatch -c '
       cp -a "$SALVA/uploads/." /app/uploads/ || return 1
     fi
     chown -R node:node /app/data /app/uploads
+    rm -f "$SEGNAPOSTO" || return 1
   }
   alla_fine() {
     if [ "$FATTO" != 1 ]; then
@@ -91,17 +102,26 @@ docker compose run --rm --no-deps -T --entrypoint sh waymatch -c '
   if [ -d /tmp/ripr/uploads ]; then cp -a /tmp/ripr/uploads/. /app/uploads/; fi
   chown -R node:node /app/data /app/uploads
   FATTO=1
+  rm -f "$SEGNAPOSTO"
   echo "Dati precedenti messi da parte in $SALVA (nella cartella data/ del server)"
 ' < "$ARCHIVIO"
 esito=$?
 set -e
-if [ "$esito" -eq 3 ]; then
-  echo "ERRORE GRAVE: il ripristino è fallito e i dati precedenti non sono stati rimessi a posto." >&2
-  echo "L'app resta ferma. I dati precedenti sono nella cartella data/prima-ripristino-* del server: non avviarla prima di averli recuperati." >&2
-  exit 1
-elif [ "$esito" -ne 0 ]; then
-  echo "Ripristino non eseguito: riavvio l'app com'era." >&2
-  docker compose up -d waymatch
+if [ "$esito" -ne 0 ]; then
+  # Si riavvia solo se il segnaposto non c'è: dati mai toccati o rimessi a posto. Se il controllo
+  # stesso non riesce, l'app resta ferma (meglio ferma che su un database vuoto).
+  set +e
+  RIMASTO="$(docker compose run --rm --no-deps -T --entrypoint sh waymatch -c \
+    'if [ -e "$1" ]; then cat "$1"; exit 2; fi' sh "$SEGNAPOSTO")"
+  controllo=$?
+  set -e
+  if [ "$esito" -ne 3 ] && [ "$controllo" -eq 0 ]; then
+    echo "Ripristino non eseguito, dati invariati: riavvio l'app com'era." >&2
+    docker compose up -d waymatch
+    exit 1
+  fi
+  echo "ERRORE GRAVE: il ripristino si è interrotto e non risulta che i dati precedenti siano stati rimessi a posto." >&2
+  echo "L'app resta ferma. I dati precedenti sono in ${RIMASTO:-data/prima-ripristino-*} sul server: recuperali, poi cancella data/.ripristino-in-corso e avvia l'app." >&2
   exit 1
 fi
 

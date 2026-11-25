@@ -138,7 +138,10 @@ scripts/ripristina.sh /percorso/waymatch-20261123-020000.tar.gz
 
 Lo script verifica che il backup si apra con la `DB_ENCRYPTION_KEY` attuale **prima** di toccare
 qualcosa, ferma l'app, mette da parte i dati attuali in `data/prima-ripristino-<data>/`, ripristina
-e riavvia. **Prova il ripristino su una macchina di prova** prima di averne bisogno davvero.
+e riavvia. Se qualcosa va storto rimette a posto i dati precedenti; se non ci riesce, o se il
+ripristino viene interrotto a metà (per esempio il container viene ucciso), lascia l'app ferma e il
+file `data/.ripristino-in-corso` indica dove sono i dati precedenti: recuperali, cancella quel file
+e avvia l'app. **Prova il ripristino su una macchina di prova** prima di averne bisogno davvero.
 
 ## Aggiornare
 
