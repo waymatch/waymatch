@@ -3,6 +3,21 @@
 Le novità di ogni versione, scritte per chi usa l'app. Per i dettagli tecnici c'è il CHANGELOG nel
 repository. Le versioni 0.x sono di sviluppo: la 1.0.0 sarà la prima versione pubblica stabile.
 
+## Versione 0.10.0 — novembre 2026 · La tua foto, e tutto più su misura
+
+- **Foto del profilo**: puoi caricarne una e scegliere la parte da mostrare. La vedono i colleghi
+  accanto al tuo nome, così vi riconoscete al punto di ritrovo. È facoltativa, conservata cifrata e la
+  puoi rimuovere quando vuoi.
+- **Punti e premi facoltativi**: l'azienda decide se usarli. Se nel menu non vedi Premi, nella tua
+  azienda non sono attivi. Il Mobility Manager può anche azzerare i punteggi, per esempio a inizio anno.
+- **Orari indicativi**: traffico e imprevisti possono cambiarli; l'app lo ricorda dove offri o guardi
+  un passaggio.
+- **Turni fissi e documenti**: se l'azienda pubblica nuove condizioni per chi guida, i tuoi turni
+  fissi vanno in pausa finché non le accetti; le corse già in calendario restano.
+- **Informazioni** si apre dall'icona ⓘ accanto al tuo nome, in fondo al menu.
+- Per il Mobility Manager: avviso quando esce una nuova versione, log attività con più filtri,
+  rimozione del logo.
+
 ## Versione 0.9.1 — novembre 2026 · Fai del bene a tua volta
 
 - **WayMatch è gratuito e non chiede denaro.** Chi l'ha scritto chiede solo un gesto: fare qualcosa per
