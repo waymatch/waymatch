@@ -20,6 +20,19 @@ async function kmDalServer(pLat, pLon, aLat, aLon, soste = []) {
   }
 }
 
+// Km con le soste (verificati) e km del percorso diretto, senza soste: la differenza è la deviazione
+// che l'autista fa per i passeggeri (metodo di calcolo della CO2, docs/metodo-calcolo.md §3.4).
+// Senza soste con coordinate i due valori coincidono e basta una chiamata.
+async function kmPercorsi(pLat, pLon, aLat, aLon, soste = []) {
+  const conCoordinate = (Array.isArray(soste) ? soste : []).some((s) => s && Number.isFinite(Number(s.lat)) && Number.isFinite(Number(s.lon)) && s.lat !== '' && s.lon !== '' && s.lat !== null && s.lon !== null);
+  if (!conCoordinate) {
+    const km = await kmDalServer(pLat, pLon, aLat, aLon, []);
+    return { verificati: km, diretti: km };
+  }
+  const [verificati, diretti] = await Promise.all([kmDalServer(pLat, pLon, aLat, aLon, soste), kmDalServer(pLat, pLon, aLat, aLon, [])]);
+  return { verificati, diretti };
+}
+
 // Km su cui si calcolano punti e risparmi. Quelli dichiarati, ma al massimo il 30% in più del
 // percorso calcolato dal server (l'autista può aver scelto un'alternativa più lunga). Senza
 // percorso verificato, al massimo il doppio della linea d'aria tra partenza e arrivo (+2 km).
@@ -93,4 +106,4 @@ function calcolaBonusKm(km, numPasseggeri) {
   return Math.min(cap, Math.round(km * numPasseggeri * perKm));
 }
 
-module.exports = { generazionePunti, GENERAZIONE_ATTUALE, getRule, assegnaPunti, totalePunti, totaleGuadagnato, calcolaBonusKm, kmDalServer, kmAffidabili };
+module.exports = { kmPercorsi, generazionePunti, GENERAZIONE_ATTUALE, getRule, assegnaPunti, totalePunti, totaleGuadagnato, calcolaBonusKm, kmDalServer, kmAffidabili };

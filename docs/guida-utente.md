@@ -96,8 +96,10 @@ Il Profilo ha sei schede:
   vedono i colleghi accanto al tuo nome (per esempio quando offri o chiedi un passaggio) e aiuta a
   riconoscersi al punto di ritrovo. È facoltativa: viene ridotta, ripulita dai dati dello scatto
   (come la posizione) e conservata cifrata; puoi cambiarla o rimuoverla quando vuoi.
-- **La tua auto**: marca, modello, anno, cilindrata, alimentazione. Serve a stimare CO2 e costi
-  risparmiati e a farti riconoscere dai passeggeri.
+- **La tua auto**: marca, modello, anno, cilindrata, alimentazione (anche ibrida plug-in) e segmento.
+  Serve a stimare CO2 e costi risparmiati e a farti riconoscere dai passeggeri. In **Info** puoi
+  anche dire, se vuoi, come verresti al lavoro senza un passaggio: i report contano la CO2 evitata
+  solo per chi avrebbe usato la propria auto.
 - **Notifiche**: per ogni tipo di avviso scegli dove riceverlo: **App** (la campanella dentro
   l'app), **Push** (il telefono o il computer ti avvisa anche ad app chiusa) e, se l'azienda ha
   attivato le email, **Email**. Togliendo tutte le spunte quell'avviso non arriva più.

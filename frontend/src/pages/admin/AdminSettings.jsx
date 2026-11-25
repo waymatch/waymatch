@@ -340,6 +340,7 @@ const ALIMENTAZIONE_LABEL = {
   gpl: 'GPL',
   metano: 'Metano',
   ibrida: 'Ibrida',
+  ibrida_plugin: 'Ibrida plug-in',
   elettrica: 'Elettrica',
   altro: 'Altro / non specificata',
 };
@@ -384,7 +385,7 @@ function CostiCo2Tab() {
       setClusters(d.clusters);
       setEdit((prev) => Object.fromEntries(d.clusters.map((c) => [
         c.alimentazione,
-        riallineate.has(c.alimentazione) || !prev[c.alimentazione] ? { costo_km_eur: c.costo_km_eur, co2_g_km: c.co2_g_km } : prev[c.alimentazione],
+        riallineate.has(c.alimentazione) || !prev[c.alimentazione] ? { costo_km_eur: c.costo_km_eur } : prev[c.alimentazione],
       ])));
       return true;
     }).catch((e) => {
@@ -429,9 +430,10 @@ function CostiCo2Tab() {
   return (
     <div className="space-y-4">
       <p className="text-xs text-muted">
-        Valori medi di costo e CO2 per km usati nei report, raggruppati per tipo di alimentazione
-        (un'elettrica e un diesel non risparmiano la stessa cosa). Puoi personalizzarli e tornare
-        al valore predefinito quando vuoi.
+        Il <strong>costo al km</strong> usato nei report, per tipo di alimentazione, è una stima che puoi
+        adattare alla tua azienda (rimborsi, prezzi locali) e riportare al valore predefinito quando vuoi.
+        La <strong>CO2 al km</strong> invece non si modifica: segue il metodo di calcolo uguale per tutti
+        (fonte ISPRA), descritto in Informazioni → Metodo di calcolo, così i report restano confrontabili.
       </p>
       {erroreCarica && <ErroreConRiprova messaggio={erroreCarica} onRiprova={riprova} />}
       {msg && <p className="text-sm text-muted">{msg}</p>}
@@ -452,15 +454,11 @@ function CostiCo2Tab() {
                 />
               </div>
               <div>
-                <label htmlFor={`co2-${c.alimentazione}`} className="label">CO2 (g/km)</label>
-                <input id={`co2-${c.alimentazione}`}
-                  type="number" step="1" min="0" className="input"
-                  value={edit[c.alimentazione]?.co2_g_km ?? ''}
-                  onChange={(e) => setEdit({ ...edit, [c.alimentazione]: { ...edit[c.alimentazione], co2_g_km: e.target.value } })}
-                />
+                <p className="label">CO2 media (g/km)</p>
+                <p className="input bg-bg text-muted">{c.co2_g_km}<span className="sr-only"> grammi al chilometro per {ALIMENTAZIONE_LABEL[c.alimentazione] || c.alimentazione}, non modificabile</span></p>
               </div>
             </div>
-            <p className="text-xs text-muted">Predefinito: € {c.costo_km_eur_default}/km · {c.co2_g_km_default} g/km</p>
+            <p className="text-xs text-muted">Costo predefinito: € {c.costo_km_eur_default}/km</p>
             <div className="flex gap-2">
               <button type="button" className="btn-primary !py-1.5 !text-sm flex-1" disabled={saving.has(c.alimentazione)} onClick={() => salva(c.alimentazione)}>
                 <Pencil size={13} /> Salva

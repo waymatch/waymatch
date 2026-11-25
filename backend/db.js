@@ -341,6 +341,11 @@ if (!db.prepare('PRAGMA table_info(system_settings)').all().some((c) => c.name =
     db.prepare('UPDATE system_settings SET gamification_attiva = 1 WHERE initialized = 1').run();
   })();
 }
+// Dati per il calcolo della CO2 evitata (docs/metodo-calcolo.md): segmento dell'auto (mini, piccola,
+// media, grande) e come il collega verrebbe al lavoro senza passaggio (auto_propria, mezzi,
+// bici_piedi, altro; null = non indicato).
+addColumnIfMissing('users', 'auto_segmento', 'TEXT');
+addColumnIfMissing('users', 'senza_passaggio', 'TEXT');
 // Foto del profilo (utils/fotoProfilo.js): percorso del file cifrato e numero di versione, che
 // cambia a ogni nuova foto (null = nessuna foto).
 addColumnIfMissing('users', 'foto_path', 'TEXT');
@@ -386,6 +391,9 @@ addColumnIfMissing('rides', 'motivo_annullamento', 'TEXT');
 // risparmi, al posto dei km inviati dal client. NULL se il servizio non era disponibile.
 addColumnIfMissing('rides', 'km_verificati', 'REAL');
 addColumnIfMissing('recurring_rides', 'km_verificati', 'REAL');
+// Km del percorso diretto, senza soste: con km_verificati danno la deviazione dell'autista.
+addColumnIfMissing('rides', 'km_diretti', 'REAL');
+addColumnIfMissing('recurring_rides', 'km_diretti', 'REAL');
 
 // Migrazioni una tantum, numerate con PRAGMA user_version: ognuna gira una sola volta per database.
 const versioneSchema = db.pragma('user_version', { simple: true });

@@ -1,7 +1,7 @@
 const express = require('express');
 const db = require('../db');
 const { requireAuth } = require('../middleware/auth');
-const { assegnaPunti, getRule, kmDalServer } = require('../utils/points');
+const { assegnaPunti, getRule, kmPercorsi } = require('../utils/points');
 const { registraAzione } = require('../utils/audit');
 const { notificaMatchProattivo, notificaPreferiti } = require('../utils/matching');
 const { notificaMassiva } = require('../utils/notify');
@@ -57,7 +57,8 @@ router.post('/', requireAuth, richiediDocumentiConducente, asyncHandler(async (r
     ? Number(posti_totali)
     : Math.max(1, Math.min(8, Math.trunc(Number(me.auto_posti)) || 3));
   // Km del percorso calcolati una volta dal server: valgono per tutte le occorrenze.
-  const kmVerificati = await kmDalServer(partenza_lat, partenza_lon, arrivo_lat, arrivo_lon, soste);
+  const percorsi = await kmPercorsi(partenza_lat, partenza_lon, arrivo_lat, arrivo_lon, soste);
+  const kmVerificati = percorsi.verificati;
   // Controllo ripetuto dopo l'attesa dei km (vedi rides.js): da qui all'inserimento non ci sono attese.
   if (documentiPendenti(req.user.id, 'conducente').length > 0) {
     return res.status(403).json({ error: 'Prima di offrire un passaggio devi accettare i documenti del conducente.', codice: 'DOCUMENTI_DA_ACCETTARE' });
@@ -66,14 +67,14 @@ router.post('/', requireAuth, richiediDocumentiConducente, asyncHandler(async (r
     INSERT INTO recurring_rides (
       driver_id, tipo, giorni_settimana, ora, punto_partenza, punto_arrivo, sede_id,
       partenza_lat, partenza_lon, arrivo_lat, arrivo_lon, km_stimati, geometria,
-      posti_totali, note, soste, data_inizio, data_fine, citta_domicilio, km_verificati
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      posti_totali, note, soste, data_inizio, data_fine, citta_domicilio, km_verificati, km_diretti
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).run(
     me.id, tipo, giorniNormalizzati.join(','), ora, punto_partenza, punto_arrivo, sede_id || me.sede_id,
     partenza_lat ?? null, partenza_lon ?? null, arrivo_lat ?? null, arrivo_lon ?? null,
     Number(km_stimati) || 0, geometria != null ? JSON.stringify(geometria) : null,
     posti, note || null, soste ? JSON.stringify(soste) : null,
-    data_inizio, data_fine || null, citta_domicilio || null, kmVerificati
+    data_inizio, data_fine || null, citta_domicilio || null, kmVerificati, percorsi.diretti
   );
 
   registraAzione(me.id, 'turno_fisso_creato', `${tipo} alle ${ora}, giorni: ${giorniNormalizzati.join(',')}`, 'utente');
@@ -312,12 +313,12 @@ function generaOccorrenzePerTemplate(recurringId, giorni) {
         INSERT INTO rides (
           driver_id, sede_id, tipo, data, ora, punto_partenza, punto_arrivo,
           partenza_lat, partenza_lon, arrivo_lat, arrivo_lon, km_stimati, km_calcolati_auto, geometria,
-          posti_totali, posti_disponibili, note, recurring_ride_id, citta_domicilio, km_verificati
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?)
+          posti_totali, posti_disponibili, note, recurring_ride_id, citta_domicilio, km_verificati, km_diretti
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?, ?)
       `).run(
         t.driver_id, t.sede_id, t.tipo, data, t.ora, t.punto_partenza, t.punto_arrivo,
         t.partenza_lat, t.partenza_lon, t.arrivo_lat, t.arrivo_lon, t.km_stimati, t.geometria,
-        t.posti_totali, t.posti_totali, t.note, t.id, t.citta_domicilio, t.km_verificati
+        t.posti_totali, t.posti_totali, t.note, t.id, t.citta_domicilio, t.km_verificati, t.km_diretti
       );
       const id = info.lastInsertRowid;
       if (soste.length) {

@@ -170,23 +170,44 @@ router.get('/me', requireAuth, (req, res) => {
   res.json({ user: sanitizeUser(user), punti, punti_guadagnati: puntiGuadagnati });
 });
 
+// Valori ammessi per i dati usati dal metodo di calcolo della CO2 (docs/metodo-calcolo.md).
+const ALIMENTAZIONI = ['benzina', 'diesel', 'gpl', 'metano', 'ibrida', 'ibrida_plugin', 'elettrica'];
+const SEGMENTI = ['mini', 'piccola', 'media', 'grande'];
+const SENZA_PASSAGGIO = ['auto_propria', 'mezzi', 'bici_piedi', 'altro'];
+
 router.put('/me', requireAuth, (req, res) => {
   const {
     telefono, auto_marca, auto_modello, auto_anno,
     auto_cilindrata, auto_colore, auto_alimentazione, auto_posti, auto_targa, sede_id,
     indirizzo_casa, casa_lat, casa_lon, citta_casa,
   } = req.body;
+  // Vuoto = non indicato; un valore fuori elenco si rifiuta (non si salva testo libero).
+  const ammesso = (v, elenco) => v === undefined || v === null || v === '' || elenco.includes(v);
+  const { auto_segmento, senza_passaggio } = req.body;
+  if (!ammesso(auto_alimentazione, ALIMENTAZIONI)) return res.status(400).json({ error: 'Alimentazione non valida' });
+  if (!ammesso(auto_segmento, SEGMENTI)) return res.status(400).json({ error: 'Segmento dell\'auto non valido' });
+  if (!ammesso(senza_passaggio, SENZA_PASSAGGIO)) return res.status(400).json({ error: 'Risposta non valida' });
+  if (auto_anno !== undefined && auto_anno !== null && auto_anno !== '') {
+    const anno = Number(auto_anno);
+    if (!Number.isInteger(anno) || anno < 1950 || anno > new Date().getFullYear() + 1) return res.status(400).json({ error: 'Anno dell\'auto non valido' });
+  }
+  // I due dati nuovi si aggiornano solo se la richiesta li contiene: un client che non li conosce
+  // non li cancella.
+  const attuali = db.prepare('SELECT auto_segmento, senza_passaggio FROM users WHERE id = ?').get(req.user.id) || {};
+  const segmentoFinale = auto_segmento === undefined ? attuali.auto_segmento : (auto_segmento || null);
+  const senzaFinale = senza_passaggio === undefined ? attuali.senza_passaggio : (senza_passaggio || null);
 
   db.prepare(
     `UPDATE users SET telefono = ?, auto_marca = ?, auto_modello = ?, auto_anno = ?,
      auto_cilindrata = ?, auto_colore = ?, auto_alimentazione = ?, auto_posti = ?, auto_targa = ?, sede_id = ?,
-     indirizzo_casa = ?, casa_lat = ?, casa_lon = ?, citta_casa = ?
+     indirizzo_casa = ?, casa_lat = ?, casa_lon = ?, citta_casa = ?, auto_segmento = ?, senza_passaggio = ?
      WHERE id = ?`
   ).run(
     telefono || null, auto_marca || null, auto_modello || null,
     auto_anno || null, auto_cilindrata || null, auto_colore || null, auto_alimentazione || null,
     auto_posti || 3, auto_targa || null, sede_id || null,
     indirizzo_casa || null, casa_lat ?? null, casa_lon ?? null, citta_casa || null,
+    segmentoFinale, senzaFinale,
     req.user.id
   );
 

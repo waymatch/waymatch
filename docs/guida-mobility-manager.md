@@ -81,7 +81,9 @@ Cinque schede:
   turni fissi si possono creare solo in quei giorni: se l'azienda lavora anche la domenica, o
   non lavora il sabato, cambialo qui. Un passaggio già creato resta com'è; un turno fisso smette
   di generare passaggi nei giorni tolti.
-- **Costi e CO2**: i fattori usati per stimare il risparmio.
+- **Costi e CO2**: il **costo al km** per tipo di alimentazione, che puoi adattare alla tua azienda.
+  La CO2 al km (media ISPRA) si vede ma non si modifica: i report seguono un metodo di calcolo
+  uguale per tutti, così i numeri restano confrontabili.
 - **Email**: stato e prova dell'invio email (se configurato).
 
 ## Premi, contest e punteggio

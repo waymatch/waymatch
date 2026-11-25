@@ -19,7 +19,22 @@ const ALIMENTAZIONI = [
   { value: 'gpl', label: 'GPL' },
   { value: 'metano', label: 'Metano' },
   { value: 'ibrida', label: 'Ibrida' },
+  { value: 'ibrida_plugin', label: 'Ibrida plug-in' },
   { value: 'elettrica', label: 'Elettrica' },
+];
+
+// Servono al calcolo della CO2 evitata (Informazioni → Metodo di calcolo).
+const SEGMENTI = [
+  { value: 'mini', label: 'Mini (city car)' },
+  { value: 'piccola', label: 'Piccola (utilitaria)' },
+  { value: 'media', label: 'Media (berlina compatta, piccolo SUV)' },
+  { value: 'grande', label: 'Grande (berlina, SUV, monovolume)' },
+];
+const SENZA_PASSAGGIO = [
+  { value: 'auto_propria', label: 'Con la mia auto' },
+  { value: 'mezzi', label: 'Con i mezzi pubblici' },
+  { value: 'bici_piedi', label: 'In bici o a piedi' },
+  { value: 'altro', label: 'In un altro modo (moto, scooter...)' },
 ];
 
 const MARCHE = [
@@ -69,6 +84,8 @@ export default function Profile() {
         auto_cilindrata: user.auto_cilindrata || '',
         auto_colore: user.auto_colore || '',
         auto_alimentazione: user.auto_alimentazione || '',
+        auto_segmento: user.auto_segmento || '',
+        senza_passaggio: user.senza_passaggio || '',
         auto_posti: user.auto_posti || 3,
         auto_targa: user.auto_targa || '',
   }) : null;
@@ -161,6 +178,19 @@ export default function Profile() {
               )}
             </div>
 
+            <div className="card space-y-3">
+              <h2 className="font-display font-semibold text-sm">Senza un passaggio, come verresti al lavoro?</h2>
+              <p className="text-xs text-muted -mt-1">
+                Facoltativo. Serve solo ai report dell'azienda: la CO2 evitata si calcola per chi, senza il
+                passaggio, avrebbe usato la propria auto. Se non rispondi e hai indicato un'auto nel profilo,
+                si considera che l'avresti usata.
+              </p>
+              <select aria-label="Come verresti al lavoro senza un passaggio" className="input" value={form.senza_passaggio} onChange={(e) => setForm({ ...form, senza_passaggio: e.target.value })}>
+                <option value="">Non lo dico</option>
+                {SENZA_PASSAGGIO.map((a) => <option key={a.value} value={a.value}>{a.label}</option>)}
+              </select>
+            </div>
+
             {msg && <div className="rounded-xl bg-primary-light text-primary-dark text-sm px-3.5 py-2.5">{msg}</div>}
             <button className="btn-primary w-full" disabled={saving}>{saving ? 'Salvataggio...' : 'Salva'}</button>
           </form>
@@ -219,6 +249,14 @@ export default function Profile() {
                   {ALIMENTAZIONI.map((a) => <option key={a.value} value={a.value}>{a.label}</option>)}
                 </select>
               </div>
+            </div>
+            <div>
+              <label htmlFor="profile-seg" className="label">Segmento (facoltativo)</label>
+              <select id="profile-seg" className="input" value={form.auto_segmento} onChange={(e) => setForm({ ...form, auto_segmento: e.target.value })}>
+                <option value="">Non lo so</option>
+                {SEGMENTI.map((a) => <option key={a.value} value={a.value}>{a.label}</option>)}
+              </select>
+              <p className="text-xs text-muted mt-1">Con alimentazione, segmento e anno la CO2 si stima meglio nei report dell'azienda.</p>
             </div>
           </div>
           {msg && <div className="rounded-xl bg-primary-light text-primary-dark text-sm px-3.5 py-2.5">{msg}</div>}

@@ -1,0 +1,196 @@
+{
+  "fonte": "ISPRA, La banca dati dei fattori di emissione medi per il parco circolante in Italia",
+  "url": "https://fetransp.isprambiente.it/",
+  "licenza": "CC BY 4.0",
+  "anno_valori": 2022,
+  "note": "Autovetture, CO2 allo scarico in g/km, valore TOTALE (cicli urbano, extraurbano e autostradale). Stime COPERT sul parco circolante.",
+  "file_sorgente": "ispra-fetransp-autovetture-2022.xlsx",
+  "sha256_sorgente": "f357fee9477f9fc171384d8145d4c3d4b72699bff33c72118ec8206bf730acb1",
+  "medie": {
+    "sconosciuta": 161.7,
+    "benzina": 161.3,
+    "diesel": 167.1,
+    "gpl": 154.7,
+    "metano": 126.1,
+    "ibrida": 135.6,
+    "ibrida_plugin": 123.1,
+    "elettrica": 0
+  },
+  "per_segmento_euro": {
+    "benzina": {
+      "mini": {
+        "euro4": 153.5,
+        "euro5": 154.1,
+        "euro6": 151.5,
+        "euro6d_temp": 150.2,
+        "euro6d": 150.2
+      },
+      "piccola": {
+        "pre_euro": 157.7,
+        "euro1": 158.6,
+        "euro2": 160.5,
+        "euro3": 168.5,
+        "euro4": 151.7,
+        "euro5": 148.5,
+        "euro6": 150.5,
+        "euro6d_temp": 151.8,
+        "euro6d": 151.8
+      },
+      "media": {
+        "pre_euro": 205.7,
+        "euro1": 199,
+        "euro2": 199.4,
+        "euro3": 205,
+        "euro4": 202.4,
+        "euro5": 195.2,
+        "euro6": 193.7,
+        "euro6d_temp": 193.4,
+        "euro6d": 193.4
+      },
+      "grande": {
+        "pre_euro": 240.7,
+        "euro1": 251.3,
+        "euro2": 265.5,
+        "euro3": 238.7,
+        "euro4": 353.7,
+        "euro5": 343.2,
+        "euro6": 293.7,
+        "euro6d_temp": 316.1,
+        "euro6d": 316.1
+      }
+    },
+    "diesel": {
+      "piccola": {
+        "pre_euro": 174.9,
+        "euro1": 159.4,
+        "euro2": 169,
+        "euro3": 162.7,
+        "euro4": 180.5,
+        "euro5": 177.9,
+        "euro6": 188.6,
+        "euro6d_temp": 193.5,
+        "euro6d": 193.5
+      },
+      "media": {
+        "pre_euro": 170.8,
+        "euro1": 157.9,
+        "euro2": 167,
+        "euro3": 161,
+        "euro4": 159.6,
+        "euro5": 155.2,
+        "euro6": 150.3,
+        "euro6d_temp": 153.9,
+        "euro6d": 153.9
+      },
+      "grande": {
+        "pre_euro": 170.8,
+        "euro1": 214.6,
+        "euro2": 217.8,
+        "euro3": 220.6,
+        "euro4": 244.7,
+        "euro5": 230,
+        "euro6": 215.9,
+        "euro6d_temp": 218.6,
+        "euro6d": 218.6
+      }
+    },
+    "gpl": {
+      "piccola": {
+        "pre_euro": 168.6,
+        "euro1": 164.6,
+        "euro2": 169,
+        "euro3": 169.7,
+        "euro4": 176,
+        "euro5": 169.9,
+        "euro6": 130.3,
+        "euro6d_temp": 130.3,
+        "euro6d": 130.3
+      },
+      "media": {
+        "pre_euro": 168.6,
+        "euro1": 164.6,
+        "euro2": 169,
+        "euro3": 169.7,
+        "euro4": 176,
+        "euro5": 169.9,
+        "euro6": 153.6,
+        "euro6d_temp": 169.7,
+        "euro6d": 169.7
+      },
+      "grande": {
+        "pre_euro": 168.6,
+        "euro1": 164.6,
+        "euro2": 169.6,
+        "euro3": 171,
+        "euro4": 182.5,
+        "euro5": 182.5,
+        "euro6": 155.4,
+        "euro6d_temp": 171.7,
+        "euro6d": 171.7
+      }
+    },
+    "metano": {
+      "piccola": {
+        "euro4": 126.9,
+        "euro5": 123.4,
+        "euro6": 129.6,
+        "euro6d_temp": 111.7,
+        "euro6d": 111.7
+      },
+      "media": {
+        "euro4": 161.8,
+        "euro5": 123.4,
+        "euro6": 129.6,
+        "euro6d_temp": 112.5,
+        "euro6d": 112.5
+      },
+      "grande": {
+        "euro4": 162.5,
+        "euro5": 123.4,
+        "euro6": 129.6,
+        "euro6d_temp": 112.5,
+        "euro6d": 112.5
+      }
+    },
+    "ibrida": {
+      "piccola": {
+        "euro4": 132.9,
+        "euro5": 132.9,
+        "euro6": 132.9,
+        "euro6d_temp": 132.9,
+        "euro6d": 132.9
+      },
+      "media": {
+        "euro4": 137,
+        "euro5": 137,
+        "euro6": 137,
+        "euro6d_temp": 137,
+        "euro6d": 136.9
+      },
+      "grande": {
+        "euro4": 144.4,
+        "euro5": 144.4,
+        "euro6": 144.4,
+        "euro6d_temp": 144.4,
+        "euro6d": 144.4
+      }
+    },
+    "ibrida_plugin": {
+      "piccola": {
+        "euro6": 114.8,
+        "euro6d_temp": 114.8,
+        "euro6d": 114.8
+      },
+      "media": {
+        "euro6": 128.1,
+        "euro6d_temp": 128.1,
+        "euro6d": 128.1
+      },
+      "grande": {
+        "euro6": 153.5,
+        "euro6d_temp": 153.5,
+        "euro6d": 153.5
+      }
+    }
+  }
+}
