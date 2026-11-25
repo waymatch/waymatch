@@ -27,7 +27,7 @@ server. Per qualche migliaio di dipendenti basta ampiamente.
    Se la perdi, il database cifrato è **illeggibile per sempre** e nessuno può recuperarlo,
    nemmeno chi ha scritto il codice. I backup non la contengono.
 4. **Scegli come esporre l'app** (sezione sotto).
-5. **Avvia** e apri il sito: al primo accesso compare il **setup guidato** (nome azienda, primo
+5. **Avvia** e apri il sito: al primo accesso compare la **configurazione iniziale guidata** (nome azienda, primo
    mobility manager, sedi).
 
 ## Come esporre l'app
@@ -129,7 +129,8 @@ Per pianificarlo (cron, `crontab -e`):
 
 - Il backup è un archivio `.tar.gz` con il **database cifrato** (istantanea coerente, anche con
   l'app in funzione) e la cartella dei **file caricati**. La chiave **non** è inclusa.
-- I file caricati (logo, PDF dei documenti, immagini dei voucher) **non sono cifrati**: proteggi
+- I file caricati (logo, PDF dei documenti, immagini dei voucher) **non sono cifrati**, le foto del
+  profilo sì (con la stessa chiave del database): proteggi
   la cartella dei backup e copiala fuori dal server.
 - Ripristino:
 

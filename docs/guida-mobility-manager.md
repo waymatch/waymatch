@@ -4,11 +4,11 @@ Il mobility manager gestisce l'app per l'azienda: utenti, sedi, regole, premi e 
 **supervisor** vede solo i report. Tutte le funzioni di gestione sono nel menu laterale, sotto la
 voce Home, divise per area.
 
-## Primo avvio (setup guidato)
+## Primo avvio (configurazione iniziale guidata)
 
-Al primo accesso al sito compare il setup: nome dell'azienda, i tuoi dati (diventi il primo
+Al primo accesso al sito compare la configurazione iniziale: nome dell'azienda, i tuoi dati (diventi il primo
 mobility manager) e le sedi. Si può sempre completare dopo da **Sedi** e **Impostazioni
-generali**. Il setup è disponibile una volta sola.
+generali**. La configurazione iniziale si fa una volta sola.
 
 L'app impedisce di **lasciare l'azienda senza mobility manager**: l'ultimo non può essere
 disattivato né declassato, e nessuno può disattivare il proprio account. Per sostituirti, prima
@@ -21,6 +21,9 @@ nomina un altro mobility manager.
 **Utenti** → crei un account (nome, cognome, email, **password provvisoria**, ruolo, sede) o
 modifichi, disattivi e riattivi quelli esistenti. Chi ha una password provvisoria deve cambiarla al
 primo accesso: finché non lo fa, l'app non gli permette di fare altro.
+
+Se la **foto del profilo** di qualcuno non è appropriata, la rimuovi dall'icona accanto alle azioni
+dell'utente: l'operazione resta nel log attività e l'utente può caricarne un'altra.
 
 **Import da CSV** per molti utenti insieme. Intestazione e separatore virgola:
 

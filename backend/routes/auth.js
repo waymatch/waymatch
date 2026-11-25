@@ -25,8 +25,10 @@ const loginLimiter = rateLimit({
 });
 
 function sanitizeUser(u) {
-  const { password_hash, ...rest } = u;
-  return rest;
+  // foto_path è un percorso interno: fuori resta solo foto_versione, e solo se la foto c'è
+  // (il contatore resta anche dopo una rimozione).
+  const { password_hash, foto_path, ...rest } = u;
+  return { ...rest, foto_versione: foto_path ? rest.foto_versione : null };
 }
 
 const MAX_TENTATIVI = 5;

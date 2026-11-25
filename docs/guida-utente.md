@@ -92,7 +92,10 @@ viene rifiutato i punti ti tornano (non se nel frattempo i punteggi sono stati a
 ![Preferenze notifiche](img/profilo-notifiche.png)
 
 Il Profilo ha sei schede:
-- **Info**: i tuoi dati, la sede e l'indirizzo di casa.
+- **Info**: i tuoi dati, la sede, l'indirizzo di casa e, se vuoi, una **foto del profilo**. La
+  vedono i colleghi accanto al tuo nome (per esempio quando offri o chiedi un passaggio) e aiuta a
+  riconoscersi al punto di ritrovo. È facoltativa: viene ridotta, ripulita dai dati dello scatto
+  (come la posizione) e conservata cifrata; puoi cambiarla o rimuoverla quando vuoi.
 - **La tua auto**: marca, modello, anno, cilindrata, alimentazione. Serve a stimare CO2 e costi
   risparmiati e a farti riconoscere dai passeggeri.
 - **Notifiche**: per ogni tipo di avviso scegli dove riceverlo: **App** (la campanella dentro

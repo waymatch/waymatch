@@ -74,7 +74,7 @@ export default function Reports() {
     <div className="space-y-6">
       <div className="flex items-start justify-between flex-wrap gap-3">
         <div>
-          <h1 className="font-display font-bold text-2xl">Report impatto carpooling</h1>
+          <h1 className="font-display font-bold text-2xl">Impatto del carpooling</h1>
           <p className="text-muted text-sm mt-0.5">CO2, chilometri e costi risparmiati grazie ai viaggi condivisi.</p>
         </div>
         <div className="flex gap-2">

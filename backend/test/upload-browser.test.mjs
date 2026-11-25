@@ -325,7 +325,7 @@ async function main() {
     {
       await vai('/informazioni');
       await cdp.send('Page.bringToFront', {}, s); // le immagini "lazy" non partono se la scheda è in secondo piano
-      check('la pagina Informazioni si apre', await valuta(`document.body.innerText.includes('Guida, novità e dettagli')`) === true);
+      check('la pagina Informazioni si apre', await valuta(`document.body.innerText.includes('Guida, novità e informazioni su WayMatch')`) === true);
       check('mostra la versione dell\'app', await valuta(`/Versione \\d+\\.\\d+\\.\\d+/.test(document.body.innerText)`) === true);
       check('la guida per l\'utente ha il suo contenuto', await valuta(`document.body.innerText.includes('Primo accesso')`) === true);
       check('l\'utente semplice NON vede la guida del mobility manager né il Sistema', await valuta(`![...document.querySelectorAll('nav[aria-label="Sezioni"] button')].some((b) => /mobility manager|Sistema/.test(b.textContent))`) === true);
@@ -413,6 +413,28 @@ async function main() {
     check('template con il nome vecchio servito dall\'API come image/jpeg', rv.status === 200 && rv.tipo === 'image/jpeg', `${rv.status} ${rv.tipo}`);
     check('template con il nome vecchio non pubblico', (await raw('GET', '/uploads/voucher-templates/template-1789719388835.jpg')).status === 404);
     check('/uploads/<nome del template> non pubblico', (await raw('GET', '/uploads/template-1789719388835.jpg')).status === 404);
+
+    console.log('\n[Foto del profilo: ritaglio nel browser]');
+    {
+      await entraCome(ugo.token);
+      await vai('/profilo');
+      const fileFoto = path.join(DIR, 'foto-larga.png');
+      fs.writeFileSync(fileFoto, await png(0xcc3366ff, 900, 400));
+      const { root } = await cdp.send('DOM.getDocument', {}, s);
+      const { nodeId } = await cdp.send('DOM.querySelector', { nodeId: root.nodeId, selector: '#foto-profilo-file' }, s);
+      await cdp.send('DOM.setFileInputFiles', { nodeId, files: [fileFoto] }, s);
+      await attendi(800);
+      check('scelta una foto, si apre la finestra per ritagliarla', await valuta(`!!document.querySelector('[role=dialog] [aria-label^="Anteprima della foto"] img')`) === true);
+      await valuta(`(() => { const r = document.querySelector('[role=dialog] input[type=range]'); Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(r,'2'); r.dispatchEvent(new Event('input',{bubbles:true})); r.dispatchEvent(new Event('change',{bubbles:true})); })()`);
+      await attendi(200);
+      check('l\'ingrandimento allarga la foto nell\'anteprima', await valuta(`parseFloat(document.querySelector('[role=dialog] [aria-label^="Anteprima"] img').style.width) > 1000`) === true);
+      check('«Usa questa foto» carica il ritaglio', await clicca('Usa questa foto'));
+      await attendi(1500);
+      const me = await api('GET', '/auth/me', { token: ugo.token });
+      check('la foto risulta caricata', me.user.foto_versione === 1, JSON.stringify(me.user.foto_versione));
+      check('e compare nel menu', await immagineCaricata('aside img[src^="blob:"]') === true);
+      check('senza violazioni della CSP', (await csp()).length === 0, JSON.stringify(await csp()));
+    }
 
     sock.close();
   } finally {

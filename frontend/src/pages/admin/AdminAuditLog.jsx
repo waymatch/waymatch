@@ -20,6 +20,9 @@ const ETICHETTE = {
   gamification_attivata: 'Gamification attivata',
   gamification_disattivata: 'Gamification spenta',
   punteggi_azzerati: 'Punteggi azzerati',
+  foto_profilo_caricata: 'Foto del profilo caricata',
+  foto_profilo_rimossa: 'Foto del profilo rimossa',
+  foto_profilo_rimossa_mm: 'Foto del profilo rimossa (MM)',
   riscatti_esportati: 'Riscatti esportati',
   premio_creato: 'Premio creato',
   premio_modificato: 'Premio modificato',
@@ -65,7 +68,7 @@ const ETICHETTE = {
   documento_disattivato: 'Documento disattivato',
   documento_accettato: 'Documento accettato',
   cluster_costo_co2_modificato: 'Cluster costo/CO2 modificato',
-  cluster_costo_co2_ripristinato: 'Cluster costo/CO2 ripristinato al default',
+  cluster_costo_co2_ripristinato: 'Costi e CO2 riportati ai valori predefiniti',
 };
 
 const FILTRI_CATEGORIA = [

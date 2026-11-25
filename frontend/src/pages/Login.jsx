@@ -91,7 +91,7 @@ export default function Login() {
               </button>
             </form>
             <p className="text-center text-xs text-muted mt-4">
-              Non hai un account? Contatta l'amministratore della piattaforma.
+              Non hai un account? Contatta il Mobility Manager della tua azienda.
             </p>
             <details className="mt-4 text-sm text-muted max-w-sm mx-auto">
               <summary className="cursor-pointer text-center hover:text-ink">Serve aiuto?</summary>

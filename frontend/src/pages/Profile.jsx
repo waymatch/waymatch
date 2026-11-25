@@ -10,6 +10,8 @@ import ErrorBanner from '../components/ErrorBanner.jsx';
 import Schede from '../components/Schede.jsx';
 import { useBranding } from '../context/BrandingContext.jsx';
 import PdfDocumento from '../components/PdfDocumento.jsx';
+import Avatar, { dimenticaFoto } from '../components/Avatar.jsx';
+import RitaglioFoto from '../components/RitaglioFoto.jsx';
 
 const ALIMENTAZIONI = [
   { value: 'benzina', label: 'Benzina' },
@@ -52,9 +54,9 @@ export default function Profile() {
   }, []);
   useEffect(() => { caricaSedi(); }, [caricaSedi]);
 
-  useEffect(() => {
-    if (user) {
-      setForm({
+  // Il modulo si riallinea solo quando cambiano i dati salvati che contiene: un'operazione sulla foto
+  // (che rilegge l'utente) non deve cancellare le modifiche non ancora salvate.
+  const salvati = user ? JSON.stringify({
         sede_id: user.sede_id || '',
         telefono: user.telefono || '',
         indirizzo_casa: user.indirizzo_casa || '',
@@ -69,9 +71,10 @@ export default function Profile() {
         auto_alimentazione: user.auto_alimentazione || '',
         auto_posti: user.auto_posti || 3,
         auto_targa: user.auto_targa || '',
-      });
-    }
-  }, [user]);
+  }) : null;
+  useEffect(() => {
+    if (salvati) setForm(JSON.parse(salvati));
+  }, [salvati]);
 
   if (!form) return <div className="card animate-pulse h-40" />;
 
@@ -112,6 +115,8 @@ export default function Profile() {
             )}
             <span className="badge-accent capitalize">{user.ruolo.replace('_', ' ')}</span>
           </div>
+
+          <FotoProfilo user={user} onCambiata={refresh} />
 
           <form onSubmit={save} className="space-y-5">
             <div className="card space-y-4">
@@ -706,6 +711,76 @@ function SessioniCard() {
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+// Foto del profilo: facoltativa, la vedono i colleghi accanto al nome; si salva cifrata.
+function FotoProfilo({ user, onCambiata }) {
+  const [inCorso, setInCorso] = useState(false);
+  const [msg, setMsg] = useState('');
+  const [daRitagliare, setDaRitagliare] = useState(null); // file scelto, prima del ritaglio
+  const idInput = 'foto-profilo-file';
+
+  const scegli = (e) => {
+    const file = e.target.files[0];
+    e.target.value = ''; // così si può riprovare con lo stesso file
+    if (file) { setMsg(''); setDaRitagliare(file); }
+  };
+  const carica = async (blob) => {
+    setDaRitagliare(null);
+    setInCorso(true); setMsg('');
+    try {
+      const form = new FormData();
+      form.append('foto', blob, 'foto.jpg');
+      await api.put('/foto', form);
+      dimenticaFoto(user.id);
+      await onCambiata();
+      setMsg('Foto aggiornata.');
+    } catch (err) {
+      setMsg(err.message);
+    } finally {
+      setInCorso(false);
+    }
+  };
+  const togli = async () => {
+    if (!confirm('Rimuovere la foto del profilo?')) return;
+    setInCorso(true); setMsg('');
+    try {
+      await api.del('/foto');
+      dimenticaFoto(user.id);
+      await onCambiata();
+      setMsg('Foto rimossa.');
+    } catch (err) {
+      setMsg(err.message);
+    } finally {
+      setInCorso(false);
+    }
+  };
+
+  return (
+    <div className="card flex items-start gap-4">
+      <Avatar id={user.id} nome={user.nome} cognome={user.cognome} versione={user.foto_versione} dimensione="lg" />
+      <div className="min-w-0 space-y-2">
+        <h2 className="font-display font-semibold text-sm">Foto del profilo</h2>
+        <p className="text-xs text-muted">
+          Facoltativa. La vedono i colleghi accanto al tuo nome, per esempio quando offri o chiedi un passaggio:
+          aiuta a riconoscersi al punto di ritrovo. Viene ridotta, ripulita dai dati dello scatto (come la posizione)
+          e conservata cifrata. Puoi rimuoverla quando vuoi. JPEG o PNG, al massimo 5 MB: dopo averla scelta
+          decidi quale parte mostrare.
+        </p>
+        <div className="flex flex-wrap gap-2">
+          <label htmlFor={idInput} className={`btn-outline !py-1.5 !text-sm cursor-pointer ${inCorso ? 'opacity-60 pointer-events-none' : ''}`}>
+            {user.foto_versione ? 'Cambia foto' : 'Carica una foto'}
+          </label>
+          <input id={idInput} type="file" accept="image/jpeg,image/png" className="sr-only" onChange={scegli} disabled={inCorso} />
+          {!!user.foto_versione && (
+            <button type="button" className="btn-outline !py-1.5 !text-sm" onClick={togli} disabled={inCorso}>Rimuovi la foto</button>
+          )}
+        </div>
+        {msg && <p className="text-sm text-muted" role="status">{msg}</p>}
+      </div>
+      {daRitagliare && <RitaglioFoto file={daRitagliare} onAnnulla={() => setDaRitagliare(null)} onConferma={carica} />}
     </div>
   );
 }
