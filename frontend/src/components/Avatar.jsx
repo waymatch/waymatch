@@ -57,7 +57,8 @@ export default function Avatar({ id, nome, cognome, versione, dimensione = 'sm',
     let attivo = true;
     let mostrato = null; // l'object URL che questo avatar sta usando
     const aggiorna = () => urlFoto(id, versione).then((u) => {
-      if (!attivo || u === mostrato) return;
+      if (!attivo) { forseRevoca(u); return; } // arrivata dopo lo smontaggio: si libera se non serve ad altri
+      if (u === mostrato) return;
       usa(u);
       rilascia(mostrato);
       mostrato = u;
@@ -84,7 +85,8 @@ export default function Avatar({ id, nome, cognome, versione, dimensione = 'sm',
 const EVENTO = 'waymatch:foto-cambiata';
 export function dimenticaFoto(id) {
   for (const [k, v] of [...cache.entries()]) {
-    if (k.startsWith(`${id}:`)) { cache.delete(k); forseRevoca(v.url); }
+    // Anche un download ancora in corso: l'immagine si libera quando arriva, se nessuno la usa.
+    if (k.startsWith(`${id}:`)) { cache.delete(k); v.promessa.then(forseRevoca); }
   }
   window.dispatchEvent(new CustomEvent(EVENTO, { detail: id }));
 }
