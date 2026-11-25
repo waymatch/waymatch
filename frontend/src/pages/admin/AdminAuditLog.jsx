@@ -133,8 +133,9 @@ export default function AdminAuditLog() {
     if (userId) params.set('user_id', userId);
     if (sedeId) params.set('sede_id', sedeId);
     if (area) params.set('area', area);
-    if (dal) params.set('dal', dal);
-    if (al) params.set('al', al);
+    // Inizio e fine del giorno nel fuso di chi consulta, come istanti: il server confronta in UTC.
+    if (dal) params.set('dal', new Date(`${dal}T00:00:00`).toISOString());
+    if (al) params.set('al', new Date(`${al}T23:59:59.999`).toISOString());
     if (cerca) params.set('q', cerca);
     return params;
   }, [categoria, azione, userId, sedeId, area, dal, al, cerca]);

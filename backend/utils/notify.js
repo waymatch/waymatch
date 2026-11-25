@@ -183,7 +183,7 @@ async function consegnaEsterna(userId, tipo, messaggio, inApp) {
           if (e.statusCode === 404 || e.statusCode === 410) {
             db.prepare('DELETE FROM push_subscriptions WHERE id = ?').run(sub.id);
           } else {
-            log.warn('push_non_inviata', { errore: e, user_id: userId, tipo });
+            log.warn('push_non_inviata', { errore: e, stato_http: e.statusCode, user_id: userId, tipo });
           }
         }
       }

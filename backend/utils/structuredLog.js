@@ -4,7 +4,8 @@
 // flusso (vedi docs/installazione.md, "Log").
 //
 // Livelli: error, warn, info, debug. LOG_LEVEL (predefinito info) decide da quale livello in su si
-// scrive. error e warn vanno su stderr, gli altri su stdout.
+// scrive (tranne gli eventi applicativi di logEvent, sempre scritti). error e warn vanno su stderr,
+// gli altri su stdout.
 //
 // È il log per l'IT. Gli eventi di sicurezza (accessi riusciti e falliti, uscite, sessioni) stanno
 // solo qui, con area "sicurezza": il Mobility Manager vede il log attività dell'app, non gli orari
@@ -19,15 +20,17 @@ function pulisci(valore, profondita = 0) {
   if (valore instanceof Error) {
     return { messaggio: valore.message, ...(valore.code ? { codice: valore.code } : {}), stack: valore.stack?.split('\n').slice(0, 6).join('\n') };
   }
-  if (!valore || typeof valore !== 'object' || profondita > 3) return valore;
+  if (!valore || typeof valore !== 'object') return valore;
+  // Oltre una certa profondità non si scende: si scrive un segnaposto, mai l'oggetto non controllato.
+  if (profondita > 3) return '[troncato]';
   if (Array.isArray(valore)) return valore.slice(0, 50).map((v) => pulisci(v, profondita + 1));
   const out = {};
   for (const [k, v] of Object.entries(valore)) out[k] = RISERVATI.test(k) ? '[oscurato]' : pulisci(v, profondita + 1);
   return out;
 }
 
-function scrivi(livello, evento, dati = {}) {
-  if (LIVELLI[livello] > soglia()) return;
+function scrivi(livello, evento, dati = {}, { sempre = false } = {}) {
+  if (!sempre && LIVELLI[livello] > soglia()) return;
   const riga = JSON.stringify({ '@timestamp': new Date().toISOString(), livello, evento, ...pulisci(dati) });
   if (LIVELLI[livello] <= LIVELLI.warn) process.stderr.write(`${riga}\n`);
   else process.stdout.write(`${riga}\n`);
@@ -46,9 +49,11 @@ function sicurezza(livello, evento, req, dati = {}) {
   scrivi(livello, evento, { area: 'sicurezza', ip: req?.ip, ...dati });
 }
 
-// Compatibilità: gli eventi applicativi (log attività, archiviazioni) sono di livello info.
+// Eventi applicativi (voci del log attività, righe archiviate dal database): livello info, ma
+// scritti SEMPRE, qualunque sia LOG_LEVEL. L'archiviazione cancella le righe dal database dopo
+// averle scritte qui: con un livello più alto andrebbero perse.
 function logEvent(tipo, dati = {}) {
-  scrivi('info', tipo, dati);
+  scrivi('info', tipo, dati, { sempre: true });
 }
 
 module.exports = { log, logEvent, sicurezza, pulisci, LIVELLI };

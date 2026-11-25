@@ -20,6 +20,14 @@ const AREE = {
   privacy: ['richiesta\\_cancellazione\\_%', 'dati\\_personali\\_%'],
 };
 const DATA = /^\d{4}-\d{2}-\d{2}$/;
+const ISTANTE = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?Z$/;
+// "2026-11-25T23:00:00.000Z" -> "2026-11-25 23:00:00" (il formato di created_at); null se non valido.
+function istante(v, oraSeSoloData) {
+  if (typeof v !== 'string') return null;
+  if (DATA.test(v)) return `${v} ${oraSeSoloData}`;
+  if (ISTANTE.test(v) && !Number.isNaN(Date.parse(v))) return v.replace('T', ' ').slice(0, 19);
+  return null;
+}
 
 // Filtri comuni alla consultazione e all'export. Ogni filtro è facoltativo; i valori non validi si
 // ignorano (non restringono la ricerca a sorpresa).
@@ -30,13 +38,16 @@ function filtri(q) {
   if (q.azione) { where += ' AND a.azione = ?'; params.push(String(q.azione)); }
   if (q.user_id) { where += ' AND a.user_id = ?'; params.push(Number(q.user_id)); }
   if (q.sede_id) { where += ' AND u.sede_id = ?'; params.push(Number(q.sede_id)); }
-  if (AREE[q.area]) {
+  if (typeof q.area === 'string' && Object.hasOwn(AREE, q.area)) {
     where += ` AND (${AREE[q.area].map(() => "a.azione LIKE ? ESCAPE '\\'").join(' OR ')})`;
     params.push(...AREE[q.area]);
   }
-  // Date locali (come le vede chi consulta); created_at è in UTC.
-  if (DATA.test(q.dal || '')) { where += " AND datetime(a.created_at, 'localtime') >= ?"; params.push(`${q.dal} 00:00:00`); }
-  if (DATA.test(q.al || '')) { where += " AND datetime(a.created_at, 'localtime') <= ?"; params.push(`${q.al} 23:59:59`); }
+  // Periodo: il browser manda l'inizio e la fine del giorno scelto nel SUO fuso, come istanti ISO
+  // (UTC); created_at è in UTC. Una data senza ora vale come giorno UTC.
+  const dal = istante(q.dal, '00:00:00');
+  const al = istante(q.al, '23:59:59');
+  if (dal) { where += ' AND a.created_at >= ?'; params.push(dal); }
+  if (al) { where += ' AND a.created_at <= ?'; params.push(al); }
   const testo = String(q.q || '').trim().slice(0, 100);
   if (testo) {
     // Ricerca libera su dettagli, azione e nome di chi ha agito; % e _ cercati come caratteri.

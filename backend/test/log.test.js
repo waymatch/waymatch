@@ -36,7 +36,7 @@ function provaInProcesso() {
   const err = process.stderr.write.bind(process.stderr);
   const cattura = (s) => { scritte.push(String(s)); return true; };
   delete require.cache[require.resolve(path.join(BACKEND, 'utils/structuredLog'))];
-  const { log } = require(path.join(BACKEND, 'utils/structuredLog'));
+  const { log, logEvent } = require(path.join(BACKEND, 'utils/structuredLog'));
   const prova = (livelloEnv, fn) => {
     scritte.length = 0;
     process.env.LOG_LEVEL = livelloEnv;
@@ -53,6 +53,10 @@ function provaInProcesso() {
   righe = prova('debug', () => { log.debug('d', { password: 'x', dati: { token: 'y', authorization: 'z', nome: 'ok' } }); });
   check('LOG_LEVEL=debug scrive anche il debug, con i segreti oscurati', righe.length === 1 && righe[0].password === '[oscurato]'
     && righe[0].dati.token === '[oscurato]' && righe[0].dati.authorization === '[oscurato]' && righe[0].dati.nome === 'ok', JSON.stringify(righe[0]));
+  righe = prova('', () => { log.info('profondo', { a: { b: { c: { d: { password: 'segretissima' } } } } }); });
+  check('un campo riservato annidato in profondità non arriva mai in chiaro', !JSON.stringify(righe).includes('segretissima'), JSON.stringify(righe[0]));
+  righe = prova('error', () => { logEvent('audit_log_archiviato', { id: 1 }); log.info('altro'); });
+  check('gli eventi applicativi (archiviazioni) si scrivono anche con LOG_LEVEL=error', righe.map((r) => r.evento).join() === 'audit_log_archiviato');
 }
 
 async function main() {
@@ -116,11 +120,17 @@ async function main() {
     check('% e _ si cercano come caratteri, non come jolly', r.length === 1 && r[0].azione === 'branding_modificato', r.map((l) => l.azione).join());
     r = await filtra('q=Rossi');
     check('ricerca per nome di chi ha agito (o nei dettagli)', r.some((l) => l.cognome === 'Rossi') && r.every((l) => l.cognome === 'Rossi' || /Rossi/.test(l.dettagli || '')));
-    const oggi = new Date(); const g = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    // Come fa il browser: inizio e fine del giorno nel fuso di chi consulta, inviati come istanti UTC.
+    const inizio = (d) => { const x = new Date(d); x.setHours(0, 0, 0, 0); return x.toISOString(); };
+    const fine = (d) => { const x = new Date(d); x.setHours(23, 59, 59, 999); return x.toISOString(); };
+    const oggi = new Date();
     const domani = new Date(oggi); domani.setDate(domani.getDate() + 1);
-    check('periodo che comprende oggi: tutto', (await filtra(`dal=${g(oggi)}&al=${g(oggi)}`)).length === (await filtra('')).length);
-    check('periodo da domani: niente', (await filtra(`dal=${g(domani)}`)).length === 0);
-    check('una data non valida si ignora', (await filtra('dal=ieri')).length === (await filtra('')).length);
+    const tutti = (await filtra('')).length;
+    check('periodo che comprende oggi: tutto', (await filtra(`dal=${encodeURIComponent(inizio(oggi))}&al=${encodeURIComponent(fine(oggi))}`)).length === tutti);
+    check('periodo da domani: niente', (await filtra(`dal=${encodeURIComponent(inizio(domani))}`)).length === 0);
+    check('una data non valida si ignora', (await filtra('dal=ieri')).length === tutti);
+    r = await call('GET', '/audit-log?area=toString', { token: mm });
+    check('un\'area inesistente (anche un nome come toString) si ignora', r.status === 200 && r.data.log.length === tutti, String(r.status));
     const xlsx = await fetch(`${API}/audit-log/export/xlsx?area=privacy`, { headers: { Authorization: `Bearer ${mm}`, 'X-Forwarded-For': '10.33.1.1' } });
     const ExcelJS = require(path.join(BACKEND, 'node_modules/exceljs'));
     const wb = new ExcelJS.Workbook(); await wb.xlsx.load(Buffer.from(await xlsx.arrayBuffer()));
