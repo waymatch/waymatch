@@ -1,4 +1,4 @@
-// Giorni lavorativi dell'azienda (1 = lunedì ... 7 = domenica), scelti dal mobility manager in
+// Giorni lavorativi dell'azienda (1 = lunedì ... 7 = domenica), scelti dal Mobility Manager in
 // Impostazioni → Calendario. Valore predefinito: lunedì-sabato.
 const db = require('../db');
 

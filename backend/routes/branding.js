@@ -94,10 +94,36 @@ router.post('/logo', requireAuth, requireRole('mobility_manager'), upload.single
   }
   if (precedente && precedente !== relPath && precedente.startsWith('/uploads/')) {
     const vecchio = path.normalize(percorsoSicuro(UPLOAD_DIR, precedente.replace('/uploads/', '')));
-    if (vecchio.startsWith(path.normalize(UPLOAD_DIR) + path.sep)) fs.unlink(vecchio, () => {});
+    if (vecchio.startsWith(path.resolve(UPLOAD_DIR) + path.sep)) fs.unlink(vecchio, () => {});
   }
   res.json({ logo_path: relPath });
 }));
+
+// Rimozione del logo: al suo posto torna il simbolo di WayMatch (e, se non c'è un'icona caricata,
+// anche l'icona dell'app torna quella di WayMatch).
+router.delete('/logo', requireAuth, requireRole('mobility_manager'), (req, res) => {
+  const precedente = db.prepare('SELECT logo_path FROM system_settings WHERE id = 1').get().logo_path;
+  // Prima il file, poi il riferimento: se la cancellazione non riesce il logo resta com'era e si
+  // può riprovare (un file già assente va bene).
+  if (precedente && precedente.startsWith('/uploads/')) {
+    const vecchio = path.normalize(percorsoSicuro(UPLOAD_DIR, precedente.replace('/uploads/', '')));
+    if (vecchio.startsWith(path.resolve(UPLOAD_DIR) + path.sep)) {
+      try {
+        fs.unlinkSync(vecchio);
+      } catch (e) {
+        if (e.code !== 'ENOENT') {
+          console.error('[logo] file non cancellato:', e.message);
+          return res.status(500).json({ error: 'Non riesco a cancellare il file del logo: riprova o avvisa l\'IT.' });
+        }
+      }
+    }
+  }
+  db.transaction(() => {
+    db.prepare('UPDATE system_settings SET logo_path = NULL WHERE id = 1').run();
+    registraAzione(req.user.id, 'logo_rimosso', null);
+  })();
+  res.json({ ok: true });
+});
 
 // Icona dell'app: pubblica (la scarica il telefono per installare l'app, senza accesso).
 router.get('/icona/:dim', asyncHandler(async (req, res) => {

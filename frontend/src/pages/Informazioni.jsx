@@ -22,7 +22,7 @@ export default function Informazioni() {
   const èMm = user?.ruolo === 'mobility_manager';
   const sezioni = [
     { id: 'utente', nome: 'Guida utenti', testo: guidaUtente, icona: BookOpen },
-    ...(èMm ? [{ id: 'mobility-manager', nome: 'Guida mobility manager', testo: guidaMm, icona: BookOpen }] : []),
+    ...(èMm ? [{ id: 'mobility-manager', nome: 'Guida Mobility Manager', testo: guidaMm, icona: BookOpen }] : []),
     { id: 'novita', nome: 'Novità e storia', testo: novita, icona: Sparkles },
     ...(èMm ? [{ id: 'sistema', nome: 'Sistema', icona: Activity }] : []),
     { id: 'progetto', nome: 'Il progetto', icona: Info },
@@ -131,7 +131,7 @@ function Stato({ attivo, si = 'attivo', no = 'non attivo' }) {
   return <span className={`badge ${attivo ? 'bg-primary-light text-primary-dark' : 'bg-bg text-muted border border-border'}`}>{attivo ? si : no}</span>;
 }
 
-// Stato dell'installazione: solo per il mobility manager, nessun segreto.
+// Stato dell'installazione: solo per il Mobility Manager, nessun segreto.
 function Sistema() {
   const [d, setD] = useState(null);
   const [errore, setErrore] = useState('');
@@ -161,7 +161,7 @@ function Sistema() {
       <div className="card lg:col-span-2">
         <h2 className="font-display font-semibold text-base mb-1">Numeri</h2>
         <Riga nome="Utenti attivi" valore={d.numeri.utenti_attivi} />
-        <Riga nome="Mobility manager attivi" valore={d.numeri.mobility_manager_attivi} />
+        <Riga nome="Mobility Manager attivi" valore={d.numeri.mobility_manager_attivi} />
         <Riga nome="Sedi" valore={d.numeri.sedi} />
       </div>
     </div>

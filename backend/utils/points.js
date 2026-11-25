@@ -72,7 +72,7 @@ function totalePunti(userId) {
 // Punti guadagnati (usati per classifica/contest): non scendono mai quando si riscatta
 // un premio. Esclude le voci legate a un riscatto (sia la decurtazione che l'eventuale
 // rimborso, che si annullano a vicenda), conta solo i punti realmente maturati con
-// viaggi e bonus manuali del mobility manager.
+// viaggi e bonus manuali del Mobility Manager.
 function totaleGuadagnato(userId, periodoGiorni = null) {
   const filtroData = periodoGiorni ? `AND created_at >= datetime('now', '-${Number(periodoGiorni)} days')` : '';
   const gen = generazionePunti();

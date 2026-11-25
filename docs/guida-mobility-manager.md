@@ -1,18 +1,18 @@
-# Guida per il mobility manager
+# Guida per il Mobility Manager
 
-Il mobility manager gestisce l'app per l'azienda: utenti, sedi, regole, premi e documenti. Il
+Il Mobility Manager gestisce l'app per l'azienda: utenti, sedi, regole, premi e documenti. Il
 **supervisor** vede solo i report. Tutte le funzioni di gestione sono nel menu laterale, sotto la
 voce Home, divise per area.
 
 ## Primo avvio (configurazione iniziale guidata)
 
 Al primo accesso al sito compare la configurazione iniziale: nome dell'azienda, i tuoi dati (diventi il primo
-mobility manager) e le sedi. Si può sempre completare dopo da **Sedi** e **Impostazioni
+Mobility Manager) e le sedi. Si può sempre completare dopo da **Sedi** e **Impostazioni
 generali**. La configurazione iniziale si fa una volta sola.
 
-L'app impedisce di **lasciare l'azienda senza mobility manager**: l'ultimo non può essere
+L'app impedisce di **lasciare l'azienda senza Mobility Manager**: l'ultimo non può essere
 disattivato né declassato, e nessuno può disattivare il proprio account. Per sostituirti, prima
-nomina un altro mobility manager.
+nomina un altro Mobility Manager.
 
 ## Utenti
 
@@ -40,7 +40,7 @@ Mario,Rossi,mario.rossi@azienda.it,Provv-Password-123!,utente,Milano - Sede cent
   email. Attenzione: la sequenza vale anche dentro altre parole (`elenco_processato.csv` contiene
   «cessat»): dai ai file normali un nome che non la contenga. Non c'è nessuna disattivazione
   automatica fuori da questa modalità.
-- Se un file toglierebbe l'ultimo mobility manager, viene rifiutato per intero.
+- Se un file toglierebbe l'ultimo Mobility Manager, viene rifiutato per intero.
 
 ## Reset password
 
@@ -64,7 +64,8 @@ completamento automatico: l'app ne ricava le coordinate.
 
 Cinque schede:
 - **Branding**: logo, nome dell'azienda e colori. Quello che carichi qui è **l'identità della tua
-  azienda**: compare nell'intestazione e nella pagina di accesso. Il marchio di WayMatch, la
+  azienda**: compare nell'intestazione e nella pagina di accesso. Il logo si può cambiare o rimuovere
+  (al suo posto torna il simbolo di WayMatch). Il marchio di WayMatch, la
   piattaforma, resta discreto ("Powered by" in fondo al menu) e nella pagina Informazioni. Lo sfondo
   e i testi non si personalizzano, così la lettura è sempre confortevole. Se scegli un colore primario con
   poco contrasto (sotto 4,5:1) compare un avviso con la variante più scura più vicina, da applicare con un tocco;
@@ -138,7 +139,7 @@ colleghi prima: l'app non manda un messaggio a tutti.
 In **Informazioni** trovi anche la scheda **Sistema**, visibile solo a te: la versione dell'app, da
 quanto è attiva, se il database è cifrato, quali servizi sono attivi (email, notifiche push), il
 fornitore delle mappe, i giorni lavorativi, la conservazione dello storico e qualche numero
-(utenti, mobility manager, sedi). Non mostra chiavi né dati riservati: serve a capire in un colpo
+(utenti, Mobility Manager, sedi). Non mostra chiavi né dati riservati: serve a capire in un colpo
 d'occhio come è configurata l'installazione, per esempio quando devi chiedere aiuto all'IT.
 
 Alla voce **Aggiornamenti** vedi se è uscita una nuova versione di WayMatch, con il link alle note
@@ -168,11 +169,11 @@ Da **Cancellazioni** gestisci le richieste degli utenti di cancellare i propri d
 accetti, l'utente viene **anonimizzato**: nome ed email spariscono, l'accesso è disabilitato, i
 passaggi futuri che offriva vengono annullati (i passeggeri avvisati) e le sue prenotazioni
 liberate. Lo storico dei viaggi condivisi resta, senza dati personali. Non si può anonimizzare
-l'ultimo mobility manager.
+l'ultimo Mobility Manager.
 
 ## Buone pratiche
 
-- Cambia la password provvisoria di un nuovo mobility manager subito.
+- Cambia la password provvisoria di un nuovo Mobility Manager subito.
 - Comunica le password temporanee solo a voce o con un canale riservato.
-- Tieni almeno **due** mobility manager attivi.
+- Tieni almeno **due** Mobility Manager attivi.
 - Controlla ogni tanto il log attività.

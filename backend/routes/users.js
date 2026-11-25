@@ -216,7 +216,7 @@ router.post('/import-csv', requireAuth, requireRole('mobility_manager'), uploadC
 
     // Un'unica transazione invece di un commit su disco per riga: con centinaia di
     // dipendenti l'import passa da qualche secondo a pochi millisecondi. Se alla fine non
-    // resta nessun mobility manager attivo, l'intero file viene annullato.
+    // resta nessun Mobility Manager attivo, l'intero file viene annullato.
     try {
     db.transaction(() => {
       for (let i = 0; i < dataRighe.length; i++) {
@@ -270,7 +270,7 @@ router.post('/import-csv', requireAuth, requireRole('mobility_manager'), uploadC
   }
 
   // Transazione unica: un solo commit su disco per l'intero file invece di uno per riga.
-  // Se alla fine non resta nessun mobility manager attivo (ruoli cambiati dal file), si annulla tutto.
+  // Se alla fine non resta nessun Mobility Manager attivo (ruoli cambiati dal file), si annulla tutto.
   try {
   db.transaction(() => {
     for (let i = 0; i < dataRighe.length; i++) {

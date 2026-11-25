@@ -101,7 +101,7 @@ router.get('/cancellazione/mia', requireAuth, (req, res) => {
 });
 
 // L'utente chiede la cancellazione dei propri dati. Non cancella nulla subito: la
-// richiesta va approvata da un mobility manager (vedi sotto), perché l'anonimizzazione
+// richiesta va approvata da un Mobility Manager (vedi sotto), perché l'anonimizzazione
 // tocca anche viaggi/prenotazioni condivisi con altri colleghi.
 router.post('/cancellazione', requireAuth, asyncHandler(async (req, res) => {
   const { motivo } = req.body;
@@ -154,10 +154,10 @@ router.post('/cancellazioni/:id/completa', requireAuth, requireRole('mobility_ma
     }
     const utente = db.prepare('SELECT * FROM users WHERE id = ?').get(richiesta.user_id);
     if (!utente) return { codice: 404, error: 'Utente non trovato' };
-    // L'anonimizzazione disattiva l'account: non può togliere l'ultimo mobility manager.
+    // L'anonimizzazione disattiva l'account: non può togliere l'ultimo Mobility Manager.
     if (utente.ruolo === 'mobility_manager' && utente.attivo) {
       const altri = db.prepare(`SELECT COUNT(*) AS n FROM users WHERE ruolo = 'mobility_manager' AND attivo = 1 AND id != ?`).get(utente.id).n;
-      if (altri < 1) return { codice: 400, error: `${MESSAGGIO_ULTIMO_ADMIN} Nomina prima un altro mobility manager.` };
+      if (altri < 1) return { codice: 400, error: `${MESSAGGIO_ULTIMO_ADMIN} Nomina prima un altro Mobility Manager.` };
     }
 
     const upcoming = `(data > date('now','localtime') OR (data = date('now','localtime') AND ora >= strftime('%H:%M','now','localtime')))`;

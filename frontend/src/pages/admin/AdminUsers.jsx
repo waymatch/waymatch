@@ -2,7 +2,7 @@ import React, { useEffect, useState, useCallback, useRef, useId } from 'react';
 import ErrorBanner from '../../components/ErrorBanner.jsx';
 import ErroreConRiprova from '../../components/ErroreConRiprova.jsx';
 import { Plus, Key, Ban, CheckCircle2, Upload, FileText, ArrowUp, ArrowDown, ArrowUpDown, ImageOff } from 'lucide-react';
-import { dimenticaFoto } from '../../components/Avatar.jsx';
+import Avatar, { dimenticaFoto } from '../../components/Avatar.jsx';
 import { api } from '../../api.js';
 import { REQUISITI_PASSWORD } from '../../passwordPolicy.js';
 import { useBranding } from '../../context/BrandingContext.jsx';
@@ -188,7 +188,12 @@ export default function AdminUsers() {
             <tbody>
               {usersOrdinati.map((u) => (
                 <tr key={u.id} className="border-b border-border last:border-0">
-                  <td className="px-4 py-3 font-medium">{u.nome}</td>
+                  <td className="px-4 py-3 font-medium">
+                    <span className="flex items-center gap-2">
+                      <Avatar id={u.id} nome={u.nome} cognome={u.cognome} versione={u.foto_versione} dimensione="xs" />
+                      {u.nome}
+                    </span>
+                  </td>
                   <td className="px-4 py-3 font-medium">{u.cognome}</td>
                   <td className="px-4 py-3 text-xs text-muted">{u.email}</td>
                   <td className="px-4 py-3">

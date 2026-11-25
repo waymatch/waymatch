@@ -1,5 +1,5 @@
 // Foto del profilo: la carica e la toglie l'utente; la vedono i colleghi (solo dopo l'accesso)
-// accanto al suo nome. Il mobility manager può toglierne una inappropriata. Il file è cifrato su
+// accanto al suo nome. Il Mobility Manager può toglierne una inappropriata. Il file è cifrato su
 // disco (utils/fotoProfilo.js) e passa in chiaro solo nella risposta autenticata.
 const express = require('express');
 const multer = require('multer');
@@ -59,7 +59,7 @@ router.delete('/', requireAuth, (req, res) => {
   res.json({ ok: true });
 });
 
-// Il mobility manager toglie la foto di un collega (per esempio se non è appropriata).
+// Il Mobility Manager toglie la foto di un collega (per esempio se non è appropriata).
 router.delete('/:userId', requireAuth, requireRole('mobility_manager'), (req, res) => {
   const u = db.prepare('SELECT id, nome, cognome FROM users WHERE id = ?').get(req.params.userId);
   if (!u) return res.status(404).json({ error: 'Utente non trovato' });

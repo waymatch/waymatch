@@ -304,7 +304,7 @@ router.post('/password-dimenticata', passwordDimenticataLimiter, passwordDimenti
     );
   } else {
     // Nessuna email disponibile per contattare l'utente in modo sicuro: la richiesta va
-    // gestita da un mobility manager (vedi le route sotto).
+    // gestita da un Mobility Manager (vedi le route sotto).
     const giaInAttesa = db.prepare(`
       SELECT 1 FROM password_reset_requests WHERE user_id = ? AND stato = 'in_attesa'
     `).get(utente.id);
@@ -353,7 +353,7 @@ router.post('/reimposta-password', reimpostaPasswordLimiter, asyncHandler(async 
   res.json({ ok: true });
 }));
 
-// Lato mobility manager: richieste in attesa quando SMTP non è configurato.
+// Lato Mobility Manager: richieste in attesa quando SMTP non è configurato.
 router.get('/password-reset-richieste', requireAuth, requireRole('mobility_manager'), (req, res) => {
   const richieste = db.prepare(`
     SELECT r.*, u.nome, u.cognome, u.email FROM password_reset_requests r
@@ -387,7 +387,7 @@ router.post('/password-reset-richieste/:id/genera', requireAuth, requireRole('mo
   registraAzione(req.user.id, 'password_reset_generata_mm', `${utente.nome} ${utente.cognome} (${utente.email})`);
   await notifica(
     utente.id, 'password_reset_completata',
-    'Il mobility manager ti ha assegnato una nuova password temporanea: te la comunicherà a parte. Al primo accesso ti verrà chiesto di sceglierne una tua.'
+    'Il Mobility Manager ti ha assegnato una nuova password temporanea: te la comunicherà a parte. Al primo accesso ti verrà chiesto di sceglierne una tua.'
   );
   res.json({ ok: true, password_temporanea: passwordTemp, utente: { nome: utente.nome, cognome: utente.cognome, email: utente.email } });
 }));

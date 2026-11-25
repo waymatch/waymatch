@@ -71,7 +71,7 @@ async function main() {
     for (const [n, e] of [['Anna', 'anna@test.it'], ['Bruno', 'bruno@test.it'], ['Carla', 'carla@test.it']]) {
       await call('POST', '/users', { token: mm, body: { nome: n, cognome: 'Test', email: e, password: PW } });
     }
-    // Utenti creati dal mobility manager: hanno la password provvisoria e le API
+    // Utenti creati dal Mobility Manager: hanno la password provvisoria e le API
     // rispondono solo dopo il cambio. Qui simuliamo che l'abbiano già cambiata.
     { const d = db(); d.prepare('UPDATE users SET password_da_cambiare = 0').run(); d.close(); }
 
@@ -193,7 +193,7 @@ async function main() {
 
       const b = await accedi('bruno@test.it', PW, UA_TEL);
       const idBruno = decodifica(b.token).id;
-      check('reset dal mobility manager', (await call('POST', `/users/${idBruno}/reset-password`, { token: mm, body: { password_nuova: 'Reset-Admin-Pass-1!' } })).status === 200);
+      check('reset dal Mobility Manager', (await call('POST', `/users/${idBruno}/reset-password`, { token: mm, body: { password_nuova: 'Reset-Admin-Pass-1!' } })).status === 200);
       check('reset: tutte le sessioni chiuse', (await call('POST', '/auth/rinnova', { cookie: b.cookie })).status === 401 && (await call('POST', '/auth/rinnova', { cookie: pc.cookie })).status === 401);
 
       const tokenChiaro = crypto.randomBytes(32).toString('hex');

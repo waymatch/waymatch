@@ -229,7 +229,7 @@ router.delete('/:id', requireAuth, requireRole('mobility_manager'), (req, res) =
   res.json({ ok: true });
 });
 
-// Riepilogo accettazioni per documento (mobility manager): chi ha accettato e chi no
+// Riepilogo accettazioni per documento (Mobility Manager): chi ha accettato e chi no
 router.get('/:id/accettazioni', requireAuth, requireRole('mobility_manager'), (req, res) => {
   const doc = db.prepare('SELECT * FROM legal_documents WHERE id = ?').get(req.params.id);
   if (!doc) return res.status(404).json({ error: 'Non trovato' });

@@ -95,7 +95,7 @@ router.get('/summary', requireAuth, requireRole('mobility_manager', 'supervisor'
   // Statistiche aggiuntive: utenti più attivi (punti da eventi + bonus manuali, non solo
   // riscatti, coerente con la classifica di /api/points/classifica e la lista utenti).
   const topUtenti = db.prepare(`
-    SELECT u.id, u.nome, u.cognome, u.sede_id,
+    SELECT u.id, u.nome, u.cognome, CASE WHEN u.foto_path IS NOT NULL THEN u.foto_versione END AS foto_versione, u.sede_id,
       COALESCE((SELECT SUM(p.punti) FROM points_log p WHERE p.user_id = u.id AND p.generazione = @gen), 0)
       + COALESCE((SELECT SUM(m.punti) FROM manual_point_awards m WHERE m.user_id = u.id AND m.redemption_id IS NULL AND m.generazione = @gen), 0)
       as punti,

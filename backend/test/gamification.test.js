@@ -72,18 +72,18 @@ async function main() {
     r = await call('GET', '/contests', { token: ugo });
     check('nessun contest', r.status === 403, String(r.status));
     r = await call('POST', '/point-rules/manual-award', { token: mm, body: { user_id: ugoId, punti: 10, motivo: 'prova' } });
-    check('il mobility manager non assegna punti a mano', r.status === 403, String(r.status));
+    check('il Mobility Manager non assegna punti a mano', r.status === 403, String(r.status));
     r = await call('GET', '/notification-prefs', { token: ugo });
     const categorie = (r.data.categorie || []).map((c) => c.chiave);
     check('tra le notifiche non c\'è la categoria dei premi', categorie.length > 0 && !categorie.includes('premi'), categorie.join(','));
 
     console.log('\n[Interruttore]');
     r = await call('PUT', '/gamification', { token: ugo, body: { attiva: true } });
-    check('solo il mobility manager la cambia', r.status === 403, String(r.status));
+    check('solo il Mobility Manager la cambia', r.status === 403, String(r.status));
     r = await call('PUT', '/gamification', { token: mm, body: { attiva: 'sì' } });
     check('un valore non booleano è rifiutato', r.status === 400, String(r.status));
     r = await call('PUT', '/gamification', { token: mm, body: { attiva: true } });
-    check('il mobility manager la attiva', r.status === 200 && r.data.attiva === true
+    check('il Mobility Manager la attiva', r.status === 200 && r.data.attiva === true
       && (await call('GET', '/branding')).data.branding.gamification === true);
     r = await offri('09:00');
     check('attiva, un passaggio offerto dà i punti della regola', r.status === 200 && punti() === 5, `${r.status}, ${punti()}`);
@@ -106,7 +106,7 @@ async function main() {
     check('prima: una persona con punti e un riscatto in attesa', r.data.utenti_con_punti === 1 && r.data.riscatti_in_attesa === 1 && await saldo() === 4,
       JSON.stringify(r.data));
     r = await call('POST', '/gamification/azzera', { token: ugo, body: { premi: 'tieni', conferma: true } });
-    check('solo il mobility manager azzera', r.status === 403, String(r.status));
+    check('solo il Mobility Manager azzera', r.status === 403, String(r.status));
     r = await call('POST', '/gamification/azzera', { token: mm, body: { premi: 'tieni' } });
     check('senza conferma esplicita non si azzera', r.status === 400 && await saldo() === 4, String(r.status));
     r = await call('POST', '/gamification/azzera', { token: mm, body: { premi: 'boh', conferma: true } });
@@ -146,7 +146,7 @@ async function main() {
     check('l\'elenco dei riscatti si scarica in Excel, con tutti i riscatti e il loro stato', xlsx.status === 200 && righe.length === 4
       && righe.some((x) => x[1] === 'Annullato') && righe.some((x) => x[1] === 'Rifiutato'), `${xlsx.status}, ${righe.length}`);
     r = await fetch(`${API}/gamification/riscatti.xlsx`, { headers: { Authorization: `Bearer ${ugo}`, 'X-Forwarded-For': '10.31.1.2' } });
-    check('l\'elenco è solo per il mobility manager', r.status === 403, String(r.status));
+    check('l\'elenco è solo per il Mobility Manager', r.status === 403, String(r.status));
 
     console.log('\n[Installazioni già in uso prima di questa opzione]');
     await ferma(s);

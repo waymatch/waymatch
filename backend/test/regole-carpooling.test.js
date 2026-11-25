@@ -295,7 +295,7 @@ async function main() {
     check('un turno sospeso non si riattiva senza accettare i documenti', r.status === 403 && r.data.codice === 'DOCUMENTI_DA_ACCETTARE'
       && sql('SELECT attivo FROM recurring_rides WHERE id = ?', turnoD).attivo === 0, String(r.status));
     r = await call('PUT', `/recurring-rides/${turnoD}/attivo`, { token: mm, body: { attivo: true } });
-    check('nemmeno se a riattivarlo è il mobility manager', r.status === 403, String(r.status));
+    check('nemmeno se a riattivarlo è il Mobility Manager', r.status === 403, String(r.status));
     // Un turno attivo in pausa riprende appena il conducente accetta, senza aspettare lo scheduler.
     sql('UPDATE recurring_rides SET attivo = 1 WHERE id = ?', turnoD);
     sql("DELETE FROM rides WHERE recurring_ride_id = ? AND stato = 'annullato'", turnoD);

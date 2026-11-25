@@ -48,7 +48,7 @@ function requireAuth(req, res, next) {
     if ((payload.v || 0) !== (utente.token_version || 0)) {
       return res.status(401).json({ error: 'Sessione non più valida, effettua di nuovo l\'accesso' });
     }
-    // Password provvisoria (scelta da un mobility manager o da un import): finché l'utente
+    // Password provvisoria (scelta da un Mobility Manager o da un import): finché l'utente
     // non ne sceglie una sua, le API rispondono solo al profilo e al cambio password.
     // Logout e rinnovo non passano da qui e restano disponibili.
     if (utente.password_da_cambiare && !CONSENTITE_CON_PASSWORD_PROVVISORIA.has(`${req.method} ${req.baseUrl}${req.path}`)) {

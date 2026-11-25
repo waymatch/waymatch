@@ -4,6 +4,7 @@ import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGri
 import { Leaf, Route, Wallet, Users, FileDown, FileSpreadsheet } from 'lucide-react';
 import { api, scaricaFile } from '../api.js';
 import { useBranding } from '../context/BrandingContext.jsx';
+import Avatar from '../components/Avatar.jsx';
 
 export default function Reports() {
   const { branding: { gamification } } = useBranding();
@@ -74,7 +75,7 @@ export default function Reports() {
     <div className="space-y-6">
       <div className="flex items-start justify-between flex-wrap gap-3">
         <div>
-          <h1 className="font-display font-bold text-2xl">Impatto del carpooling</h1>
+          <h1 className="font-display font-bold text-2xl">Benefici del carpooling</h1>
           <p className="text-muted text-sm mt-0.5">CO2, chilometri e costi risparmiati grazie ai viaggi condivisi.</p>
         </div>
         <div className="flex gap-2">
@@ -172,6 +173,7 @@ export default function Reports() {
               {report.top_utenti.map((u, i) => (
                 <div key={u.id} className="flex items-center gap-3 py-2.5 first:pt-0 last:pb-0">
                   <span className="w-6 text-center text-sm text-muted">{i + 1}</span>
+                  <Avatar id={u.id} nome={u.nome} cognome={u.cognome} versione={u.foto_versione} dimensione="xs" />
                   <span className="flex-1 text-sm truncate">{u.nome} {u.cognome}</span>
                   <span className="text-sm text-primary">{gamification ? `${u.punti} pt` : `${u.viaggi} viaggi`}</span>
                 </div>

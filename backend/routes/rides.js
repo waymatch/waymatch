@@ -299,7 +299,7 @@ router.get('/prossimi-miei', requireAuth, (req, res) => {
   const prenotati = db.prepare(`
     SELECT r.id, r.tipo, r.data, r.ora, r.punto_partenza, r.punto_arrivo, r.stato,
            b.stato as booking_stato, 'passeggero' as ruolo,
-           u.nome as driver_nome, u.cognome as driver_cognome
+           r.driver_id, u.nome as driver_nome, u.cognome as driver_cognome, CASE WHEN u.foto_path IS NOT NULL THEN u.foto_versione END as driver_foto
     FROM bookings b
     JOIN rides r ON r.id = b.ride_id
     JOIN users u ON u.id = r.driver_id
@@ -333,7 +333,7 @@ router.get('/:id', requireAuth, (req, res) => {
   res.json({ ride });
 });
 
-// Modifica di un passaggio esistente (solo l'autista o un mobility manager, e solo se
+// Modifica di un passaggio esistente (solo l'autista o un Mobility Manager, e solo se
 // ancora attivo). Se ci sono richieste/conferme attive, i passeggeri vengono avvisati.
 router.put('/:id', requireAuth, asyncHandler(async (req, res) => {
   const ride = db.prepare('SELECT * FROM rides WHERE id = ?').get(req.params.id);
@@ -520,7 +520,7 @@ router.post('/:id/ritardo', requireAuth, asyncHandler(async (req, res) => {
 
 // Segna un viaggio come completato. Se l'impostazione "richiede approvazione" è attiva,
 // il viaggio passa in stato "in_approvazione" e i punti vengono assegnati solo quando
-// un mobility manager lo approva; altrimenti i punti vengono assegnati subito.
+// un Mobility Manager lo approva; altrimenti i punti vengono assegnati subito.
 router.post('/:id/completa', requireAuth, asyncHandler(async (req, res) => {
   const ride = db.prepare('SELECT * FROM rides WHERE id = ?').get(req.params.id);
   if (!ride) return res.status(404).json({ error: 'Non trovato' });
@@ -553,7 +553,7 @@ router.post('/:id/completa', requireAuth, asyncHandler(async (req, res) => {
   res.json({ ok: true, stato: 'completato', ...risultato });
 }));
 
-// Elenco viaggi in attesa di approvazione (solo mobility manager)
+// Elenco viaggi in attesa di approvazione (solo Mobility Manager)
 router.get('/pending/approvazione', requireAuth, requireRole('mobility_manager'), (req, res) => {
   const rides = db.prepare(`
     SELECT r.*, u.nome as driver_nome, u.cognome as driver_cognome

@@ -33,25 +33,25 @@ repository. Le versioni 0.x sono di sviluppo: la 1.0.0 sarà la prima versione p
 - **Tutte le pagine allineate**: stessa larghezza e stessa densità; Profilo e Impostazioni usano
   tutto lo spazio sugli schermi larghi, Offri su due colonne.
 - **Menu da telefono** più chiaro: si apre dal lato, sotto l'intestazione.
-- **Informazioni**: guide, novità e storia, dettagli sul sistema (per il mobility manager) e il
+- **Informazioni**: guide, novità e storia, dettagli sul sistema (per il Mobility Manager) e il
   progetto, con i riferimenti per segnalare problemi e contribuire.
 
 ## Versione 0.6.0 — novembre 2026 · Guida, mappe e installazione
 
 - **Guida dentro l'app**, sempre allineata alla versione che stai usando.
-- **Giorni lavorativi configurabili**: il mobility manager sceglie in quali giorni si possono offrire
+- **Giorni lavorativi configurabili**: il Mobility Manager sceglie in quali giorni si possono offrire
   passaggi (Impostazioni → Calendario). Prima la domenica era sempre esclusa.
 - **Mappe**: il fornitore lo sceglie chi gestisce l'installazione, e le mappe non si bloccano più per
   un'intestazione mancante.
 - **Funziona anche senza email**: se l'azienda non le usa, l'app lo dice (recupero password tramite il
-  mobility manager, niente casella "Email" nelle notifiche).
+  Mobility Manager, niente casella "Email" nelle notifiche).
 - **Per chi installa**: backup e ripristino con un comando, installazione con HTTPS automatico e guide
   complete.
 
 ## Versione 0.5.0 — novembre 2026 · Più protezioni
 
 - **Recupero password più protetto**: limiti sulle richieste, anche per singolo indirizzo.
-- **L'ultimo mobility manager non può essere disattivato** né declassato.
+- **L'ultimo Mobility Manager non può essere disattivato** né declassato.
 - **Cancellazione dei dati più robusta** e senza l'email originale nei registri.
 - **Un errore inatteso non ferma più il server**; il cambio della password provvisoria è imposto anche
   dal server.

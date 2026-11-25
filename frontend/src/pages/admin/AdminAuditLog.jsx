@@ -15,6 +15,7 @@ const ETICHETTE = {
   sede_modificata: 'Sede modificata',
   sede_eliminata: 'Sede eliminata',
   branding_modificato: 'Branding modificato',
+  logo_rimosso: 'Logo rimosso',
   logo_aggiornato: 'Logo aggiornato',
   impostazioni_modificate: 'Impostazioni modificate',
   gamification_attivata: 'Gamification attivata',

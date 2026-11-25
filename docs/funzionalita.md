@@ -2,12 +2,12 @@
 
 L'elenco completo di cosa fa WayMatch, per chi vuole i dettagli. Per una panoramica c'è il
 [README](../README.md); per l'uso quotidiano, le guide per [chi usa l'app](guida-utente.md) e per il
-[mobility manager](guida-mobility-manager.md).
+[Mobility Manager](guida-mobility-manager.md).
 
 ## Cosa include
 
-- **Setup guidato al primo avvio**: crea l'utente mobility manager, il nome azienda e le sedi.
-- **Profili con ruoli**: *mobility manager* (gestione completa: utenti, sedi, branding, premi,
+- **Setup guidato al primo avvio**: crea l'utente Mobility Manager, il nome azienda e le sedi.
+- **Profili con ruoli**: *Mobility Manager* (gestione completa: utenti, sedi, branding, premi,
   contest, regole punteggio), *supervisor* (report in sola lettura), *dipendente* (offre e cerca
   passaggi).
 - **Offerta passaggi**: andata, ritorno o entrambi, con destinazione/partenza scelta tra le
@@ -18,7 +18,7 @@ L'elenco completo di cosa fa WayMatch, per chi vuole i dettagli. Per una panoram
   richiesta posto con eventuale punto di salita/discesa personalizzato tra le soste; conferma
   da parte dell'autista; limite realistico sui posti (le richieste in eccesso non vengono rifiutate: entrano in
   lista d'attesa, vedi più sotto).
-- **Modifica passaggi**: l'autista (o un mobility manager) può modificare orario, indirizzo,
+- **Modifica passaggi**: l'autista (o un Mobility Manager) può modificare orario, indirizzo,
   sede, posti e soste di un passaggio ancora attivo; i passeggeri con richieste/conferme
   attive vengono avvisati della modifica.
 - **Solo passaggi futuri**: non è possibile creare passaggi per data/ora già passate, e la
@@ -28,7 +28,7 @@ L'elenco completo di cosa fa WayMatch, per chi vuole i dettagli. Per una panoram
   disponibile in "I miei viaggi → Storico".
 - **Validazione dei viaggi completati configurabile** (Impostazioni generali → Validazione
   viaggi): l'autista può confermare da solo, oppure — se attivata l'opzione — la conferma
-  mette il viaggio "in approvazione" finché un mobility manager non lo approva dalla pagina
+  mette il viaggio "in approvazione" finché un Mobility Manager non lo approva dalla pagina
   "Approvazioni" (i punti vengono assegnati solo dopo l'approvazione).
 - **Check-in a bordo**: l'autista segna chi è realmente salito; i punti premiano solo i viaggi
   effettivamente avvenuti.
@@ -36,16 +36,16 @@ L'elenco completo di cosa fa WayMatch, per chi vuole i dettagli. Per una panoram
   richiesta, richiesta confermata/rifiutata, viaggio annullato, esiti riscatto premi).
 - **Gamification facoltativa**: si accende o spegne da Impostazioni generali (spenta sulle
   installazioni nuove). Spenta, nessun punto e nessuna pagina di punti, premi o contest; i viaggi
-  contano per i report. Il mobility manager può **azzerare i punteggi** in ogni momento, con un
+  contano per i report. Il Mobility Manager può **azzerare i punteggi** in ogni momento, con un
   riepilogo dei premi (export Excel dei riscatti) e la scelta se tenere o annullare quelli non
-  ancora consegnati; lo storico resta. Accesa: regole punteggio **configurabili dal pannello mobility manager**
+  ancora consegnati; lo storico resta. Accesa: regole punteggio **configurabili dal pannello Mobility Manager**
   (punti per offerta, per viaggio completato come autista/passeggero, bonus km, bonus
   "macchina piena" separato per autista e passeggeri), assegnazione punti manuale con
   storico, classifica generale e per sede, contest a tempo, catalogo premi con
   **decurtazione punti immediata al riscatto e riaccredito automatico se rifiutato** (salvo
   che i punteggi siano stati azzerati dopo la richiesta).
 - **Foto del profilo** facoltativa: ridotta, senza metadati dello scatto, **cifrata** su disco,
-  visibile ai colleghi accanto al nome (passaggi, passeggeri, menu); il mobility manager può
+  visibile ai colleghi accanto al nome (passaggi, passeggeri, menu); il Mobility Manager può
   toglierne una non appropriata. Inclusa nell'export dei dati personali, cancellata con
   l'anonimizzazione.
 - **Dati auto nel profilo** (marca a tendina, modello, anno, cilindrata, colore,

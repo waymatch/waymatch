@@ -27,7 +27,7 @@ router.get('/classifica', requireAuth, richiediGamification, (req, res) => {
   const filtroDataM = periodo_giorni ? `AND m.created_at >= datetime('now', '-${Number(periodo_giorni)} days')` : '';
 
   let query = `
-    SELECT u.id, u.nome, u.cognome, u.sede_id, s.nome as sede_nome,
+    SELECT u.id, u.nome, u.cognome, CASE WHEN u.foto_path IS NOT NULL THEN u.foto_versione END AS foto_versione, u.sede_id, s.nome as sede_nome,
       COALESCE((SELECT SUM(p.punti) FROM points_log p WHERE p.user_id = u.id AND p.generazione = ? ${filtroData}), 0)
       +
       COALESCE((SELECT SUM(m.punti) FROM manual_point_awards m WHERE m.user_id = u.id AND m.redemption_id IS NULL AND m.generazione = ? ${filtroDataM}), 0)

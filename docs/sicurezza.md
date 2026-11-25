@@ -210,12 +210,12 @@ sono dati personali e non sono cifrati.
 - **Policy password**: almeno 14 caratteri, una maiuscola, un numero, un carattere
   speciale — applicata centralmente (`backend/utils/passwordPolicy.js`) su ogni punto
   che imposta una password: setup iniziale, creazione utente (singola e via CSV), cambio
-  password personale, reset via link o da parte di un mobility manager. Anche le password
+  password personale, reset via link o da parte di un Mobility Manager. Anche le password
   temporanee generate automaticamente dal sistema (in attesa che l'utente ne scelga una
   sua) rispettano lo stesso requisito.
 
 - **Password provvisoria**: chi accede con una password scelta da altri (utente creato
-  da un mobility manager, a mano o via CSV, oppure dopo un reset da admin) deve sceglierne
+  da un Mobility Manager, a mano o via CSV, oppure dopo un reset da admin) deve sceglierne
   una sua prima di fare qualunque altra cosa. Lo impone il server, non solo la finestra
   del frontend: finché il flag `password_da_cambiare` è attivo, `requireAuth`
   (`backend/middleware/auth.js`) risponde 403 con `codice: "PASSWORD_DA_CAMBIARE"` a
@@ -227,7 +227,7 @@ sono dati personali e non sono cifrati.
   versioni di librerie) al client — solo un messaggio generico, mentre il dettaglio va nei
   log del server per il debug. Stessa pulizia sugli endpoint di geocodifica (proxy verso
   servizi esterni). Eccezione voluta: l'endpoint diagnostico email (Impostazioni generali → Email, solo
-  mobility manager) mostra il vero errore SMTP di ritorno, perché è uno strumento di
+  Mobility Manager) mostra il vero errore SMTP di ritorno, perché è uno strumento di
   troubleshooting rivolto a chi gestisce quella configurazione, non un endpoint pubblico.
 
 - **Dipendenze**: aggiornate regolarmente; per controllarle in qualunque momento, `npm audit` in

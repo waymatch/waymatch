@@ -28,7 +28,7 @@ server. Per qualche migliaio di dipendenti basta ampiamente.
    nemmeno chi ha scritto il codice. I backup non la contengono.
 4. **Scegli come esporre l'app** (sezione sotto).
 5. **Avvia** e apri il sito: al primo accesso compare la **configurazione iniziale guidata** (nome azienda, primo
-   mobility manager, sedi).
+   Mobility Manager, sedi).
 
 ## Come esporre l'app
 
@@ -97,13 +97,13 @@ Se la macchina non può uscire su internet, servono istanze interne di questi se
 
 Senza `SMTP_HOST` l'app funziona comunque:
 - le notifiche restano **in-app** e **push del browser**;
-- il recupero password passa dal **mobility manager**: l'utente invia la richiesta dal login, il
-  mobility manager la trova in "Reset password" e genera una password temporanea, che l'utente
+- il recupero password passa dal **Mobility Manager**: l'utente invia la richiesta dal login, il
+  Mobility Manager la trova in "Reset password" e genera una password temporanea, che l'utente
   dovrà cambiare al primo accesso;
 - l'interfaccia lo dice (niente casella "Email" nelle preferenze notifiche).
 
 Con SMTP configurato, il recupero password manda un link all'utente e le notifiche possono
-arrivare anche via email. Dal pannello del mobility manager c'è una pagina di diagnostica per
+arrivare anche via email. Dal pannello del Mobility Manager c'è una pagina di diagnostica per
 provare l'invio.
 
 ## Accesso con credenziali aziendali (SSO)
@@ -201,7 +201,7 @@ non essere leggibile dal codice vecchio).
 | Mappa vuota o grigia | Il provider dei tile ti ha bloccato o la chiave è sbagliata: controlla `TILE_URL` e la console del browser |
 | "Troppe richieste" o "Troppi tentativi" | Sono i limiti contro gli abusi. Se il proxy non imposta `X-Forwarded-For`, tutti gli utenti sembrano avere lo stesso IP e si bloccano a vicenda |
 | Gli utenti nuovi non riescono a usare l'app | Al primo accesso devono scegliere una nuova password e accettare i documenti: è voluto |
-| Nessun mobility manager attivo | L'app impedisce di disattivare o declassare l'ultimo. Se succede comunque (database modificato a mano), ripristina un backup |
+| Nessun Mobility Manager attivo | L'app impedisce di disattivare o declassare l'ultimo. Se succede comunque (database modificato a mano), ripristina un backup |
 
 ## Nomi interni
 
