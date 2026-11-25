@@ -10,6 +10,7 @@ import ErrorBanner from '../components/ErrorBanner.jsx';
 import Schede from '../components/Schede.jsx';
 import { useBranding } from '../context/BrandingContext.jsx';
 import PdfDocumento from '../components/PdfDocumento.jsx';
+import Avatar, { dimenticaFoto } from '../components/Avatar.jsx';
 
 const ALIMENTAZIONI = [
   { value: 'benzina', label: 'Benzina' },
@@ -112,6 +113,8 @@ export default function Profile() {
             )}
             <span className="badge-accent capitalize">{user.ruolo.replace('_', ' ')}</span>
           </div>
+
+          <FotoProfilo user={user} onCambiata={refresh} />
 
           <form onSubmit={save} className="space-y-5">
             <div className="card space-y-4">
@@ -706,6 +709,70 @@ function SessioniCard() {
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+// Foto del profilo: facoltativa, la vedono i colleghi accanto al nome; si salva cifrata.
+function FotoProfilo({ user, onCambiata }) {
+  const [inCorso, setInCorso] = useState(false);
+  const [msg, setMsg] = useState('');
+  const idInput = 'foto-profilo-file';
+
+  const carica = async (e) => {
+    const file = e.target.files[0];
+    e.target.value = ''; // così si può riprovare con lo stesso file
+    if (!file) return;
+    setInCorso(true); setMsg('');
+    try {
+      const form = new FormData();
+      form.append('foto', file);
+      await api.put('/foto', form);
+      dimenticaFoto(user.id);
+      await onCambiata();
+      setMsg('Foto aggiornata.');
+    } catch (err) {
+      setMsg(err.message);
+    } finally {
+      setInCorso(false);
+    }
+  };
+  const togli = async () => {
+    if (!confirm('Togliere la foto del profilo?')) return;
+    setInCorso(true); setMsg('');
+    try {
+      await api.del('/foto');
+      dimenticaFoto(user.id);
+      await onCambiata();
+      setMsg('Foto tolta.');
+    } catch (err) {
+      setMsg(err.message);
+    } finally {
+      setInCorso(false);
+    }
+  };
+
+  return (
+    <div className="card flex items-start gap-4">
+      <Avatar id={user.id} nome={user.nome} cognome={user.cognome} versione={user.foto_versione} dimensione="lg" />
+      <div className="min-w-0 space-y-2">
+        <h2 className="font-display font-semibold text-sm">Foto del profilo</h2>
+        <p className="text-xs text-muted">
+          Facoltativa. La vedono i colleghi accanto al tuo nome, per esempio quando offri o chiedi un passaggio:
+          aiuta a riconoscersi al punto di ritrovo. Viene ridotta, ripulita dai dati dello scatto (come la posizione)
+          e conservata cifrata. Puoi toglierla quando vuoi. JPEG o PNG, al massimo 5 MB.
+        </p>
+        <div className="flex flex-wrap gap-2">
+          <label htmlFor={idInput} className={`btn-outline !py-1.5 !text-sm cursor-pointer ${inCorso ? 'opacity-60 pointer-events-none' : ''}`}>
+            {user.foto_versione ? 'Cambia foto' : 'Carica una foto'}
+          </label>
+          <input id={idInput} type="file" accept="image/jpeg,image/png" className="sr-only" onChange={carica} disabled={inCorso} />
+          {!!user.foto_versione && (
+            <button type="button" className="btn-outline !py-1.5 !text-sm" onClick={togli} disabled={inCorso}>Togli la foto</button>
+          )}
+        </div>
+        {msg && <p className="text-sm text-muted" role="status">{msg}</p>}
+      </div>
     </div>
   );
 }

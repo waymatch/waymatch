@@ -1,7 +1,8 @@
 import React, { useEffect, useState, useCallback, useRef, useId } from 'react';
 import ErrorBanner from '../../components/ErrorBanner.jsx';
 import ErroreConRiprova from '../../components/ErroreConRiprova.jsx';
-import { Plus, Key, Ban, CheckCircle2, Upload, FileText, ArrowUp, ArrowDown, ArrowUpDown } from 'lucide-react';
+import { Plus, Key, Ban, CheckCircle2, Upload, FileText, ArrowUp, ArrowDown, ArrowUpDown, ImageOff } from 'lucide-react';
+import { dimenticaFoto } from '../../components/Avatar.jsx';
 import { api } from '../../api.js';
 import { REQUISITI_PASSWORD } from '../../passwordPolicy.js';
 import { useBranding } from '../../context/BrandingContext.jsx';
@@ -81,6 +82,18 @@ export default function AdminUsers() {
       load();
     } catch (e) { alert(e.message); }
   };
+  // Per una foto non appropriata: l'utente potrà caricarne un'altra.
+  const togliFoto = async (u) => {
+    if (!confirm(`Togliere la foto del profilo di ${u.nome} ${u.cognome}?`)) return;
+    try {
+      await api.del(`/foto/${u.id}`);
+      dimenticaFoto(u.id);
+      load();
+    } catch (e) {
+      alert(e.message);
+    }
+  };
+
   const resetPassword = async (u) => {
     const nuova = prompt(`Nuova password per ${u.nome} ${u.cognome} (min. 8 caratteri):`);
     if (!nuova) return;
@@ -195,6 +208,11 @@ export default function AdminUsers() {
                   </td>
                   <td className="px-4 py-3">
                     <div className="flex gap-1 justify-end">
+                      {!!u.foto_versione && (
+                        <button className="p-1.5 text-muted hover:text-danger" title="Togli la foto del profilo" aria-label={`Togli la foto del profilo di ${u.nome} ${u.cognome}`} onClick={() => togliFoto(u)}>
+                          <ImageOff size={15} />
+                        </button>
+                      )}
                       <button className="p-1.5 text-muted hover:text-primary" title="Reset password" aria-label="Reset password" onClick={() => resetPassword(u)}>
                         <Key size={15} />
                       </button>

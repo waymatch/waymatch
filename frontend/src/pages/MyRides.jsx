@@ -6,6 +6,7 @@ import { api } from '../api.js';
 import EditRideModal from '../components/EditRideModal.jsx';
 import { dataISO, dataLocale } from '../dateTimeUtils.js';
 import { useBranding } from '../context/BrandingContext.jsx';
+import Avatar from '../components/Avatar.jsx';
 
 export default function MyRides() {
   const [searchParams] = useSearchParams();
@@ -158,12 +159,15 @@ function OfferedRides() {
               <div className="mt-3 pt-3 border-t border-border space-y-2">
                 {r.prenotazioni.map((p) => (
                   <div key={p.id} className={`flex items-center justify-between gap-2 ${['rifiutato', 'annullato', 'no_show'].includes(p.stato) ? 'opacity-60' : ''}`}>
-                    <div className="min-w-0">
+                    <div className="min-w-0 flex items-start gap-2">
+                      <Avatar id={p.passenger_id} nome={p.nome} cognome={p.cognome} versione={p.foto_versione} dimensione="xs" className="mt-0.5" />
+                      <div className="min-w-0">
                       <p className="text-sm font-medium truncate">{p.nome} {p.cognome}</p>
                       <p className="text-xs text-muted">
                         <StatoLabel stato={p.stato} />
                         {p.punto_salita ? ` · sale/scende a: ${p.punto_salita}` : ''}
                       </p>
+                      </div>
                     </div>
                     {p.stato === 'richiesto' && r.stato === 'attivo' && (
                       <div className="flex gap-1.5 shrink-0">
@@ -248,7 +252,7 @@ function BookedRides() {
             <p className="text-sm text-muted mt-1">{b.punto_partenza} → {b.punto_arrivo}</p>
             {b.punto_salita && <p className="text-xs text-muted mt-0.5">Sale/scende a: {b.punto_salita}</p>}
             <p className="text-xs text-muted mt-1 flex items-center gap-1">
-              <Car size={12} /> {b.driver_nome} {b.driver_cognome}
+              <Avatar id={b.driver_id} nome={b.driver_nome} cognome={b.driver_cognome} versione={b.driver_foto} dimensione="xs" /> {b.driver_nome} {b.driver_cognome}
               {b.auto_marca && ` · ${b.auto_marca} ${b.auto_modello || ''}${b.auto_colore ? ` (${b.auto_colore})` : ''}`}
               {b.driver_telefono && <> · <Phone size={12} className="inline" /> {b.driver_telefono}</>}
             </p>

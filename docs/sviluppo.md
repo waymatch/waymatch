@@ -93,6 +93,7 @@ uploads in una cartella temporanea cancellata alla fine: non toccano `data/` né
 | `configurazione.test.js` | segreti deboli rifiutati, nessun font da Google, file del progetto presenti |
 | `handler-async.test.js` | ogni handler async passa da `asyncHandler`: un errore dà 500 e non ferma il server |
 | `limiti-e-anonimizzazione.test.js` | limiti su reset password e `/setup`, anonimizzazione elaborata una sola volta, header Permissions-Policy |
+| `foto-profilo.test.js` | foto del profilo: cifrata su disco, 256×256 senza EXIF, solo dopo l'accesso, file non validi o enormi rifiutati, rimozione (utente e mobility manager), export dei dati personali, anonimizzazione |
 | `gamification.test.js` | gamification facoltativa: spenta sulle installazioni nuove (nessun punto, riscatto, classifica o contest), interruttore solo per il mobility manager, accesa sulle installazioni già in uso; azzeramento dei punteggi (conferma, premi tenuti o annullati, rimborsi, export Excel dei riscatti) |
 | `aggiornamenti.test.js` | avviso di nuova versione: confronto delle versioni, un avviso per versione solo ai mobility manager, risposte non valide, controllo disattivato (release finta in locale) |
 | `ultimo-admin.test.js` | non si può disattivare né declassare l'ultimo mobility manager (modifica, eliminazione, import CSV, anonimizzazione) |

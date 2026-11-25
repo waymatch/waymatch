@@ -341,6 +341,10 @@ if (!db.prepare('PRAGMA table_info(system_settings)').all().some((c) => c.name =
     db.prepare('UPDATE system_settings SET gamification_attiva = 1 WHERE initialized = 1').run();
   })();
 }
+// Foto del profilo (utils/fotoProfilo.js): percorso del file cifrato e numero di versione, che
+// cambia a ogni nuova foto (null = nessuna foto).
+addColumnIfMissing('users', 'foto_path', 'TEXT');
+addColumnIfMissing('users', 'foto_versione', 'INTEGER');
 // Azzeramento dei punteggi (utils/points.js, generazionePunti): ogni movimento di punti registra la
 // generazione in cui nasce e l'azzeramento passa alla successiva; saldi e classifiche contano solo
 // quella attuale. Il confine è esatto (scritture e azzeramento sono serializzati dal database).

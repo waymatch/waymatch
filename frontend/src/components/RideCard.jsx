@@ -5,6 +5,7 @@ import RouteMap from './RouteMap.jsx';
 import { dataISO, dataLocale } from '../dateTimeUtils.js';
 import AddressAutocomplete from './AddressAutocomplete.jsx';
 import { AVVISO_ORARI } from '../avvisoOrari.js';
+import Avatar from './Avatar.jsx';
 
 function formatGiorno(dataStr) {
   // Calendario locale (toISOString userebbe l'UTC: dopo mezzanotte darebbe il giorno prima); per
@@ -133,7 +134,10 @@ export default function RideCard({ ride, onChanged, soglia }) {
                   <span className="truncate min-w-0">{arrivoMostrato}</span>
                 </p>
               </div>
-              <p className="text-xs text-muted mt-1">{ride.driver_nome} {ride.driver_cognome}</p>
+              <p className="text-xs text-muted mt-1.5 flex items-center gap-1.5">
+                <Avatar id={ride.driver_id} nome={ride.driver_nome} cognome={ride.driver_cognome} versione={ride.driver_foto} dimensione="xs" />
+                {ride.driver_nome} {ride.driver_cognome}
+              </p>
             </div>
             <ChevronDown size={16} className={`text-muted transition-transform shrink-0 mt-1 ${open ? 'rotate-180' : ''}`} />
           </div>

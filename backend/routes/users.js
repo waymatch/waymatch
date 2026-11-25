@@ -28,7 +28,8 @@ const resetPasswordLimiter = rateLimit({
 });
 
 function sanitizeUser(u) {
-  const { password_hash, ...rest } = u;
+  // foto_path è un percorso interno: fuori resta solo foto_versione (c'è una foto, e quale).
+  const { password_hash, foto_path, ...rest } = u;
   return rest;
 }
 

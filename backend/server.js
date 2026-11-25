@@ -116,6 +116,7 @@ app.use('/api/privacy', require('./routes/privacy'));
 app.use('/api/email', require('./routes/email_diagnostica'));
 app.use('/api/sistema', require('./routes/sistema'));
 app.use('/api/gamification', require('./routes/gamification'));
+app.use('/api/foto', require('./routes/foto'));
 app.use('/api/favorites', require('./routes/favorites'));
 
 app.get('/api/health', (req, res) => res.json({ ok: true }));

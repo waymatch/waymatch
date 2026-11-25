@@ -45,7 +45,7 @@ const improntaSoste = (rideId) => JSON.stringify(db.prepare('SELECT orario, luog
 
 function getRideFull(id) {
   const ride = db.prepare(`
-    SELECT r.*, u.nome as driver_nome, u.cognome as driver_cognome, u.telefono as driver_telefono,
+    SELECT r.*, u.nome as driver_nome, u.cognome as driver_cognome, u.foto_versione as driver_foto, u.telefono as driver_telefono,
            u.auto_marca, u.auto_modello, u.auto_colore, u.auto_alimentazione, s.nome as sede_nome
     FROM rides r
     JOIN users u ON u.id = r.driver_id
@@ -55,7 +55,7 @@ function getRideFull(id) {
   if (!ride) return null;
   ride.soste = db.prepare('SELECT * FROM ride_stops WHERE ride_id = ? ORDER BY orario').all(id);
   ride.prenotazioni = db.prepare(`
-    SELECT b.*, u.nome, u.cognome, u.telefono FROM bookings b JOIN users u ON u.id = b.passenger_id
+    SELECT b.*, u.nome, u.cognome, u.foto_versione, u.telefono FROM bookings b JOIN users u ON u.id = b.passenger_id
     WHERE b.ride_id = ? ORDER BY b.created_at
   `).all(id);
   ride.geometria = ride.geometria ? JSON.parse(ride.geometria) : null;
@@ -212,7 +212,7 @@ router.post('/', requireAuth, richiediDocumentiConducente, asyncHandler(async (r
 router.get('/', requireAuth, (req, res) => {
   const { sede_id, data, tipo, mine, home, storico } = req.query;
   let query = `
-    SELECT r.*, u.nome as driver_nome, u.cognome as driver_cognome,
+    SELECT r.*, u.nome as driver_nome, u.cognome as driver_cognome, u.foto_versione as driver_foto,
            u.auto_marca, u.auto_modello, u.auto_colore, s.nome as sede_nome
     FROM rides r JOIN users u ON u.id = r.driver_id LEFT JOIN sedi s ON s.id = r.sede_id
     WHERE 1=1
@@ -252,7 +252,7 @@ router.get('/', requireAuth, (req, res) => {
     for (const s of stops) (stopsByRide[s.ride_id] ||= []).push(s);
 
     const bookings = db.prepare(`
-      SELECT b.*, u.nome, u.cognome FROM bookings b JOIN users u ON u.id = b.passenger_id
+      SELECT b.*, u.nome, u.cognome, u.foto_versione FROM bookings b JOIN users u ON u.id = b.passenger_id
       WHERE b.ride_id IN (${placeholders})
     `).all(...ids);
     for (const b of bookings) (bookingsByRide[b.ride_id] ||= []).push(b);

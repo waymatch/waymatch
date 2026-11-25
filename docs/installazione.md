@@ -129,7 +129,8 @@ Per pianificarlo (cron, `crontab -e`):
 
 - Il backup è un archivio `.tar.gz` con il **database cifrato** (istantanea coerente, anche con
   l'app in funzione) e la cartella dei **file caricati**. La chiave **non** è inclusa.
-- I file caricati (logo, PDF dei documenti, immagini dei voucher) **non sono cifrati**: proteggi
+- I file caricati (logo, PDF dei documenti, immagini dei voucher) **non sono cifrati**, le foto del
+  profilo sì (con la stessa chiave del database): proteggi
   la cartella dei backup e copiala fuori dal server.
 - Ripristino:
 

@@ -22,6 +22,9 @@ nomina un altro mobility manager.
 modifichi, disattivi e riattivi quelli esistenti. Chi ha una password provvisoria deve cambiarla al
 primo accesso: finché non lo fa, l'app non gli permette di fare altro.
 
+Se la **foto del profilo** di qualcuno non è appropriata, la togli dall'icona accanto alle azioni
+dell'utente: l'operazione resta nel log attività e l'utente può caricarne un'altra.
+
 **Import da CSV** per molti utenti insieme. Intestazione e separatore virgola:
 
 ```

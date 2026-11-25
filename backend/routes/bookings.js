@@ -221,8 +221,8 @@ router.get('/mie', requireAuth, (req, res) => {
     : `AND b.stato IN ('richiesto','confermato','lista_attesa') AND (r.stato = 'in_approvazione' OR (r.stato = 'attivo' AND ${upcoming}))`;
 
   const bookings = db.prepare(`
-    SELECT b.*, r.data, r.ora, r.tipo, r.punto_partenza, r.punto_arrivo, r.stato as ride_stato,
-           u.nome as driver_nome, u.cognome as driver_cognome,
+    SELECT b.*, r.data, r.ora, r.tipo, r.punto_partenza, r.punto_arrivo, r.stato as ride_stato, r.driver_id,
+           u.nome as driver_nome, u.cognome as driver_cognome, u.foto_versione as driver_foto,
            -- Il telefono dell'autista solo a chi è stato confermato (stessa regola del dettaglio).
            CASE WHEN b.stato IN ('confermato','completato','no_show') THEN u.telefono END as driver_telefono,
            u.auto_marca, u.auto_modello, u.auto_colore

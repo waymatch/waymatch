@@ -2,6 +2,7 @@ const express = require('express');
 const crypto = require('crypto');
 const db = require('../db');
 const { requireAuth, requireRole } = require('../middleware/auth');
+const fotoProfilo = require('../utils/fotoProfilo');
 const { registraAzione } = require('../utils/audit');
 const { notifica, notificaMassiva } = require('../utils/notify');
 const { promuoviListaAttesa, notificaPromossi } = require('../utils/waitlist');
@@ -17,6 +18,11 @@ router.get('/export', requireAuth, (req, res) => {
   const userId = req.user.id;
   const profilo = db.prepare('SELECT * FROM users WHERE id = ?').get(userId);
   delete profilo.password_hash;
+  // La foto è nell'export così com'è salvata (decifrata), come immagine incorporata.
+  if (profilo.foto_path) {
+    try { profilo.foto_profilo = `data:image/jpeg;base64,${fotoProfilo.leggi(profilo.foto_path).toString('base64')}`; } catch { profilo.foto_profilo = null; }
+  }
+  delete profilo.foto_path;
 
   const passaggiOfferti = db.prepare(`
     SELECT * FROM rides WHERE driver_id = ? ORDER BY data DESC, ora DESC
@@ -140,6 +146,7 @@ router.post('/cancellazioni/:id/completa', requireAuth, requireRole('mobility_ma
   // elaborare due volte la stessa richiesta (la seconda trova già «completata»). Gli invii di
   // notifiche (push/email) sono asincroni e partono dopo, a transazione conclusa.
   const daNotificare = [];
+  let fotoDaEliminare = null;
   const elabora = db.transaction(() => {
     const richiesta = db.prepare('SELECT * FROM account_deletion_requests WHERE id = ?').get(req.params.id);
     if (!richiesta || richiesta.stato !== 'in_attesa') {
@@ -229,12 +236,13 @@ router.post('/cancellazioni/:id/completa', requireAuth, requireRole('mobility_ma
 
     // 5) Anonimizza il profilo e disabilita il login.
     const emailAnonima = `cancellato-${utente.id}@anonimizzato.local`;
+    fotoDaEliminare = db.prepare('SELECT foto_path FROM users WHERE id = ?').get(utente.id)?.foto_path || null;
     db.prepare(`
       UPDATE users SET
         nome = 'Utente', cognome = 'cancellato', email = ?, password_hash = ?,
         telefono = NULL, indirizzo_casa = NULL, casa_lat = NULL, casa_lon = NULL, citta_casa = NULL,
         auto_marca = NULL, auto_modello = NULL, auto_anno = NULL, auto_cilindrata = NULL,
-        auto_colore = NULL, auto_alimentazione = NULL,
+        auto_colore = NULL, auto_alimentazione = NULL, foto_path = NULL, foto_versione = NULL,
         attivo = 0, token_version = token_version + 1
       WHERE id = ?
     `).run(emailAnonima, hashInutilizzabile, utente.id);
@@ -248,6 +256,8 @@ router.post('/cancellazioni/:id/completa', requireAuth, requireRole('mobility_ma
   });
   const esito = elabora();
   if (!esito.ok) return res.status(esito.codice).json({ error: esito.error });
+  // Il file della foto si cancella dopo il commit: se la transazione fallisse, la foto resterebbe.
+  fotoProfilo.elimina(fotoDaEliminare);
   for (const invia of daNotificare) {
     try { await invia(); } catch (e) { console.error('[cancellazione] notifica non inviata:', e.message); }
   }

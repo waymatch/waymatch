@@ -12,6 +12,7 @@ import NotificationPermissionBanner from './NotificationPermissionBanner.jsx';
 import InstallPwaBanner from './InstallPwaBanner.jsx';
 import LegalDocumentsGate from './LegalDocumentsGate.jsx';
 import ForcedPasswordChangeGate from './ForcedPasswordChangeGate.jsx';
+import Avatar from './Avatar.jsx';
 
 const mainNav = [
   { to: '/', icon: Home, label: 'Home', end: true },
@@ -308,9 +309,7 @@ function UserCard({ user, punti, onLogout, onNavigate }) {
   return (
     <div className="pt-4 mt-4 border-t border-border">
       <div className="flex items-center gap-3 px-1">
-        <div className="w-9 h-9 rounded-full bg-accent-light text-accent-dark flex items-center justify-center font-display font-semibold text-sm shrink-0">
-          {user.nome?.[0]}{user.cognome?.[0]}
-        </div>
+        <Avatar id={user.id} nome={user.nome} cognome={user.cognome} versione={user.foto_versione} />
         <div className="min-w-0 flex-1">
           <p className="text-sm font-medium truncate">{user.nome} {user.cognome}</p>
           {punti !== null && <p className="text-xs text-muted">{punti} punti</p>}

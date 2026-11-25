@@ -66,6 +66,17 @@ chiaro accanto al file cifrato (`carpooling.db.prima-della-cifratura-<timestamp>
 verificato che tutto funzioni, puoi eliminarlo — ma solo dopo esserti accertato di avere
 `DB_ENCRYPTION_KEY` al sicuro altrove, non prima.
 
+### Foto del profilo
+
+Le foto del profilo (facoltative) stanno in `uploads/foto-profilo/`, **cifrate** con AES-256-GCM
+e una chiave derivata da `DB_ENCRYPTION_KEY` (HKDF): nessuna chiave in più da gestire, e un backup
+senza la chiave non le rivela. Prima della cifratura sono ridotte a 256×256 e ricodificate in
+JPEG, quindi senza i metadati dello scatto (posizione GPS, dispositivo); un'immagine che dichiara
+più di 4096×4096 pixel è rifiutata prima della decodifica. Sono servite solo a utenti autenticati,
+con cache solo nel loro browser. Sono incluse nell'export dei dati personali e cancellate con
+l'anonimizzazione. Gli altri file caricati (logo, PDF dei documenti, immagini dei voucher) non
+sono dati personali e non sono cifrati.
+
 
 ## Sicurezza e hardening
 
