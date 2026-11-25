@@ -5,7 +5,7 @@ COPY frontend/package.json ./
 RUN npm install
 COPY frontend ./
 # Le guide (docs/) sono incorporate nell'app al momento della build.
-COPY docs/guida-utente.md docs/guida-mobility-manager.md docs/novita.md /app/docs/
+COPY docs/guida-utente.md docs/guida-mobility-manager.md docs/novita.md docs/metodo-calcolo.md /app/docs/
 COPY docs/img /app/docs/img
 # Identità visiva di WayMatch (loghi usati dall'app).
 COPY assets/brand/svg /app/assets/brand/svg

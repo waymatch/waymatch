@@ -119,7 +119,7 @@ try {
   for (const u of ['/admin/utenti', '/admin/impostazioni', '/admin/sedi', '/admin/premi', '/report', '/admin/punteggio', '/admin/documenti', '/admin/log', '/admin/approvazioni', '/admin/contest', '/admin/cancellazioni', '/admin/reset-password']) { await vai(u, 2200); await analizza(u); }
   for (const scheda of ['Validazione viaggi', 'Calendario', 'Costi e CO2', 'Gamification', 'Email']) { await vai('/admin/impostazioni', 1800); await clicca(scheda); await attendi(700); await analizza(`/admin/impostazioni: ${scheda}`); }
   await vai('/admin/impostazioni', 1800); await clicca('Gamification'); await attendi(700); await clicca('Azzera i punteggi'); await attendi(500); await analizza('/admin/impostazioni: finestra di azzeramento dei punteggi');
-  await vai('/informazioni', 1800); for (const t of ['Guida Mobility Manager', 'Sistema']) { await clicca(t); await attendi(700); await analizza(`/informazioni: ${t}`); }
+  await vai('/informazioni', 1800); for (const t of ['Guida Mobility Manager', 'Metodo di calcolo', 'Sistema']) { await clicca(t); await attendi(700); await analizza(`/informazioni: ${t}`); }
 
   console.log('\n[Telefono]');
   await mob(); await entra(marco);

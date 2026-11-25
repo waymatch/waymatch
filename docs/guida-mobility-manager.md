@@ -124,8 +124,15 @@ colleghi prima: l'app non manda un messaggio a tutti.
 
 ![Report](img/report.png)
 
-- **Report**: chilometri e CO2 risparmiati, costo risparmiato, viaggi completati, utenti più attivi,
-  filtrabili per sede e periodo. Esporti in **Excel** o **PDF**.
+- **Report** («Benefici del carpooling»): chilometri e CO2 evitati, costo evitato, viaggi completati,
+  utenti più attivi, filtrabili per sede e periodo. Sotto i numeri trovi **Metodo e qualità dei
+  dati**: come sono calcolati, con che fonte, e quanto sono solidi (quanti viaggi hanno i chilometri
+  verificati, quanti passeggeri contano, da dove viene il fattore di emissione). Esporti in **Excel**
+  (con un foglio «Metodo e qualità») o in **PDF**: una copertina con periodo e perimetro, i grafici per
+  mese e per sede, la **metodologia** con fonti e limiti, la qualità dei dati e, in fondo, «Realizzato
+  con WayMatch» con il link al progetto. Il metodo, uguale per tutte le installazioni, è descritto in
+  Informazioni → **Metodo di calcolo** (lo vedono anche i supervisor). Sono stime per il reporting
+  interno, non una certificazione.
 
 ![Log attività](img/admin-log.png)
 

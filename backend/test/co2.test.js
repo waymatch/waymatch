@@ -30,7 +30,7 @@ function sql(q, ...p) {
   try { return /^\s*select/i.test(q) ? d.prepare(q).all(...p) : d.prepare(q).run(...p); } finally { d.close(); }
 }
 
-function provaFunzioni() {
+async function provaFunzioni() {
   console.log('\n[Classe Euro e fattori]');
   const unit = cartellaProva('co2-unit');
   Object.assign(process.env, {
@@ -59,12 +59,45 @@ function provaFunzioni() {
   check('scenario: «mezzi», «bici o a piedi» e «altro» escludono il passeggero', ['mezzi', 'bici_piedi', 'altro'].every((s) => m.motivoEsclusione({ senza_passaggio: s, auto_alimentazione: 'benzina' }) === 'scenario'));
   check('scenario: senza risposta conta chi ha un\'auto, non chi non ce l\'ha', m.motivoEsclusione({ auto_marca: 'Fiat' }) === null && m.motivoEsclusione({}) === 'senza_auto');
   check('scenario: «auto propria» conta anche senza auto dichiarata', m.motivoEsclusione({ senza_passaggio: 'auto_propria' }) === null);
-  const d = m.descrizioneMetodo();
-  check('il metodo dichiara versione, confine e fonte', d.versione === 1 && /scarico/.test(d.confine) && /ISPRA/.test(d.fonte_fattori) && d.fonte_licenza === 'CC BY 4.0' && d.fonte_anno === 2022);
+  console.log('\n[Report PDF]');
+  const { PassThrough } = require('stream');
+  const { scriviReport } = require(path.join(BACKEND, 'utils/reportPdf'));
+  const qualita = { ...m.nuovaQualita(), viaggi_completati: 5, viaggi_con_km_verificati: 4, viaggi_con_deviazione_non_calcolabile: 1, passeggeri_completati: 9, passeggeri_conteggiati: 7, esclusi_scenario: 1, esclusi_senza_auto: 1 };
+  qualita.fattori = { modello: 0, segmento_euro: 2, alimentazione: 4, media: 1 };
+  const mesi = {}; for (let i = 1; i <= 15; i++) mesi[`2025-${String(i > 12 ? i - 12 : i).padStart(2, '0')}`.replace(/^2025/, i > 12 ? '2026' : '2025')] = { km: 100 + i, co2_kg: 10 + i, costo: 20 + i, passaggi: i };
+  const sedi = {}; for (let i = 1; i <= 14; i++) sedi[`Sede numero ${i} con un nome piuttosto lungo`] = { km: 50 * i, co2_kg: 5 * i, costo: 9 * i, passaggi: i };
+  const report = { totali: { km_risparmiati: 110, co2_kg_risparmiata: 14.2, costo_risparmiato_eur: 22.75, viaggi_completati: 5, passeggeri_trasportati_totali: 9 },
+    per_sede: sedi, per_mese: mesi, metodo: m.descrizioneMetodo(), qualita };
+  const scrivi = (dati) => new Promise((ok, ko) => { const s = new PassThrough(); const pezzi = []; s.on('data', (d) => pezzi.push(d)); s.on('end', () => ok(Buffer.concat(pezzi))); s.on('error', ko); scriviReport(s, dati, { comprimi: false }); });
+  // Il testo di un PDF non compresso: le stringhe sono esadecimali dentro Tj/TJ.
+  const testoPdf = (buf) => [...buf.toString('latin1').matchAll(/\[?((?:<[0-9a-f]*>\s*-?[\d.]*\s*)+)\]?\s*T[jJ]/g)]
+    .map((r) => [...r[1].matchAll(/<([0-9a-f]*)>/g)].map((x) => Buffer.from(x[1], 'hex').toString('latin1')).join('')).join('\n');
+  return scrivi({ report, azienda: 'Acme Spa', coloreAzienda: '#14424F', filtri: { dal: '2025-01-01', al: '2026-03-31', sedeNome: null } }).then((buf) => {
+    const t = testoPdf(buf);
+    check('è un PDF completo', buf.subarray(0, 5).toString() === '%PDF-' && buf.toString('latin1').includes('%%EOF'));
+    check('copertina: titolo, azienda, periodo e perimetro', /Benefici del carpooling/.test(t) && /Acme Spa/.test(t) && /dal 01\/01\/2025 al 31\/03\/2026/.test(t) && /tutte le sedi/.test(t), t.slice(0, 200));
+    check('indicatori: CO2, km, costi', /14,2 kg/.test(t) && /110/.test(t) && /22,75/.test(t));
+    check('metodologia con fonte, anno e licenza', /Metodologia - Metodo WayMatch v1/.test(t) && /ISPRA/.test(t) && /2022/.test(t) && /CC BY 4\.0/.test(t) && /serbatoio|scarico/.test(t));
+    check('limiti dichiarati', /Limiti/.test(t) && /non una certificazione|non una certificazione/.test(t) && /punto di ritrovo/.test(t));
+    check('qualità dei dati', /Qualità dei dati/.test(t) && /con chilometri verificati dal server/.test(t) && /80%/.test(t) && /78%/.test(t), t.match(/.{0,40}chilometri verificati.{0,40}/)?.[0]);
+    check('piè di pagina su ogni pagina con marchio, metodo e numero', (t.match(/Realizzato con WayMatch/g) || []).length >= 2 && /Metodo WayMatch v1 - pagina 1 di \d+/.test(t));
+    check('con tante sedi e mesi: ultimi 12 mesi e sedi raggruppate', /ultimi 12 mesi di 15/.test(t) && /Altre 3 sedi/.test(t), t.match(/.{0,30}ultimi.{0,30}/)?.[0]);
+    // Numeri grandi: ogni valore degli indicatori sta in una riga sola (non va a capo sull'etichetta).
+    return scrivi({ report: { ...report, totali: { ...report.totali, km_risparmiati: 12345678, co2_kg_risparmiata: 987654.3, costo_risparmiato_eur: 1234567.89, viaggi_completati: 1234567 } }, azienda: 'Grande Spa', coloreAzienda: '#14424F', filtri: {} });
+  }).then((buf) => {
+    const t = testoPdf(buf);
+    check('con numeri grandi i valori restano interi su una riga', /1\.234\.567,89 [\x80€]/.test(t) && /987\.654,3 kg/.test(t) && /12\.345\.678/.test(t), t.match(/.{0,20}1\.234\.567.{0,12}/)?.[0]);
+    return scrivi({ report: { ...report, per_mese: {}, per_sede: {} }, azienda: 'Vuota Srl', coloreAzienda: 'non-un-colore', filtri: {} });
+  }).then((buf) => {
+    const t = testoPdf(buf);
+    check('senza viaggi: il report si genera lo stesso, dice che non ci sono viaggi', buf.subarray(0, 5).toString() === '%PDF-' && /Nessun viaggio completato nel periodo/.test(t) && /tutto lo storico/.test(t));
+    const d = m.descrizioneMetodo();
+    check('il metodo dichiara versione, confine e fonte', d.versione === 1 && /scarico/.test(d.confine) && /ISPRA/.test(d.fonte_fattori) && d.fonte_licenza === 'CC BY 4.0' && d.fonte_anno === 2022);
+  });
 }
 
 async function main() {
-  provaFunzioni();
+  await provaFunzioni();
   const server = spawn('node', ['server.js'], {
     cwd: BACKEND,
     env: { ...process.env, PORT: String(PORT), DATA_DIR: path.join(DIR, 'data'), UPLOAD_DIR: path.join(DIR, 'uploads'),
@@ -124,6 +157,25 @@ async function main() {
     check('qualità: deviazione non calcolabile per il viaggio senza km diretti', q.viaggi_con_deviazione_non_calcolabile === 1, String(q.viaggi_con_deviazione_non_calcolabile));
     r.data && check('per sede e per mese hanno la stessa CO2 del totale', vicino(Object.values(r.data.per_sede).reduce((s, g) => s + g.co2_kg, 0), 16.76, 0.01)
       && vicino(Object.values(r.data.per_mese).reduce((s, g) => s + g.co2_kg, 0), 16.76, 0.01));
+
+    console.log('\n[Export]');
+    const pdf = await fetch(`${API}/reports/export/pdf`, { headers: { Authorization: `Bearer ${mm}`, 'X-Forwarded-For': '10.34.9.1' } });
+    const bufPdf = Buffer.from(await pdf.arrayBuffer());
+    check('il PDF si scarica dal server', pdf.status === 200 && /pdf/.test(pdf.headers.get('content-type')) && bufPdf.subarray(0, 5).toString() === '%PDF-' && bufPdf.length > 2000, `${pdf.status} ${bufPdf.length} byte`);
+    const xl = await fetch(`${API}/reports/export/xlsx?sede_id=${sedeId}`, { headers: { Authorization: `Bearer ${mm}`, 'X-Forwarded-For': '10.34.9.2' } });
+    const ExcelJS = require(path.join(BACKEND, 'node_modules/exceljs'));
+    const wb = new ExcelJS.Workbook(); await wb.xlsx.load(Buffer.from(await xl.arrayBuffer()));
+    const foglio = wb.getWorksheet('Metodo e qualità');
+    const celle = []; foglio?.eachRow((riga) => celle.push(riga.values.slice(1).join(' | ')));
+    check('l\'Excel ha il foglio con metodo e qualità dei dati', xl.status === 200 && /Metodo WayMatch v1/.test(celle[0] || '') && celle.some((c) => /Passeggeri conteggiati \| 8/.test(c)) && celle.some((c) => /ISPRA/.test(c)), celle.slice(0, 3).join(' // '));
+    // Un utente vero (password valida), così il rifiuto viene dal controllo del ruolo e non dal login.
+    await call('POST', '/users', { token: mm, body: { nome: 'semplice', cognome: 'T', email: 'semplice@test.it', password: PW, sede_id: sedeId } });
+    sql("UPDATE users SET password_da_cambiare = 0 WHERE email = 'semplice@test.it'");
+    const semplice = (await call('POST', '/auth/login', { body: { email: 'semplice@test.it', password: PW } })).data?.token;
+    check('un utente semplice entra', typeof semplice === 'string' && semplice.length > 20);
+    check('ma non scarica il PDF né l\'Excel (403 dal controllo del ruolo)',
+      (await fetch(`${API}/reports/export/pdf`, { headers: { Authorization: `Bearer ${semplice}`, 'X-Forwarded-For': '10.34.9.3' } })).status === 403
+      && (await fetch(`${API}/reports/export/xlsx`, { headers: { Authorization: `Bearer ${semplice}`, 'X-Forwarded-For': '10.34.9.4' } })).status === 403);
 
     console.log('\n[Pannello costi: la CO2 non si modifica]');
     let c = await call('GET', '/reports/cost-co2-clusters', { token: mm });

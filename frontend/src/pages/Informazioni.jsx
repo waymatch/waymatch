@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { BookOpen, Sparkles, Info, Activity, ExternalLink, Heart, Scale, Github, ShieldAlert, Bug } from 'lucide-react';
+import { BookOpen, Sparkles, Info, Activity, ExternalLink, Heart, Scale, Github, ShieldAlert, Bug, Leaf } from 'lucide-react';
 import { api } from '../api.js';
 import { PROGETTO } from '../progetto.js';
 import { Lockup } from '../components/MarcaWayMatch.jsx';
@@ -11,6 +11,7 @@ import Schede from '../components/Schede.jsx';
 import guidaUtente from '../../../docs/guida-utente.md?raw';
 import guidaMm from '../../../docs/guida-mobility-manager.md?raw';
 import novita from '../../../docs/novita.md?raw';
+import metodoCalcolo from '../../../docs/metodo-calcolo.md?raw';
 
 const immagini = Object.fromEntries(
   Object.entries(import.meta.glob('../../../docs/img/*.png', { eager: true, query: '?url', import: 'default' }))
@@ -20,9 +21,12 @@ const immagini = Object.fromEntries(
 export default function Informazioni() {
   const { user } = useAuth();
   const èMm = user?.ruolo === 'mobility_manager';
+  // Il metodo di calcolo della CO2 lo leggono anche i supervisor, che consultano i report.
+  const vedeMetodo = ['mobility_manager', 'supervisor'].includes(user?.ruolo);
   const sezioni = [
     { id: 'utente', nome: 'Guida utenti', testo: guidaUtente, icona: BookOpen },
     ...(èMm ? [{ id: 'mobility-manager', nome: 'Guida Mobility Manager', testo: guidaMm, icona: BookOpen }] : []),
+    ...(vedeMetodo ? [{ id: 'metodo-calcolo', nome: 'Metodo di calcolo', testo: metodoCalcolo, icona: Leaf }] : []),
     { id: 'novita', nome: 'Novità e storia', testo: novita, icona: Sparkles },
     ...(èMm ? [{ id: 'sistema', nome: 'Sistema', icona: Activity }] : []),
     { id: 'progetto', nome: 'Il progetto', icona: Info },

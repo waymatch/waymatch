@@ -146,7 +146,7 @@ console.log('\n[File del progetto]');
   check('i link e le immagini relative di README e docs esistono', mancanti.length === 0, mancanti.join('; '));
 }
 for (const f of ['LICENSE', 'SECURITY.md', 'CONTRIBUTING.md', 'PRICING.md', 'ADOPTERS.md', '.github/ISSUE_TEMPLATE/adozione.yml', '.github/ISSUE_TEMPLATE/segnalazione.yml', '.github/workflows/test.yml',
-  'docs/README.md', 'docs/guida-utente.md', 'docs/guida-mobility-manager.md', 'docs/installazione.md', 'docs/tile-self-hosted.md', 'docs/sviluppo.md', 'docs/novita.md', 'docs/funzionalita.md', 'docs/sicurezza.md', 'README.en.md',
+  'docs/README.md', 'docs/guida-utente.md', 'docs/guida-mobility-manager.md', 'docs/metodo-calcolo.md', 'docs/installazione.md', 'docs/tile-self-hosted.md', 'docs/sviluppo.md', 'docs/novita.md', 'docs/funzionalita.md', 'docs/sicurezza.md', 'README.en.md',
   'scripts/backup.sh', 'scripts/ripristina.sh', 'docker-compose.produzione.yml', 'Caddyfile']) {
   check(`${f} presente`, fs.existsSync(path.join(RADICE, f)));
 }

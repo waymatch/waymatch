@@ -8,6 +8,7 @@ const { asyncHandler } = require('../utils/asyncHandler');
 const { generazionePunti } = require('../utils/points');
 const { getAllClusters, setClusterOverride, resetClusterOverride, clusterEsistente } = require('../utils/co2');
 const { nuovaQualita, calcolaViaggio, descrizioneMetodo } = require('../utils/metodoCo2');
+const { scriviReport } = require('../utils/reportPdf');
 
 const router = express.Router();
 
@@ -156,7 +157,7 @@ router.get('/export/xlsx', requireAuth, requireRole('mobility_manager', 'supervi
 
   const ExcelJS = require('exceljs');
   const wb = new ExcelJS.Workbook();
-  wb.creator = 'Carpooling Aziendale';
+  wb.creator = 'WayMatch';
 
   const riepilogo = wb.addWorksheet('Riepilogo');
   riepilogo.addRow(rigaSicura([`Report carpooling — ${settings.company_name}`]));
@@ -185,6 +186,31 @@ router.get('/export/xlsx', requireAuth, requireRole('mobility_manager', 'supervi
   }
   mesi.columns.forEach((c) => { c.width = 18; });
 
+  const m = report.metodo;
+  const q = report.qualita;
+  const met = wb.addWorksheet('Metodo e qualità');
+  met.addRow(rigaSicura([m.nome]));
+  for (const riga of [
+    ['Confine', m.confine],
+    ['Fonte dei fattori', `${m.fonte_fattori} (${m.fonte_url}), valori ${m.fonte_anno}, ${m.fonte_licenza}`],
+    ['Testo del metodo', 'https://github.com/waymatch/waymatch/blob/main/docs/metodo-calcolo.md'],
+    ['Nota', 'Stime per il reporting interno, non una certificazione. Vedi il testo del metodo per formula e limiti.'],
+    [],
+    ['Qualità dei dati', 'Valore'],
+    ['Viaggi completati', q.viaggi_completati],
+    ['Viaggi con km verificati dal server', q.viaggi_con_km_verificati],
+    ['Viaggi con deviazione non calcolabile', q.viaggi_con_deviazione_non_calcolabile],
+    ['Passeggeri con check-in', q.passeggeri_completati],
+    ['Passeggeri conteggiati', q.passeggeri_conteggiati],
+    ['Esclusi: senza il passaggio non avrebbero usato l\'auto', q.esclusi_scenario],
+    ['Esclusi: nessuna auto indicata e nessuna risposta', q.esclusi_senza_auto],
+    ['Fattore per segmento e classe Euro', q.fattori.segmento_euro],
+    ['Fattore per alimentazione', q.fattori.alimentazione],
+    ['Fattore auto media', q.fattori.media],
+  ]) met.addRow(rigaSicura(riga));
+  met.getColumn(1).width = 52;
+  met.getColumn(2).width = 90;
+
   res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
   res.setHeader('Content-Disposition', 'attachment; filename="report-carpooling.xlsx"');
   await wb.xlsx.write(res);
@@ -194,47 +220,16 @@ router.get('/export/xlsx', requireAuth, requireRole('mobility_manager', 'supervi
 router.get('/export/pdf', requireAuth, requireRole('mobility_manager', 'supervisor'), (req, res) => {
   const { where, params } = filtriDaQuery(req.query);
   const report = computeSavings(where, params);
-  const settings = db.prepare('SELECT company_name FROM system_settings WHERE id = 1').get();
+  const settings = db.prepare('SELECT company_name, primary_color FROM system_settings WHERE id = 1').get();
+  const data = (v) => (/^\d{4}-\d{2}-\d{2}$/.test(String(v || '')) ? String(v) : null);
+  const sedeNome = req.query.sede_id ? db.prepare('SELECT nome FROM sedi WHERE id = ?').get(req.query.sede_id)?.nome : null;
 
-  const PDFDocument = require('pdfkit');
-  const doc = new PDFDocument({ margin: 50 });
   res.setHeader('Content-Type', 'application/pdf');
   res.setHeader('Content-Disposition', 'attachment; filename="report-carpooling.pdf"');
-  doc.pipe(res);
-
-  doc.fontSize(18).text(`Report carpooling — ${settings.company_name}`, { align: 'left' });
-  doc.fontSize(10).fillColor('#666').text(`Generato il ${new Date().toLocaleString('it-IT')}`);
-  doc.moveDown(1.5);
-
-  doc.fillColor('#000').fontSize(13).text('Riepilogo generale');
-  doc.moveDown(0.5);
-  doc.fontSize(11);
-  const righeSummary = [
-    ['Km risparmiati', report.totali.km_risparmiati],
-    ['CO2 risparmiata (kg)', report.totali.co2_kg_risparmiata],
-    ['Costo risparmiato (€)', report.totali.costo_risparmiato_eur],
-    ['Viaggi completati', report.totali.viaggi_completati],
-    ['Passeggeri trasportati (totale)', report.totali.passeggeri_trasportati_totali],
-  ];
-  for (const [label, val] of righeSummary) doc.text(`${label}: ${val}`);
-  doc.moveDown(1.5);
-
-  doc.fontSize(13).text('Per sede');
-  doc.moveDown(0.5);
-  doc.fontSize(10);
-  for (const [nome, v] of Object.entries(report.per_sede)) {
-    doc.text(`${nome} — km: ${Math.round(v.km)}, CO2: ${Math.round(v.co2_kg * 10) / 10} kg, costo: € ${Math.round(v.costo * 100) / 100}, viaggi: ${v.passaggi}`);
-  }
-  doc.moveDown(1.5);
-
-  doc.fontSize(13).text('Per mese');
-  doc.moveDown(0.5);
-  doc.fontSize(10);
-  for (const [mese, v] of Object.entries(report.per_mese).sort()) {
-    doc.text(`${mese} — km: ${Math.round(v.km)}, CO2: ${Math.round(v.co2_kg * 10) / 10} kg, costo: € ${Math.round(v.costo * 100) / 100}, viaggi: ${v.passaggi}`);
-  }
-
-  doc.end();
+  scriviReport(res, {
+    report, azienda: settings.company_name, coloreAzienda: settings.primary_color,
+    filtri: { dal: data(req.query.dal), al: data(req.query.al), sedeNome },
+  });
 });
 
 module.exports = router;
