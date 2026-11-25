@@ -191,6 +191,20 @@ async function main() {
     await call('DELETE', `/recurring-rides/${turno}`, { token: autista });
     check('eliminato: le occorrenze future sono annullate', attive() === 0);
 
+    console.log('\n[Profilo: dati per il calcolo della CO2]');
+    const profilo = (extra) => call('PUT', '/auth/me', { token: carla, body: { telefono: '3331112222', auto_alimentazione: 'ibrida_plugin', auto_anno: 2021, auto_segmento: 'media', senza_passaggio: 'auto_propria', ...extra } });
+    r = await profilo({});
+    check('ibrida plug-in, segmento e risposta sul percorso si salvano', r.status === 200 && r.data.user.auto_alimentazione === 'ibrida_plugin'
+      && r.data.user.auto_segmento === 'media' && r.data.user.senza_passaggio === 'auto_propria', JSON.stringify(r.data).slice(0, 160));
+    check('un\'alimentazione fuori elenco è rifiutata', (await profilo({ auto_alimentazione: 'idrogeno' })).status === 400);
+    check('un segmento fuori elenco è rifiutato', (await profilo({ auto_segmento: 'enorme' })).status === 400);
+    check('una risposta fuori elenco è rifiutata', (await profilo({ senza_passaggio: 'teletrasporto' })).status === 400);
+    check('un anno impossibile è rifiutato', (await profilo({ auto_anno: 1800 })).status === 400);
+    r = await call('PUT', '/auth/me', { token: carla, body: { telefono: '3331112222' } });
+    check('un client che non manda i dati nuovi non li cancella', r.status === 200 && r.data.user.auto_segmento === 'media' && r.data.user.senza_passaggio === 'auto_propria');
+    r = await profilo({ auto_segmento: '', senza_passaggio: '' });
+    check('vuoto vale «non indicato»', r.status === 200 && r.data.user.auto_segmento === null && r.data.user.senza_passaggio === null);
+
     console.log('\n[Premi e rimborsi]');
     r = await call('POST', '/rewards', { token: mm, body: { nome: 'Truffa', punti_richiesti: -100 } });
     check('un premio con punti negativi è rifiutato', r.status === 400);
