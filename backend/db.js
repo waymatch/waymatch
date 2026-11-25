@@ -386,6 +386,9 @@ addColumnIfMissing('rides', 'motivo_annullamento', 'TEXT');
 // risparmi, al posto dei km inviati dal client. NULL se il servizio non era disponibile.
 addColumnIfMissing('rides', 'km_verificati', 'REAL');
 addColumnIfMissing('recurring_rides', 'km_verificati', 'REAL');
+// Km del percorso diretto, senza soste: con km_verificati danno la deviazione dell'autista.
+addColumnIfMissing('rides', 'km_diretti', 'REAL');
+addColumnIfMissing('recurring_rides', 'km_diretti', 'REAL');
 
 // Migrazioni una tantum, numerate con PRAGMA user_version: ognuna gira una sola volta per database.
 const versioneSchema = db.pragma('user_version', { simple: true });

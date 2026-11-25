@@ -1,7 +1,7 @@
 const express = require('express');
 const db = require('../db');
 const { requireAuth, requireRole } = require('../middleware/auth');
-const { assegnaPunti, getRule, calcolaBonusKm, kmDalServer, kmAffidabili } = require('../utils/points');
+const { assegnaPunti, getRule, calcolaBonusKm, kmPercorsi, kmAffidabili } = require('../utils/points');
 const { dataLavorativa, messaggioGiornoNonLavorativo } = require('../utils/calendario');
 const { notifica, notificaMassiva } = require('../utils/notify');
 const { registraAzione } = require('../utils/audit');
@@ -150,8 +150,8 @@ router.post('/', requireAuth, richiediDocumentiConducente, asyncHandler(async (r
   const sedeRitorno = conRitorno ? sedeInfo(sede_id_ritorno) : null;
   // Km calcolati dal server per ogni tratta, prima di scrivere (servono a punti e risparmi).
   const [kmVerAndata, kmVerRitorno] = await Promise.all([
-    conAndata ? kmDalServer(partenza_lat, partenza_lon, sedeAndata?.lat, sedeAndata?.lon, soste_andata) : null,
-    conRitorno ? kmDalServer(sedeRitorno?.lat, sedeRitorno?.lon, partenza_ritorno_lat, partenza_ritorno_lon, soste_ritorno) : null,
+    conAndata ? kmPercorsi(partenza_lat, partenza_lon, sedeAndata?.lat, sedeAndata?.lon, soste_andata) : { verificati: null, diretti: null },
+    conRitorno ? kmPercorsi(sedeRitorno?.lat, sedeRitorno?.lon, partenza_ritorno_lat, partenza_ritorno_lon, soste_ritorno) : { verificati: null, diretti: null },
   ]);
 
   const insertOne = (t, ora, partenza, arrivo, soste, pLat, pLon, aLat, aLon, km, geometriaJson, citta, kmVerificati) => {
@@ -159,14 +159,14 @@ router.post('/', requireAuth, richiediDocumentiConducente, asyncHandler(async (r
     const info = db.prepare(`
       INSERT INTO rides (driver_id, sede_id, tipo, data, ora, punto_partenza, punto_arrivo,
         partenza_lat, partenza_lon, arrivo_lat, arrivo_lon, km_stimati, km_calcolati_auto, geometria,
-        posti_totali, posti_disponibili, note, citta_domicilio, km_verificati)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        posti_totali, posti_disponibili, note, citta_domicilio, km_verificati, km_diretti)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
       me.id, sedeRide, t, data, ora, partenza, arrivo,
       pLat ?? null, pLon ?? null, aLat ?? null, aLon ?? null,
       Number(km) || 0, km_calcolati_auto ? 1 : 0,
       geometriaJson,
-      posti, posti, note || null, citta || null, kmVerificati
+      posti, posti, note || null, citta || null, kmVerificati.verificati, kmVerificati.diretti
     );
     const rideId = info.lastInsertRowid;
     if (Array.isArray(soste)) {
@@ -390,7 +390,8 @@ router.put('/:id', requireAuth, asyncHandler(async (req, res) => {
     || nuove.aLat !== ride.arrivo_lat || nuove.aLon !== ride.arrivo_lon || Array.isArray(soste);
   const sosteAttuali = Array.isArray(soste) ? soste : db.prepare('SELECT lat, lon FROM ride_stops WHERE ride_id = ? ORDER BY orario').all(ride.id);
   const prima = { passaggio: improntaPassaggio(ride), soste: improntaSoste(ride.id) };
-  const kmVerificati = cambiato ? await kmDalServer(nuove.pLat, nuove.pLon, nuove.aLat, nuove.aLon, sosteAttuali) : ride.km_verificati;
+  const percorsi = cambiato ? await kmPercorsi(nuove.pLat, nuove.pLon, nuove.aLat, nuove.aLon, sosteAttuali) : null;
+  const kmVerificati = percorsi ? percorsi.verificati : ride.km_verificati;
 
   let promossi = [];
   let esito = null;
@@ -415,7 +416,7 @@ router.put('/:id', requireAuth, asyncHandler(async (req, res) => {
       UPDATE rides SET data = ?, ora = ?, punto_partenza = ?, punto_arrivo = ?, sede_id = ?,
         partenza_lat = ?, partenza_lon = ?, arrivo_lat = ?, arrivo_lon = ?,
         km_stimati = ?, geometria = ?, posti_totali = ?,
-        posti_disponibili = posti_disponibili + (? - posti_totali), note = ?, citta_domicilio = ?, km_verificati = ?
+        posti_disponibili = posti_disponibili + (? - posti_totali), note = ?, citta_domicilio = ?, km_verificati = ?, km_diretti = ?
       WHERE id = ?
     `).run(
       data || cur.data, ora || cur.ora, punto_partenza || cur.punto_partenza, punto_arrivo || cur.punto_arrivo,
@@ -424,6 +425,7 @@ router.put('/:id', requireAuth, asyncHandler(async (req, res) => {
       arrivo_lat ?? cur.arrivo_lat, arrivo_lon ?? cur.arrivo_lon,
       req.body.km_stimati !== undefined ? Number(req.body.km_stimati) : cur.km_stimati, percorso.valore ?? cur.geometria,
       postiFinali, postiFinali, note ?? cur.note, citta_domicilio ?? cur.citta_domicilio, cambiato ? kmVerificati : cur.km_verificati,
+      cambiato ? percorsi.diretti : cur.km_diretti,
       ride.id
     );
     if (Array.isArray(soste)) {
