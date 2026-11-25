@@ -84,7 +84,7 @@ export default function AdminUsers() {
   };
   // Per una foto non appropriata: l'utente potrà caricarne un'altra.
   const togliFoto = async (u) => {
-    if (!confirm(`Togliere la foto del profilo di ${u.nome} ${u.cognome}?`)) return;
+    if (!confirm(`Rimuovere la foto del profilo di ${u.nome} ${u.cognome}?`)) return;
     try {
       await api.del(`/foto/${u.id}`);
       dimenticaFoto(u.id);
@@ -209,7 +209,7 @@ export default function AdminUsers() {
                   <td className="px-4 py-3">
                     <div className="flex gap-1 justify-end">
                       {!!u.foto_versione && (
-                        <button className="p-1.5 text-muted hover:text-danger" title="Togli la foto del profilo" aria-label={`Togli la foto del profilo di ${u.nome} ${u.cognome}`} onClick={() => togliFoto(u)}>
+                        <button className="p-1.5 text-muted hover:text-danger" title="Rimuovi la foto del profilo" aria-label={`Rimuovi la foto del profilo di ${u.nome} ${u.cognome}`} onClick={() => togliFoto(u)}>
                           <ImageOff size={15} />
                         </button>
                       )}

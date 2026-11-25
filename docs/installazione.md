@@ -27,7 +27,7 @@ server. Per qualche migliaio di dipendenti basta ampiamente.
    Se la perdi, il database cifrato è **illeggibile per sempre** e nessuno può recuperarlo,
    nemmeno chi ha scritto il codice. I backup non la contengono.
 4. **Scegli come esporre l'app** (sezione sotto).
-5. **Avvia** e apri il sito: al primo accesso compare il **setup guidato** (nome azienda, primo
+5. **Avvia** e apri il sito: al primo accesso compare la **configurazione iniziale guidata** (nome azienda, primo
    mobility manager, sedi).
 
 ## Come esporre l'app

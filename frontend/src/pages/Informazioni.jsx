@@ -79,7 +79,7 @@ export default function Informazioni() {
       <div className="flex items-start justify-between gap-3">
         <div>
           <h1 className="font-display font-bold text-2xl">Informazioni</h1>
-          <p className="text-muted text-sm mt-0.5">Guida, novità e dettagli su questa piattaforma, aggiornati alla versione che stai usando.</p>
+          <p className="text-muted text-sm mt-0.5">Guida, novità e informazioni su WayMatch, aggiornate alla versione che stai usando.</p>
         </div>
         <span className="badge bg-primary-light text-primary-dark shrink-0" title="Versione dell'app">Versione {__APP_VERSION__}</span>
       </div>

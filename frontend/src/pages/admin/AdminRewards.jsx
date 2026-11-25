@@ -11,7 +11,7 @@ function formVuoto() {
 
 const TABS = [
   { id: 'catalogo', label: 'Catalogo premi', icon: Gift },
-  { id: 'template', label: 'Template grafici voucher', icon: Image },
+  { id: 'template', label: 'Template grafici dei voucher', icon: Image },
   { id: 'richieste', label: 'Richieste premi', icon: Inbox },
 ];
 
@@ -148,7 +148,7 @@ export default function AdminRewards() {
             </div>
             {form.tipo === 'voucher_digitale' && (
               <select required className="input" value={form.voucher_template_id} onChange={(e) => setForm({ ...form, voucher_template_id: e.target.value })}>
-                <option value="">Seleziona template grafico...</option>
+                <option value="">Scegli un template grafico...</option>
                 {templates.map((t) => <option key={t.id} value={t.id}>{t.nome}</option>)}
               </select>
             )}
