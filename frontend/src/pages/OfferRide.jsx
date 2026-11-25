@@ -12,6 +12,7 @@ import { orarioDefaultIntelligente, dataISO } from '../dateTimeUtils.js';
 import { useSedi, useTratta, nuovaSosta, sosteDaInviare } from '../useTratta.js';
 import { useBranding } from '../context/BrandingContext.jsx';
 import { GIORNI_SETTIMANA } from '../giorni.js';
+import { AVVISO_ORARI } from '../avvisoOrari.js';
 
 const TIPI = [
   { value: 'andata', label: 'Solo andata', icon: Sunrise },
@@ -191,6 +192,7 @@ function SingleRideForm() {
         {error && <div className="lg:col-span-2"><ErrorBanner message={error} /></div>}
         {success && <div className="lg:col-span-2 rounded-xl bg-primary-light text-primary-dark text-sm px-3.5 py-2.5">Passaggio pubblicato! Hai guadagnato punti 🎉</div>}
 
+        <p className="text-xs text-muted lg:col-span-2">{AVVISO_ORARI}</p>
         <button type="submit" className="btn-primary w-full lg:col-span-2" disabled={saving || success}>
           {saving ? 'Pubblicazione...' : success ? 'Pubblicato' : 'Pubblica passaggio'}
         </button>
@@ -540,6 +542,7 @@ function RecurringRideForm() {
       {error && <ErrorBanner message={error} />}
       {success && <div className="rounded-xl bg-primary-light text-primary-dark text-sm px-3.5 py-2.5">{success}</div>}
 
+      <p className="text-xs text-muted">{AVVISO_ORARI}</p>
       <button type="submit" className="btn-primary w-full" disabled={saving || !!success}>
         {saving ? 'Creazione...' : <><Repeat size={15} /> Crea turno fisso</>}
       </button>

@@ -50,6 +50,9 @@ intermedie** (per esempio una pausa) e delle note.
   pausa** finché non la accetti: le corse già in calendario restano, ma non se ne creano di
   nuove (un turno sospeso non si riattiva e una data saltata non si ripristina). Dopo l'accettazione riprendono da soli.
 - Puoi modificare un passaggio ancora attivo: chi aveva già chiesto un posto viene avvisato.
+- **Gli orari sono indicativi.** Partenza e soste sono quelli dichiarati da chi offre il
+  passaggio: traffico e imprevisti possono cambiarli, e l'app non segue il traffico né aggiorna
+  gli orari da sola. Tenetevi in contatto tra voi; dall'app puoi anche segnalare un ritardo.
 
 ## Cercare e prenotare
 
@@ -101,7 +104,8 @@ Il Profilo ha sei schede:
 
 ## Dove trovare questa guida
 
-Nell'app, alla voce **Informazioni** del menu (dal telefono: icona del menu in alto a destra). Qui
+Nell'app, dall'icona **ⓘ Informazioni** accanto al tuo nome, in fondo al menu (dal telefono: apri
+il menu in alto a destra). Qui
 trovi anche le **Novità** di ogni versione, la storia del progetto e i riferimenti per segnalare
 problemi, e l'invito di chi ha scritto WayMatch: *è gratuito, fai del bene a tua volta*.
 
