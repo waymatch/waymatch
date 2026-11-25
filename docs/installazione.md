@@ -138,7 +138,27 @@ scripts/ripristina.sh /percorso/waymatch-20261123-020000.tar.gz
 
 Lo script verifica che il backup si apra con la `DB_ENCRYPTION_KEY` attuale **prima** di toccare
 qualcosa, ferma l'app, mette da parte i dati attuali in `data/prima-ripristino-<data>/`, ripristina
-e riavvia. **Prova il ripristino su una macchina di prova** prima di averne bisogno davvero.
+e riavvia. Se qualcosa va storto rimette a posto i dati precedenti. **Prova il ripristino su una
+macchina di prova** prima di averne bisogno davvero.
+
+### Ripristino interrotto
+
+Lo script prima **copia** database e upload in `data/prima-ripristino-<data>/` e solo dopo, a copia
+completa, sostituisce i dati attuali; la copia non viene più toccata, nemmeno dal rollback. Se il
+rollback non riesce, o se il ripristino viene interrotto a metà (per esempio il container viene
+ucciso), l'app resta ferma e il file `data/.ripristino-in-corso` indica la cartella della copia.
+Un ripristino fermato prima della riga `copia completa` non ha toccato nulla: lo script stesso
+toglie il segnaposto e riavvia l'app. Una cartella `prima-ripristino-<data>-incompleta` rimasta è una
+copia interrotta e si può cancellare.
+
+Con la riga `copia completa`, la copia contiene i dati precedenti per intero. Con l'app ferma:
+
+1. cancella `data/carpooling.db`, `data/carpooling.db-wal` e `data/carpooling.db-shm`;
+2. copia in `data/` i file `carpooling.db*` presenti nella cartella della copia;
+3. svuota `uploads/` e copiaci il contenuto di `uploads/` della copia (se la copia non ha
+   `uploads/`, prima del ripristino non c'erano file caricati: lascia `uploads/` vuota);
+4. cancella `data/.ripristino-in-corso` e avvia l'app con gli stessi file Compose
+   dell'installazione (per esempio `docker compose -f docker-compose.produzione.yml up -d`).
 
 ## Aggiornare
 
